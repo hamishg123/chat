@@ -7,27 +7,41 @@
 <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
 
 <style>
+
 body{
 font-family:Arial;
-text-align:center;
 background:#111;
 color:white;
+text-align:center;
 }
 
 #chat{
-width:350px;
-height:250px;
+width:400px;
+height:300px;
 margin:auto;
-border:1px solid white;
 overflow-y:auto;
-padding:10px;
+border:1px solid white;
 background:#222;
+padding:10px;
 }
 
-input,button{
-margin:5px;
+input{
 padding:8px;
+margin:5px;
 }
+
+button{
+padding:8px;
+cursor:pointer;
+}
+
+.message{
+margin:4px;
+padding:6px;
+background:#333;
+border-radius:5px;
+}
+
 </style>
 </head>
 
@@ -35,26 +49,30 @@ padding:8px;
 
 <h2>Chat</h2>
 
-<p>Your Code: <span id="myCode"></span></p>
+<p>Your Code: <b id="myCode"></b></p>
 
 <input id="friendCode" placeholder="Friend code">
+<button onclick="openChat()">Open Chat</button>
 
 <div id="chat"></div>
 
-<input id="message" placeholder="Message">
+<br>
+
+<input id="message" placeholder="Type message">
 <button onclick="send()">Send</button>
 
 <script>
 
-// RANDOM USER CODE
+// USER CODE
 let myCode = localStorage.getItem("myCode")
 
 if(!myCode){
-myCode = Math.floor(100000 + Math.random()*900000)
+myCode = Math.floor(100000 + Math.random()*900000).toString()
 localStorage.setItem("myCode",myCode)
 }
 
 document.getElementById("myCode").innerText = myCode
+
 
 
 // FIREBASE CONFIG
@@ -63,63 +81,81 @@ apiKey: "AIzaSyBeQR-07p_gkN1ygr49rh-PSI-pRsdmoDw",
 authDomain: "chat-82a4b.firebaseapp.com",
 databaseURL: "https://chat-82a4b-default-rtdb.firebaseio.com",
 projectId: "chat-82a4b",
-};
+}
 
 firebase.initializeApp(firebaseConfig)
 
 const db = firebase.database()
 
 
+// CREATE CHAT ID
 function chatID(a,b){
 return [a,b].sort().join("_")
 }
 
 
-// SEND MESSAGE
-function send(){
-
-let friend = document.getElementById("friendCode").value
-let msg = document.getElementById("message").value
-
-if(friend=="" || msg=="") return
-
-db.ref("chats/"+chatID(myCode,friend)).push({
-sender: myCode,
-text: msg,
-time: Date.now()
-})
-
-document.getElementById("message").value=""
-
-}
+let currentFriend = null
 
 
-// LOAD CHAT
-function load(){
 
-let friend = document.getElementById("friendCode").value
+// OPEN CHAT
+function openChat(){
 
-if(friend=="") return
+currentFriend = document.getElementById("friendCode").value
 
-db.ref("chats/"+chatID(myCode,friend))
-.on("value",snap=>{
+if(!currentFriend) return
+
+let id = chatID(myCode,currentFriend)
+
+db.ref("chats/"+id).off()
+
+db.ref("chats/"+id).on("value",snap=>{
 
 let chat = document.getElementById("chat")
+
 chat.innerHTML=""
 
 snap.forEach(m=>{
 
 let data = m.val()
 
-chat.innerHTML += "<p><b>"+data.sender+":</b> "+data.text+"</p>"
+let div = document.createElement("div")
+div.className="message"
+
+div.innerHTML = "<b>"+data.sender+"</b>: "+data.text
+
+chat.appendChild(div)
 
 })
+
+chat.scrollTop = chat.scrollHeight
 
 })
 
 }
 
-setInterval(load,1000)
+
+
+// SEND MESSAGE
+function send(){
+
+let msg = document.getElementById("message").value
+
+if(!msg || !currentFriend) return
+
+let id = chatID(myCode,currentFriend)
+
+db.ref("chats/"+id).push({
+
+sender: myCode,
+text: msg,
+time: Date.now()
+
+})
+
+document.getElementById("message").value=""
+
+}
 
 </script>
 
