@@ -27,33 +27,45 @@ overflow:hidden;
 }
 
 #inbox{
-width:200px;
+width:220px;
 background:#020617;
 padding:10px;
 overflow-y:auto;
 border-right:1px solid #334155;
 }
 
-#inbox h3{
-margin-top:0;
-}
-
 .user{
 padding:8px;
 background:#1e293b;
-margin-bottom:5px;
-cursor:pointer;
+margin-bottom:6px;
 border-radius:5px;
+display:flex;
+justify-content:space-between;
+align-items:center;
 }
 
-.user:hover{
-background:#334155;
+.user span{
+cursor:pointer;
+}
+
+.user button{
+background:none;
+border:none;
+color:white;
+cursor:pointer;
 }
 
 #chatArea{
 flex:1;
 display:flex;
 flex-direction:column;
+}
+
+#top{
+display:flex;
+justify-content:space-between;
+padding:10px;
+border-bottom:1px solid #334155;
 }
 
 #messages{
@@ -101,13 +113,8 @@ border-radius:5px;
 cursor:pointer;
 }
 
-#sendBar button:hover{
-background:#1d4ed8;
-}
-
-#top{
-padding:10px;
-border-bottom:1px solid #334155;
+.menu{
+cursor:pointer;
 }
 
 </style>
@@ -118,23 +125,34 @@ border-bottom:1px solid #334155;
 <div id="app">
 
 <div id="inbox">
+
 <h3>Inbox</h3>
+
 <div id="userList"></div>
+
 <input id="friendCode" placeholder="Enter code">
 <button onclick="openChat()">Chat</button>
+
 </div>
 
 <div id="chatArea">
 
 <div id="top">
-Your Code: <b id="myCode"></b>
+
+<div>Your Code: <b id="myCode"></b></div>
+
+<div class="menu" onclick="deleteChat()">⋮</div>
+
 </div>
 
 <div id="messages"></div>
 
 <div id="sendBar">
+
 <input id="messageInput" placeholder="Type message">
+
 <button onclick="sendMessage()">Send</button>
+
 </div>
 
 </div>
@@ -175,13 +193,9 @@ return [a,b].sort().join("_")
 let currentFriend = null
 
 
-// ENTER TO SEND
+// ENTER SEND
 document.getElementById("messageInput").addEventListener("keypress",function(e){
-
-if(e.key==="Enter"){
-sendMessage()
-}
-
+if(e.key==="Enter") sendMessage()
 })
 
 
@@ -190,7 +204,7 @@ function openChat(){
 
 let friend = document.getElementById("friendCode").value
 
-if(friend==="") return
+if(!friend) return
 
 loadChat(friend)
 
@@ -242,7 +256,7 @@ updateInbox(friend)
 }
 
 
-// SEND MESSAGE
+// SEND
 function sendMessage(){
 
 let msg = document.getElementById("messageInput").value
@@ -266,7 +280,23 @@ updateInbox(currentFriend)
 }
 
 
-// INBOX SYSTEM
+// DELETE CHAT
+function deleteChat(){
+
+if(!currentFriend) return
+
+if(!confirm("Delete this chat?")) return
+
+let id = chatID(myCode,currentFriend)
+
+db.ref("chats/"+id).remove()
+
+document.getElementById("messages").innerHTML=""
+
+}
+
+
+// INBOX
 function updateInbox(friend){
 
 let list = JSON.parse(localStorage.getItem("inbox_"+myCode)) || []
@@ -284,6 +314,28 @@ renderInbox()
 }
 
 
+function deleteContact(user){
+
+if(!confirm("Delete contact and chat?")) return
+
+let list = JSON.parse(localStorage.getItem("inbox_"+myCode)) || []
+
+list = list.filter(u=>u!==user)
+
+localStorage.setItem("inbox_"+myCode,JSON.stringify(list))
+
+let id = chatID(myCode,user)
+
+db.ref("chats/"+id).remove()
+
+renderInbox()
+
+document.getElementById("messages").innerHTML=""
+
+}
+
+
+// RENDER INBOX
 function renderInbox(){
 
 let list = JSON.parse(localStorage.getItem("inbox_"+myCode)) || []
@@ -298,9 +350,16 @@ let div = document.createElement("div")
 
 div.className="user"
 
-div.innerText=user
+let name = document.createElement("span")
+name.innerText=user
+name.onclick=()=>loadChat(user)
 
-div.onclick=()=>loadChat(user)
+let dots = document.createElement("button")
+dots.innerText="⋮"
+dots.onclick=()=>deleteContact(user)
+
+div.appendChild(name)
+div.appendChild(dots)
 
 box.appendChild(div)
 
