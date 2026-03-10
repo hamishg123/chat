@@ -8,26 +8,22 @@
 
 <style>
 
-body{
+html,body{
+margin:0;
+height:100%;
 font-family:Arial;
 background:#0f172a;
 color:white;
-display:flex;
-justify-content:center;
-margin-top:40px;
 }
 
 #app{
 display:flex;
-width:750px;
-height:450px;
-background:#1e293b;
-border-radius:10px;
-overflow:hidden;
+height:100vh;
+width:100vw;
 }
 
 #inbox{
-width:220px;
+width:260px;
 background:#020617;
 padding:10px;
 overflow-y:auto;
@@ -35,17 +31,18 @@ border-right:1px solid #334155;
 }
 
 .user{
-padding:8px;
+padding:10px;
 background:#1e293b;
 margin-bottom:6px;
-border-radius:5px;
+border-radius:6px;
 display:flex;
 justify-content:space-between;
 align-items:center;
+cursor:pointer;
 }
 
-.user span{
-cursor:pointer;
+.user:hover{
+background:#334155;
 }
 
 .user button{
@@ -53,6 +50,7 @@ background:none;
 border:none;
 color:white;
 cursor:pointer;
+font-size:16px;
 }
 
 #chatArea{
@@ -64,21 +62,22 @@ flex-direction:column;
 #top{
 display:flex;
 justify-content:space-between;
-padding:10px;
+padding:14px;
 border-bottom:1px solid #334155;
+background:#020617;
 }
 
 #messages{
 flex:1;
 overflow-y:auto;
-padding:10px;
+padding:20px;
 }
 
 .msg{
-margin:6px 0;
-padding:8px;
-border-radius:6px;
-max-width:70%;
+margin:8px 0;
+padding:10px;
+border-radius:8px;
+max-width:60%;
 position:relative;
 }
 
@@ -93,33 +92,43 @@ background:#334155;
 
 .msgMenu{
 position:absolute;
-right:6px;
-top:4px;
+right:8px;
+top:5px;
 cursor:pointer;
 font-size:14px;
 }
 
 #sendBar{
 display:flex;
-padding:10px;
+padding:15px;
 background:#020617;
+border-top:1px solid #334155;
 }
 
 #sendBar input{
 flex:1;
-padding:10px;
+padding:12px;
 border:none;
-border-radius:5px;
-margin-right:5px;
+border-radius:6px;
+margin-right:10px;
+font-size:14px;
 }
 
 #sendBar button{
-padding:10px 15px;
+padding:12px 20px;
 background:#2563eb;
 border:none;
 color:white;
-border-radius:5px;
+border-radius:6px;
 cursor:pointer;
+}
+
+#friendInput{
+width:100%;
+padding:10px;
+margin-top:10px;
+border:none;
+border-radius:6px;
 }
 
 </style>
@@ -135,28 +144,23 @@ cursor:pointer;
 
 <div id="userList"></div>
 
-<input id="friendCode" placeholder="Enter code">
-<button onclick="openChat()">Chat</button>
+<input id="friendInput" placeholder="Enter code">
+<button onclick="openChat()">Start Chat</button>
 
 </div>
 
 <div id="chatArea">
 
 <div id="top">
-
 <div>Your Code: <b id="myCode"></b></div>
-
 <div style="cursor:pointer" onclick="deleteChat()">⋮</div>
-
 </div>
 
 <div id="messages"></div>
 
 <div id="sendBar">
-
 <input id="messageInput" placeholder="Type message">
 <button onclick="sendMessage()">Send</button>
-
 </div>
 
 </div>
@@ -176,7 +180,7 @@ localStorage.setItem("myCode",myCode)
 document.getElementById("myCode").innerText = myCode
 
 
-// FIREBASE CONFIG
+// FIREBASE
 const firebaseConfig = {
 apiKey: "AIzaSyBeQR-07p_gkN1ygr49rh-PSI-pRsdmoDw",
 authDomain: "chat-82a4b.firebaseapp.com",
@@ -196,20 +200,16 @@ return [a,b].sort().join("_")
 let currentFriend = null
 
 
-// ENTER TO SEND
+// ENTER SEND
 document.getElementById("messageInput").addEventListener("keypress",function(e){
-
-if(e.key==="Enter"){
-sendMessage()
-}
-
+if(e.key==="Enter") sendMessage()
 })
 
 
-// OPEN CHAT
+// START CHAT
 function openChat(){
 
-let friend = document.getElementById("friendCode").value
+let friend = document.getElementById("friendInput").value
 
 if(!friend) return
 
@@ -218,6 +218,7 @@ loadChat(friend)
 }
 
 
+// LOAD CHAT
 function loadChat(friend){
 
 currentFriend = friend
@@ -283,11 +284,9 @@ if(!msg || !currentFriend) return
 let id = chatID(myCode,currentFriend)
 
 db.ref("chats/"+id).push({
-
 sender: myCode,
 text: msg,
 time: Date.now()
-
 })
 
 document.getElementById("messageInput").value=""
@@ -297,14 +296,14 @@ updateInbox(currentFriend)
 }
 
 
-// DELETE INDIVIDUAL MESSAGE
-function deleteMessage(messageKey){
+// DELETE MESSAGE
+function deleteMessage(key){
 
 if(!confirm("Delete this message?")) return
 
 let id = chatID(myCode,currentFriend)
 
-db.ref("chats/"+id+"/"+messageKey).remove()
+db.ref("chats/"+id+"/"+key).remove()
 
 }
 
@@ -325,7 +324,7 @@ document.getElementById("messages").innerHTML=""
 }
 
 
-// INBOX
+// INBOX SYSTEM
 function updateInbox(friend){
 
 let list = JSON.parse(localStorage.getItem("inbox_"+myCode)) || []
@@ -343,7 +342,10 @@ renderInbox()
 }
 
 
-function deleteContact(user){
+// DELETE CONTACT
+function deleteContact(e,user){
+
+e.stopPropagation()
 
 if(!confirm("Delete contact and chat?")) return
 
@@ -376,16 +378,15 @@ box.innerHTML=""
 list.forEach(user=>{
 
 let div = document.createElement("div")
-
 div.className="user"
+div.onclick=()=>loadChat(user)
 
 let name = document.createElement("span")
 name.innerText=user
-name.onclick=()=>loadChat(user)
 
 let dots = document.createElement("button")
 dots.innerText="⋮"
-dots.onclick=()=>deleteContact(user)
+dots.onclick=(e)=>deleteContact(e,user)
 
 div.appendChild(name)
 div.appendChild(dots)
