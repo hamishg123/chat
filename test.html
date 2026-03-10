@@ -189,27 +189,23 @@ const db=firebase.database()
 
 let myUID
 let myCode
-let currentFriend=null
 
-firebase.auth().signInAnonymously().then(res=>{
+firebase.auth().onAuthStateChanged(user => {
 
-myUID=res.user.uid
-myCode=myUID.slice(0,6)
+if(user){
 
-db.ref("users/"+myUID).once("value",snap=>{
+myUID = user.uid
+myCode = myUID.slice(0,6)
 
-if(!snap.exists()){
+document.getElementById("title").innerText = "Your Code: " + myCode
 
-let name=prompt("Choose username")
+startApp()
 
-db.ref("users/"+myUID).set({
-username:name,
-code:myCode
-})
+}else{
+
+firebase.auth().signInAnonymously()
 
 }
-
-})
 
 })
 
