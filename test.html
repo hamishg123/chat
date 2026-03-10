@@ -23,7 +23,7 @@ width:100vw;
 }
 
 #inbox{
-width:260px;
+width:280px;
 background:#020617;
 padding:10px;
 overflow-y:auto;
@@ -53,13 +53,8 @@ display:inline-block;
 margin-right:6px;
 }
 
-.online{
-background:#22c55e;
-}
-
-.offline{
-background:#64748b;
-}
+.online{background:#22c55e;}
+.offline{background:#64748b;}
 
 .user button{
 background:none;
@@ -120,7 +115,6 @@ margin-top:4px;
 
 #typing{
 font-size:12px;
-opacity:0.8;
 padding-left:20px;
 }
 
@@ -148,6 +142,14 @@ border-radius:6px;
 cursor:pointer;
 }
 
+#friendInput{
+width:100%;
+padding:10px;
+margin-top:8px;
+border-radius:6px;
+border:none;
+}
+
 </style>
 </head>
 
@@ -156,16 +158,20 @@ cursor:pointer;
 <div id="app">
 
 <div id="inbox">
+
 <h3>Inbox</h3>
+
 <div id="userList"></div>
+
 <input id="friendInput" placeholder="Enter code">
 <button onclick="openChat()">Start Chat</button>
+
 </div>
 
 <div id="chatArea">
 
 <div id="top">
-<div>Your Code: <b id="myCode"></b></div>
+<div id="chatTitle">Your Code: <b id="myCode"></b></div>
 <div style="cursor:pointer" onclick="deleteChat()">⋮</div>
 </div>
 
@@ -184,8 +190,8 @@ cursor:pointer;
 
 <script>
 
-// USER CODE
 let myCode = localStorage.getItem("myCode")
+
 if(!myCode){
 myCode = Math.floor(100000 + Math.random()*900000).toString()
 localStorage.setItem("myCode",myCode)
@@ -194,7 +200,6 @@ localStorage.setItem("myCode",myCode)
 document.getElementById("myCode").innerText = myCode
 
 
-// FIREBASE
 const firebaseConfig = {
 apiKey:"AIzaSyBeQR-07p_gkN1ygr49rh-PSI-pRsdmoDw",
 authDomain:"chat-82a4b.firebaseapp.com",
@@ -205,7 +210,6 @@ projectId:"chat-82a4b"
 firebase.initializeApp(firebaseConfig)
 const db = firebase.database()
 
-// ONLINE STATUS
 db.ref("status/"+myCode).set(true)
 window.addEventListener("beforeunload",()=>{
 db.ref("status/"+myCode).set(false)
@@ -216,8 +220,9 @@ return [a,b].sort().join("_")
 }
 
 let currentFriend=null
-let unreadCounts = JSON.parse(localStorage.getItem("unread_"+myCode)) || {}
 
+let unreadCounts = JSON.parse(localStorage.getItem("unread_"+myCode)) || {}
+let contactNames = JSON.parse(localStorage.getItem("names_"+myCode)) || {}
 
 // ENTER SEND
 document.getElementById("messageInput").addEventListener("keypress",function(e){
@@ -234,13 +239,26 @@ setTimeout(()=>db.ref("typing/"+currentFriend).remove(),1000)
 
 // START CHAT
 function openChat(){
+
 let friend=document.getElementById("friendInput").value
+
 if(!friend) return
+
+// CHECK IF USER EXISTS
+db.ref("status/"+friend).once("value",snap=>{
+
+if(!snap.exists()){
+alert("User not found")
+return
+}
+
 loadChat(friend)
+
+})
+
 }
 
 
-// LOAD CHAT
 function loadChat(friend){
 
 currentFriend=friend
@@ -249,6 +267,10 @@ unreadCounts[friend]=0
 localStorage.setItem("unread_"+myCode,JSON.stringify(unreadCounts))
 
 renderInbox()
+
+let name = contactNames[friend] || friend
+
+document.getElementById("chatTitle").innerText=name
 
 let id=chatID(myCode,friend)
 
@@ -284,7 +306,7 @@ ${data.text}
 div.className="msg them"
 
 div.innerHTML=`
-<b>${data.sender}</b><br>
+<b>${name}</b><br>
 ${data.text}
 <div class="time">${time}</div>
 `
@@ -321,8 +343,6 @@ time:Date.now()
 
 document.getElementById("messageInput").value=""
 
-updateInbox(currentFriend)
-
 }
 
 
@@ -350,7 +370,7 @@ document.getElementById("messages").innerHTML=""
 }
 
 
-// TYPING INDICATOR
+// TYPING
 function watchTyping(friend){
 
 db.ref("typing/"+myCode).on("value",snap=>{
@@ -359,7 +379,7 @@ let typing=snap.val()
 
 if(typing===friend){
 
-document.getElementById("typing").innerText=friend+" is typing..."
+document.getElementById("typing").innerText=(contactNames[friend]||friend)+" is typing..."
 
 }else{
 
@@ -456,6 +476,26 @@ renderInbox()
 }
 
 
+// EDIT NAME
+function editName(e,user){
+
+e.stopPropagation()
+
+let newName=prompt("Enter contact name:",contactNames[user]||"")
+
+if(newName){
+
+contactNames[user]=newName
+
+localStorage.setItem("names_"+myCode,JSON.stringify(contactNames))
+
+renderInbox()
+
+}
+
+}
+
+
 // RENDER INBOX
 function renderInbox(){
 
@@ -480,13 +520,24 @@ statusDot.className="statusDot "+(snap.val()?"online":"offline")
 
 let unread=unreadCounts[user]||0
 
+let nameText = contactNames[user] || user
+
 let name=document.createElement("span")
 
-name.innerHTML=(unread>0)?`${user} (${unread})`:user
+name.innerHTML=(unread>0)?`${nameText} (${unread})`:nameText
 
 let dots=document.createElement("button")
 dots.innerText="⋮"
-dots.onclick=(e)=>deleteContact(e,user)
+
+dots.onclick=(e)=>{
+e.stopPropagation()
+
+let action=prompt("1 = rename\n2 = delete")
+
+if(action==="1") editName(e,user)
+if(action==="2") deleteContact(e,user)
+
+}
 
 let left=document.createElement("div")
 left.appendChild(statusDot)
