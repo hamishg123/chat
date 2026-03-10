@@ -1,80 +1,49 @@
 <!DOCTYPE html>
 <html>
 <head>
-<title>Free Chat</title>
+<title>Secure Chat</title>
 
 <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js"></script>
 <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
 
 <style>
 
-html,body{
+body{
 margin:0;
-height:100%;
 font-family:Arial;
 background:#0f172a;
 color:white;
-}
-
-#app{
-display:flex;
 height:100vh;
-width:100vw;
+display:flex;
 }
 
 #inbox{
 width:280px;
 background:#020617;
-padding:10px;
-overflow-y:auto;
 border-right:1px solid #334155;
-}
-
-.user{
+overflow-y:auto;
 padding:10px;
-background:#1e293b;
-margin-bottom:6px;
-border-radius:6px;
-display:flex;
-justify-content:space-between;
-align-items:center;
-cursor:pointer;
 }
 
-.user:hover{
-background:#334155;
-}
-
-.statusDot{
-width:8px;
-height:8px;
-border-radius:50%;
-display:inline-block;
-margin-right:6px;
-}
-
-.online{background:#22c55e;}
-.offline{background:#64748b;}
-
-.user button{
-background:none;
-border:none;
-color:white;
-cursor:pointer;
-}
-
-#chatArea{
+#chat{
 flex:1;
 display:flex;
 flex-direction:column;
 }
 
-#top{
+.user{
+background:#1e293b;
+padding:10px;
+border-radius:6px;
+margin-bottom:6px;
+cursor:pointer;
 display:flex;
 justify-content:space-between;
-padding:14px;
-border-bottom:1px solid #334155;
-background:#020617;
+}
+
+.user:hover{
+background:#334155;
 }
 
 #messages{
@@ -84,11 +53,11 @@ padding:20px;
 }
 
 .msg{
-margin:10px 0;
 padding:10px;
 border-radius:8px;
+margin:10px 0;
 max-width:60%;
-position:relative;
+animation:fade .2s;
 }
 
 .me{
@@ -100,54 +69,72 @@ margin-left:auto;
 background:#334155;
 }
 
-.msgMenu{
-position:absolute;
-right:8px;
-top:5px;
-cursor:pointer;
-}
-
 .time{
 font-size:10px;
-opacity:0.7;
-margin-top:4px;
+opacity:0.6;
 }
 
-#typing{
-font-size:12px;
-padding-left:20px;
-}
-
-#sendBar{
+#send{
 display:flex;
-padding:15px;
+padding:10px;
 background:#020617;
 border-top:1px solid #334155;
 }
 
-#sendBar input{
+#send input{
 flex:1;
-padding:12px;
+padding:10px;
 border:none;
 border-radius:6px;
 margin-right:10px;
 }
 
-#sendBar button{
-padding:12px 20px;
+#send button{
 background:#2563eb;
 border:none;
+padding:10px 20px;
 color:white;
 border-radius:6px;
 cursor:pointer;
 }
 
-#friendInput{
+#send button:hover{
+background:#1d4ed8;
+}
+
+#typing{
+font-size:12px;
+padding-left:20px;
+opacity:.8;
+}
+
+.popup{
+position:fixed;
+top:0;
+left:0;
 width:100%;
-padding:10px;
-margin-top:8px;
-border-radius:6px;
-border:none;
+height:100%;
+background:rgba(0,0,0,.6);
+display:flex;
+align-items:center;
+justify-content:center;
+}
+
+.popupBox{
+background:#020617;
+padding:20px;
+border-radius:10px;
+width:300px;
+text-align:center;
+}
+
+.hidden{
+display:none;
+}
+
+@keyframes fade{
+from{opacity:0;transform:translateY(5px)}
+to{opacity:1}
 }
 
 </style>
@@ -155,404 +142,181 @@ border:none;
 
 <body>
 
-<div id="app">
-
 <div id="inbox">
-
 <h3>Inbox</h3>
+<div id="users"></div>
 
-<div id="userList"></div>
-
-<input id="friendInput" placeholder="Enter code">
-<button onclick="openChat()">Start Chat</button>
-
+<input id="friendCode" placeholder="Enter user code">
+<button onclick="startChat()">Chat</button>
 </div>
 
-<div id="chatArea">
+<div id="chat">
 
-<div id="top">
-<div id="chatTitle">Your Code: <b id="myCode"></b></div>
-<div style="cursor:pointer" onclick="deleteChat()">⋮</div>
+<div style="padding:10px;border-bottom:1px solid #334155">
+<span id="title">Loading...</span>
+<button onclick="deleteChat()" style="float:right">Delete</button>
 </div>
 
 <div id="messages"></div>
-
 <div id="typing"></div>
 
-<div id="sendBar">
-<input id="messageInput" placeholder="Type message">
+<div id="send">
+<input id="msgInput" placeholder="Type message">
 <button onclick="sendMessage()">Send</button>
 </div>
 
 </div>
 
+<div id="popup" class="popup hidden">
+<div class="popupBox">
+<p id="popupText"></p>
+<button id="popupYes">Confirm</button>
+<button onclick="closePopup()">Cancel</button>
+</div>
 </div>
 
 <script>
 
-let myCode = localStorage.getItem("myCode")
-
-if(!myCode){
-myCode = Math.floor(100000 + Math.random()*900000).toString()
-localStorage.setItem("myCode",myCode)
-}
-
-document.getElementById("myCode").innerText = myCode
-
-
-const firebaseConfig = {
-apiKey:"AIzaSyBeQR-07p_gkN1ygr49rh-PSI-pRsdmoDw",
-authDomain:"chat-82a4b.firebaseapp.com",
-databaseURL:"https://chat-82a4b-default-rtdb.firebaseio.com",
-projectId:"chat-82a4b"
+const firebaseConfig={
+apiKey:"YOURKEY",
+authDomain:"YOURAPP.firebaseapp.com",
+databaseURL:"https://YOURAPP-default-rtdb.firebaseio.com",
+projectId:"YOURAPP"
 }
 
 firebase.initializeApp(firebaseConfig)
-const db = firebase.database()
+const db=firebase.database()
 
-db.ref("status/"+myCode).set(true)
-window.addEventListener("beforeunload",()=>{
-db.ref("status/"+myCode).set(false)
+let myUID
+let myCode
+let currentFriend=null
+
+firebase.auth().signInAnonymously().then(res=>{
+
+myUID=res.user.uid
+myCode=myUID.slice(0,6)
+
+db.ref("users/"+myUID).once("value",snap=>{
+
+if(!snap.exists()){
+
+let name=prompt("Choose username")
+
+db.ref("users/"+myUID).set({
+username:name,
+code:myCode
+})
+
+}
+
+})
+
 })
 
 function chatID(a,b){
-return [a,b].sort().join("_")
+return[a,b].sort().join("_")
 }
 
-let currentFriend=null
+function startChat(){
 
-let unreadCounts = JSON.parse(localStorage.getItem("unread_"+myCode)) || {}
-let contactNames = JSON.parse(localStorage.getItem("names_"+myCode)) || {}
+let code=document.getElementById("friendCode").value
 
-// ENTER SEND
-document.getElementById("messageInput").addEventListener("keypress",function(e){
+db.ref("users").orderByChild("code").equalTo(code).once("value",snap=>{
 
-if(e.key==="Enter") sendMessage()
+snap.forEach(user=>{
 
-if(currentFriend){
-db.ref("typing/"+currentFriend).set(myCode)
-setTimeout(()=>db.ref("typing/"+currentFriend).remove(),1000)
-}
+loadChat(user.key)
 
 })
-
-
-// START CHAT
-function openChat(){
-
-let friend=document.getElementById("friendInput").value
-
-if(!friend) return
-
-// CHECK IF USER EXISTS
-db.ref("status/"+friend).once("value",snap=>{
-
-if(!snap.exists()){
-alert("User not found")
-return
-}
-
-loadChat(friend)
 
 })
 
 }
-
 
 function loadChat(friend){
 
 currentFriend=friend
 
-unreadCounts[friend]=0
-localStorage.setItem("unread_"+myCode,JSON.stringify(unreadCounts))
+db.ref("users/"+friend+"/username").once("value",snap=>{
 
-renderInbox()
+document.getElementById("title").innerText=
+snap.val()+" ("+friend.slice(0,6)+")"
 
-let name = contactNames[friend] || friend
+})
 
-document.getElementById("chatTitle").innerText=name
+let id=chatID(myUID,friend)
 
-let id=chatID(myCode,friend)
+db.ref("chats/"+id).limitToLast(50).on("child_added",snap=>{
 
-db.ref("chats/"+id).off()
-
-db.ref("chats/"+id).on("value",snap=>{
-
-let box=document.getElementById("messages")
-box.innerHTML=""
-
-snap.forEach(m=>{
-
-let data=m.val()
-let key=m.key
+let data=snap.val()
 
 let div=document.createElement("div")
 
-let time=new Date(data.time).toLocaleTimeString()
-
-if(data.sender===myCode){
-
-div.className="msg me"
+div.className="msg "+(data.sender===myUID?"me":"them")
 
 div.innerHTML=`
-<div class="msgMenu" onclick="deleteMessage('${key}')">⋮</div>
-<b>Me</b><br>
 ${data.text}
-<div class="time">${time}</div>
+<div class="time">${new Date(data.time).toLocaleTimeString()}</div>
 `
 
-}else{
-
-div.className="msg them"
-
-div.innerHTML=`
-<b>${name}</b><br>
-${data.text}
-<div class="time">${time}</div>
-`
-
-}
-
-box.appendChild(div)
+document.getElementById("messages").appendChild(div)
 
 })
 
-box.scrollTop=box.scrollHeight
-
-})
-
-watchTyping(friend)
-updateInbox(friend)
-
 }
 
-
-// SEND
 function sendMessage(){
 
-let msg=document.getElementById("messageInput").value
-if(!msg||!currentFriend) return
+let text=document.getElementById("msgInput").value
 
-let id=chatID(myCode,currentFriend)
+if(!text||!currentFriend)return
+
+let id=chatID(myUID,currentFriend)
 
 db.ref("chats/"+id).push({
-sender:myCode,
-text:msg,
+sender:myUID,
+text:text,
 time:Date.now()
 })
 
-document.getElementById("messageInput").value=""
+document.getElementById("msgInput").value=""
 
 }
 
+let popupAction=null
 
-// DELETE MESSAGE
-function deleteMessage(key){
+function showPopup(text,action){
 
-let id=chatID(myCode,currentFriend)
-
-db.ref("chats/"+id+"/"+key).remove()
+document.getElementById("popupText").innerText=text
+popupAction=action
+document.getElementById("popup").classList.remove("hidden")
 
 }
 
+function closePopup(){
+document.getElementById("popup").classList.add("hidden")
+}
 
-// DELETE CHAT
+document.getElementById("popupYes").onclick=()=>{
+popupAction()
+closePopup()
+}
+
 function deleteChat(){
 
-if(!currentFriend) return
+if(!currentFriend)return
 
-let id=chatID(myCode,currentFriend)
+showPopup("Delete this chat?",()=>{
+
+let id=chatID(myUID,currentFriend)
 
 db.ref("chats/"+id).remove()
 
 document.getElementById("messages").innerHTML=""
 
-}
-
-
-// TYPING
-function watchTyping(friend){
-
-db.ref("typing/"+myCode).on("value",snap=>{
-
-let typing=snap.val()
-
-if(typing===friend){
-
-document.getElementById("typing").innerText=(contactNames[friend]||friend)+" is typing..."
-
-}else{
-
-document.getElementById("typing").innerText=""
-
-}
-
 })
 
 }
-
-
-// INBOX
-function updateInbox(friend){
-
-let list=JSON.parse(localStorage.getItem("inbox_"+myCode))||[]
-
-if(!list.includes(friend)){
-
-list.push(friend)
-
-localStorage.setItem("inbox_"+myCode,JSON.stringify(list))
-
-renderInbox()
-
-}
-
-}
-
-
-// AUTO DETECT MESSAGES
-function watchForNewMessages(){
-
-db.ref("chats").on("child_added",snap=>{
-
-let parts=snap.key.split("_")
-
-if(parts.includes(myCode)){
-
-let other=parts[0]===myCode?parts[1]:parts[0]
-
-updateInbox(other)
-
-}
-
-})
-
-db.ref("chats").on("child_changed",snap=>{
-
-let parts=snap.key.split("_")
-
-if(parts.includes(myCode)){
-
-let other=parts[0]===myCode?parts[1]:parts[0]
-
-if(currentFriend!==other){
-
-if(!unreadCounts[other]) unreadCounts[other]=0
-
-unreadCounts[other]++
-
-localStorage.setItem("unread_"+myCode,JSON.stringify(unreadCounts))
-
-renderInbox()
-
-}
-
-}
-
-})
-
-}
-
-watchForNewMessages()
-
-
-// DELETE CONTACT
-function deleteContact(e,user){
-
-e.stopPropagation()
-
-let list=JSON.parse(localStorage.getItem("inbox_"+myCode))||[]
-
-list=list.filter(u=>u!==user)
-
-localStorage.setItem("inbox_"+myCode,JSON.stringify(list))
-
-let id=chatID(myCode,user)
-
-db.ref("chats/"+id).remove()
-
-renderInbox()
-
-}
-
-
-// EDIT NAME
-function editName(e,user){
-
-e.stopPropagation()
-
-let newName=prompt("Enter contact name:",contactNames[user]||"")
-
-if(newName){
-
-contactNames[user]=newName
-
-localStorage.setItem("names_"+myCode,JSON.stringify(contactNames))
-
-renderInbox()
-
-}
-
-}
-
-
-// RENDER INBOX
-function renderInbox(){
-
-let list=JSON.parse(localStorage.getItem("inbox_"+myCode))||[]
-
-let box=document.getElementById("userList")
-
-box.innerHTML=""
-
-list.forEach(user=>{
-
-let div=document.createElement("div")
-div.className="user"
-div.onclick=()=>loadChat(user)
-
-let statusDot=document.createElement("span")
-statusDot.className="statusDot offline"
-
-db.ref("status/"+user).on("value",snap=>{
-statusDot.className="statusDot "+(snap.val()?"online":"offline")
-})
-
-let unread=unreadCounts[user]||0
-
-let nameText = contactNames[user] || user
-
-let name=document.createElement("span")
-
-name.innerHTML=(unread>0)?`${nameText} (${unread})`:nameText
-
-let dots=document.createElement("button")
-dots.innerText="⋮"
-
-dots.onclick=(e)=>{
-e.stopPropagation()
-
-let action=prompt("1 = rename\n2 = delete")
-
-if(action==="1") editName(e,user)
-if(action==="2") deleteContact(e,user)
-
-}
-
-let left=document.createElement("div")
-left.appendChild(statusDot)
-left.appendChild(name)
-
-div.appendChild(left)
-div.appendChild(dots)
-
-box.appendChild(div)
-
-})
-
-}
-
-renderInbox()
 
 </script>
 
