@@ -79,6 +79,7 @@ margin:6px 0;
 padding:8px;
 border-radius:6px;
 max-width:70%;
+position:relative;
 }
 
 .me{
@@ -88,6 +89,14 @@ margin-left:auto;
 
 .them{
 background:#334155;
+}
+
+.msgMenu{
+position:absolute;
+right:6px;
+top:4px;
+cursor:pointer;
+font-size:14px;
 }
 
 #sendBar{
@@ -110,10 +119,6 @@ background:#2563eb;
 border:none;
 color:white;
 border-radius:5px;
-cursor:pointer;
-}
-
-.menu{
 cursor:pointer;
 }
 
@@ -141,7 +146,7 @@ cursor:pointer;
 
 <div>Your Code: <b id="myCode"></b></div>
 
-<div class="menu" onclick="deleteChat()">⋮</div>
+<div style="cursor:pointer" onclick="deleteChat()">⋮</div>
 
 </div>
 
@@ -150,7 +155,6 @@ cursor:pointer;
 <div id="sendBar">
 
 <input id="messageInput" placeholder="Type message">
-
 <button onclick="sendMessage()">Send</button>
 
 </div>
@@ -172,7 +176,7 @@ localStorage.setItem("myCode",myCode)
 document.getElementById("myCode").innerText = myCode
 
 
-// FIREBASE
+// FIREBASE CONFIG
 const firebaseConfig = {
 apiKey: "AIzaSyBeQR-07p_gkN1ygr49rh-PSI-pRsdmoDw",
 authDomain: "chat-82a4b.firebaseapp.com",
@@ -189,13 +193,16 @@ function chatID(a,b){
 return [a,b].sort().join("_")
 }
 
-
 let currentFriend = null
 
 
-// ENTER SEND
+// ENTER TO SEND
 document.getElementById("messageInput").addEventListener("keypress",function(e){
-if(e.key==="Enter") sendMessage()
+
+if(e.key==="Enter"){
+sendMessage()
+}
+
 })
 
 
@@ -228,18 +235,28 @@ box.innerHTML=""
 snap.forEach(m=>{
 
 let data = m.val()
+let key = m.key
 
 let div = document.createElement("div")
 
 if(data.sender === myCode){
 
 div.className="msg me"
-div.innerHTML="<b>Me</b><br>"+data.text
+
+div.innerHTML=`
+<div class="msgMenu" onclick="deleteMessage('${key}')">⋮</div>
+<b>Me</b><br>
+${data.text}
+`
 
 }else{
 
 div.className="msg them"
-div.innerHTML="<b>"+data.sender+"</b><br>"+data.text
+
+div.innerHTML=`
+<b>${data.sender}</b><br>
+${data.text}
+`
 
 }
 
@@ -256,7 +273,7 @@ updateInbox(friend)
 }
 
 
-// SEND
+// SEND MESSAGE
 function sendMessage(){
 
 let msg = document.getElementById("messageInput").value
@@ -276,6 +293,18 @@ time: Date.now()
 document.getElementById("messageInput").value=""
 
 updateInbox(currentFriend)
+
+}
+
+
+// DELETE INDIVIDUAL MESSAGE
+function deleteMessage(messageKey){
+
+if(!confirm("Delete this message?")) return
+
+let id = chatID(myCode,currentFriend)
+
+db.ref("chats/"+id+"/"+messageKey).remove()
 
 }
 
