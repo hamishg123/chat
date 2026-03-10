@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html>
 <head>
-<title>Website Chat</title>
+<title>Chat</title>
 
 <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
 <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
@@ -10,36 +10,104 @@
 
 body{
 font-family:Arial;
-background:#111;
+background:#0f172a;
 color:white;
-text-align:center;
+display:flex;
+justify-content:center;
+margin-top:40px;
 }
 
-#chat{
-width:400px;
-height:300px;
-margin:auto;
+#app{
+display:flex;
+width:750px;
+height:450px;
+background:#1e293b;
+border-radius:10px;
+overflow:hidden;
+}
+
+#inbox{
+width:200px;
+background:#020617;
+padding:10px;
 overflow-y:auto;
-border:1px solid white;
-background:#222;
+border-right:1px solid #334155;
+}
+
+#inbox h3{
+margin-top:0;
+}
+
+.user{
+padding:8px;
+background:#1e293b;
+margin-bottom:5px;
+cursor:pointer;
+border-radius:5px;
+}
+
+.user:hover{
+background:#334155;
+}
+
+#chatArea{
+flex:1;
+display:flex;
+flex-direction:column;
+}
+
+#messages{
+flex:1;
+overflow-y:auto;
 padding:10px;
 }
 
-input{
+.msg{
+margin:6px 0;
 padding:8px;
-margin:5px;
+border-radius:6px;
+max-width:70%;
 }
 
-button{
-padding:8px;
+.me{
+background:#2563eb;
+margin-left:auto;
+}
+
+.them{
+background:#334155;
+}
+
+#sendBar{
+display:flex;
+padding:10px;
+background:#020617;
+}
+
+#sendBar input{
+flex:1;
+padding:10px;
+border:none;
+border-radius:5px;
+margin-right:5px;
+}
+
+#sendBar button{
+padding:10px 15px;
+background:#2563eb;
+border:none;
+color:white;
+border-radius:5px;
 cursor:pointer;
 }
 
-.message{
-margin:4px;
-padding:6px;
-background:#333;
-border-radius:5px;
+#sendBar button:hover{
+background:#1d4ed8;
+}
+
+#top{
+padding:10px;
+border-bottom:1px solid #334155;
 }
 
 </style>
@@ -47,19 +115,31 @@ border-radius:5px;
 
 <body>
 
-<h2>Chat</h2>
+<div id="app">
 
-<p>Your Code: <b id="myCode"></b></p>
+<div id="inbox">
+<h3>Inbox</h3>
+<div id="userList"></div>
+<input id="friendCode" placeholder="Enter code">
+<button onclick="openChat()">Chat</button>
+</div>
 
-<input id="friendCode" placeholder="Friend code">
-<button onclick="openChat()">Open Chat</button>
+<div id="chatArea">
 
-<div id="chat"></div>
+<div id="top">
+Your Code: <b id="myCode"></b>
+</div>
 
-<br>
+<div id="messages"></div>
 
-<input id="message" placeholder="Type message">
-<button onclick="send()">Send</button>
+<div id="sendBar">
+<input id="messageInput" placeholder="Type message">
+<button onclick="sendMessage()">Send</button>
+</div>
+
+</div>
+
+</div>
 
 <script>
 
@@ -74,13 +154,12 @@ localStorage.setItem("myCode",myCode)
 document.getElementById("myCode").innerText = myCode
 
 
-
-// FIREBASE CONFIG
+// FIREBASE
 const firebaseConfig = {
 apiKey: "AIzaSyBeQR-07p_gkN1ygr49rh-PSI-pRsdmoDw",
 authDomain: "chat-82a4b.firebaseapp.com",
 databaseURL: "https://chat-82a4b-default-rtdb.firebaseio.com",
-projectId: "chat-82a4b",
+projectId: "chat-82a4b"
 }
 
 firebase.initializeApp(firebaseConfig)
@@ -88,7 +167,6 @@ firebase.initializeApp(firebaseConfig)
 const db = firebase.database()
 
 
-// CREATE CHAT ID
 function chatID(a,b){
 return [a,b].sort().join("_")
 }
@@ -97,49 +175,77 @@ return [a,b].sort().join("_")
 let currentFriend = null
 
 
+// ENTER TO SEND
+document.getElementById("messageInput").addEventListener("keypress",function(e){
+
+if(e.key==="Enter"){
+sendMessage()
+}
+
+})
+
 
 // OPEN CHAT
 function openChat(){
 
-currentFriend = document.getElementById("friendCode").value
+let friend = document.getElementById("friendCode").value
 
-if(!currentFriend) return
+if(friend==="") return
 
-let id = chatID(myCode,currentFriend)
+loadChat(friend)
+
+}
+
+
+function loadChat(friend){
+
+currentFriend = friend
+
+let id = chatID(myCode,friend)
 
 db.ref("chats/"+id).off()
 
 db.ref("chats/"+id).on("value",snap=>{
 
-let chat = document.getElementById("chat")
+let box = document.getElementById("messages")
 
-chat.innerHTML=""
+box.innerHTML=""
 
 snap.forEach(m=>{
 
 let data = m.val()
 
 let div = document.createElement("div")
-div.className="message"
 
-div.innerHTML = "<b>"+data.sender+"</b>: "+data.text
+if(data.sender === myCode){
 
-chat.appendChild(div)
+div.className="msg me"
+div.innerHTML="<b>Me</b><br>"+data.text
+
+}else{
+
+div.className="msg them"
+div.innerHTML="<b>"+data.sender+"</b><br>"+data.text
+
+}
+
+box.appendChild(div)
 
 })
 
-chat.scrollTop = chat.scrollHeight
+box.scrollTop = box.scrollHeight
 
 })
+
+updateInbox(friend)
 
 }
 
 
-
 // SEND MESSAGE
-function send(){
+function sendMessage(){
 
-let msg = document.getElementById("message").value
+let msg = document.getElementById("messageInput").value
 
 if(!msg || !currentFriend) return
 
@@ -153,9 +259,56 @@ time: Date.now()
 
 })
 
-document.getElementById("message").value=""
+document.getElementById("messageInput").value=""
+
+updateInbox(currentFriend)
 
 }
+
+
+// INBOX SYSTEM
+function updateInbox(friend){
+
+let list = JSON.parse(localStorage.getItem("inbox_"+myCode)) || []
+
+if(!list.includes(friend)){
+
+list.push(friend)
+
+localStorage.setItem("inbox_"+myCode,JSON.stringify(list))
+
+renderInbox()
+
+}
+
+}
+
+
+function renderInbox(){
+
+let list = JSON.parse(localStorage.getItem("inbox_"+myCode)) || []
+
+let box = document.getElementById("userList")
+
+box.innerHTML=""
+
+list.forEach(user=>{
+
+let div = document.createElement("div")
+
+div.className="user"
+
+div.innerText=user
+
+div.onclick=()=>loadChat(user)
+
+box.appendChild(div)
+
+})
+
+}
+
+renderInbox()
 
 </script>
 
