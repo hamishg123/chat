@@ -38,26 +38,32 @@ background:#1e293b;
 padding:10px;
 border-radius:6px;
 margin-bottom:6px;
+cursor:pointer;
 display:flex;
 justify-content:space-between;
 align-items:center;
-cursor:pointer;
 }
 
 .user:hover{
 background:#334155;
 }
 
-.dots{
+.menu{
 cursor:pointer;
 padding:4px 8px;
-font-size:18px;
 }
 
 #chat{
 flex:1;
 display:flex;
 flex-direction:column;
+}
+
+#chatHeader{
+padding:10px;
+border-bottom:1px solid #334155;
+display:flex;
+justify-content:space-between;
 }
 
 #messages{
@@ -71,6 +77,7 @@ padding:10px;
 border-radius:8px;
 margin:10px 0;
 max-width:60%;
+position:relative;
 }
 
 .me{
@@ -82,9 +89,18 @@ margin-left:auto;
 background:#334155;
 }
 
+.msgMenu{
+position:absolute;
+top:5px;
+right:5px;
+cursor:pointer;
+font-size:14px;
+}
+
 .time{
 font-size:10px;
 opacity:0.6;
+margin-top:4px;
 }
 
 #send{
@@ -94,7 +110,7 @@ background:#020617;
 border-top:1px solid #334155;
 }
 
-#send input{
+#msgInput{
 flex:1;
 padding:10px;
 border:none;
@@ -112,13 +128,13 @@ cursor:pointer;
 }
 
 #popup{
+display:none;
 position:fixed;
 top:0;
 left:0;
 width:100%;
 height:100%;
 background:rgba(0,0,0,.6);
-display:none;
 align-items:center;
 justify-content:center;
 }
@@ -127,7 +143,8 @@ justify-content:center;
 background:#020617;
 padding:20px;
 border-radius:10px;
-width:250px;
+width:260px;
+text-align:center;
 }
 
 </style>
@@ -150,8 +167,9 @@ width:250px;
 
 <div id="chat">
 
-<div style="padding:10px;border-bottom:1px solid #334155">
+<div id="chatHeader">
 <span id="title">Select chat</span>
+<span class="menu" onclick="deleteConversation()">🗑</span>
 </div>
 
 <div id="messages"></div>
@@ -165,10 +183,8 @@ width:250px;
 
 <div id="popup">
 <div id="popupBox">
-<h4>Rename Contact</h4>
-<input id="renameInput" placeholder="Enter name">
-<br><br>
-<button onclick="saveRename()">Save</button>
+<p id="popupText"></p>
+<button id="popupYes">Confirm</button>
 <button onclick="closePopup()">Cancel</button>
 </div>
 </div>
@@ -183,13 +199,13 @@ projectId:"chat-82a4b"
 }
 
 firebase.initializeApp(firebaseConfig)
-
 const db=firebase.database()
 
 let myUID
 let myCode
 let currentFriend=null
-let renameTarget=null
+let chatListener=null
+let sending=false
 
 firebase.auth().onAuthStateChanged(user=>{
 
@@ -198,7 +214,7 @@ if(user){
 myUID=user.uid
 myCode=myUID.slice(0,6)
 
-document.getElementById("myCode").innerText="Your Code: "+myCode
+myCodeDiv.innerText="Your Code: "+myCode
 
 createUser()
 loadInbox()
@@ -234,7 +250,7 @@ return[a,b].sort().join("_")
 
 function startChat(){
 
-let code=document.getElementById("friendCode").value.trim()
+let code=friendCode.value.trim()
 
 if(!code)return
 
@@ -269,7 +285,11 @@ title.innerText=snap.val()+" ("+friend.slice(0,6)+")"
 
 let id=chatID(myUID,friend)
 
-db.ref("chats/"+id).limitToLast(50).on("child_added",snap=>{
+if(chatListener) chatListener.off()
+
+chatListener=db.ref("chats/"+id)
+
+chatListener.limitToLast(50).on("child_added",snap=>{
 
 let data=snap.val()
 
@@ -277,6 +297,7 @@ let div=document.createElement("div")
 div.className="msg "+(data.sender===myUID?"me":"them")
 
 div.innerHTML=`
+${data.sender===myUID?`<span class="msgMenu" onclick="deleteMessage('${id}','${snap.key}',event)">⋮</span>`:""}
 ${data.text}
 <div class="time">${new Date(data.time).toLocaleTimeString()}</div>
 `
@@ -290,9 +311,13 @@ messages.scrollTop=messages.scrollHeight
 
 function sendMessage(){
 
+if(sending) return
+
 let text=msgInput.value.trim()
 
 if(!text||!currentFriend)return
+
+sending=true
 
 let id=chatID(myUID,currentFriend)
 
@@ -306,10 +331,15 @@ updateInbox(currentFriend,text)
 
 msgInput.value=""
 
+setTimeout(()=>sending=false,300)
+
 }
 
 msgInput.addEventListener("keydown",e=>{
-if(e.key==="Enter") sendMessage()
+if(e.key==="Enter"){
+e.preventDefault()
+sendMessage()
+}
 })
 
 function updateInbox(friend,msg){
@@ -345,19 +375,24 @@ snap.forEach(chat=>{
 let friend=chat.key
 let data=chat.val()
 
-db.ref("users/"+friend+"/username").once("value",name=>{
+Promise.all([
+db.ref("users/"+friend+"/username").once("value"),
+db.ref("contacts/"+myUID+"/"+friend+"/customName").once("value")
+]).then(([username,custom])=>{
+
+let name=custom.exists()?custom.val():username.val()
 
 let div=document.createElement("div")
 div.className="user"
 
-let customName=data.customName?data.customName:name.val()
+div.onclick=()=>{
+loadChat(friend)
+db.ref("inbox/"+myUID+"/"+friend+"/unread").set(0)
+}
 
 div.innerHTML=`
-<span onclick="loadChat('${friend}')">
-${customName} (${friend.slice(0,6)})
-</span>
-
-<span class="dots" onclick="openRename('${friend}')">⋮</span>
+<span>${name} (${friend.slice(0,6)})</span>
+<span class="menu" onclick="contactMenu('${friend}',event)">⋮</span>
 `
 
 users.appendChild(div)
@@ -370,29 +405,68 @@ users.appendChild(div)
 
 }
 
-function openRename(friend){
+function contactMenu(friend,e){
 
-renameTarget=friend
-document.getElementById("popup").style.display="flex"
+e.stopPropagation()
+
+showPopup("Rename or remove contact?",()=>{
+
+let name=prompt("Enter new name")
+
+if(name){
+db.ref("contacts/"+myUID+"/"+friend+"/customName").set(name)
+}
+
+})
+
+}
+
+function deleteMessage(chat,id,e){
+
+e.stopPropagation()
+
+showPopup("Delete this message?",()=>{
+db.ref("chats/"+chat+"/"+id).remove()
+})
+
+}
+
+function deleteConversation(){
+
+if(!currentFriend)return
+
+let id=chatID(myUID,currentFriend)
+
+showPopup("Delete entire conversation?",()=>{
+
+db.ref("chats/"+id).remove()
+db.ref("inbox/"+myUID+"/"+currentFriend).remove()
+
+messages.innerHTML=""
+
+})
+
+}
+
+let popupAction=null
+
+function showPopup(text,action){
+
+popupText.innerText=text
+popup.style.display="flex"
+popupAction=action
 
 }
 
 function closePopup(){
 
-document.getElementById("popup").style.display="none"
+popup.style.display="none"
 
 }
 
-function saveRename(){
-
-let name=document.getElementById("renameInput").value
-
-if(!name)return
-
-db.ref("inbox/"+myUID+"/"+renameTarget+"/customName").set(name)
-
+popupYes.onclick=()=>{
+if(popupAction) popupAction()
 closePopup()
-
 }
 
 </script>
