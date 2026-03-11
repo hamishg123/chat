@@ -1,4 +1,4 @@
-
+```html
 <!DOCTYPE html>
 <html>
 <head>
@@ -25,6 +25,27 @@ background:#020617;
 border-right:1px solid #334155;
 overflow-y:auto;
 padding:10px;
+}
+
+#myCode{
+font-size:12px;
+opacity:.7;
+margin-bottom:8px;
+}
+
+#renameBtn{
+margin-bottom:10px;
+width:100%;
+background:#1e293b;
+border:none;
+padding:6px;
+color:white;
+border-radius:6px;
+cursor:pointer;
+}
+
+#renameBtn:hover{
+background:#334155;
 }
 
 #chat{
@@ -110,21 +131,29 @@ opacity:.8;
 <body>
 
 <div id="inbox">
+
 <h3>Inbox</h3>
+
+<div id="myCode">Your Code: loading...</div>
+
+<button id="renameBtn" onclick="renameUser()">Rename</button>
+
 <div id="users"></div>
 
 <input id="friendCode" placeholder="Enter user code">
 <button onclick="startChat()">Chat</button>
+
 </div>
 
 <div id="chat">
 
 <div style="padding:10px;border-bottom:1px solid #334155">
-<span id="title">Loading...</span>
+<span id="title">Select a chat</span>
 <button onclick="deleteChat()" style="float:right">Delete</button>
 </div>
 
 <div id="messages"></div>
+
 <div id="typing"></div>
 
 <div id="send">
@@ -144,7 +173,6 @@ projectId:"chat-82a4b"
 }
 
 firebase.initializeApp(firebaseConfig)
-
 const db=firebase.database()
 
 let myUID
@@ -159,7 +187,7 @@ if(user){
 myUID=user.uid
 myCode=myUID.slice(0,6)
 
-document.getElementById("title").innerText="Your Code: "+myCode
+document.getElementById("myCode").innerText="Your Code: "+myCode
 
 createUser()
 loadInbox()
@@ -201,6 +229,18 @@ if(myUID){
 db.ref("users/"+myUID+"/online").set(false)
 }
 })
+
+function renameUser(){
+
+let name=prompt("Enter new name")
+
+if(!name) return
+
+db.ref("users/"+myUID+"/username").set(name)
+
+alert("Name updated")
+
+}
 
 function chatID(a,b){
 return[a,b].sort().join("_")
@@ -261,10 +301,9 @@ ${data.text}
 <div class="time">${new Date(data.time).toLocaleTimeString()}</div>
 `
 
-document.getElementById("messages").appendChild(div)
+messages.appendChild(div)
 
-document.getElementById("messages").scrollTop=
-document.getElementById("messages").scrollHeight
+messages.scrollTop=messages.scrollHeight
 
 if(data.sender!==myUID && document.hidden){
 new Notification("New message",{body:data.text})
@@ -294,6 +333,14 @@ document.getElementById("msgInput").value=""
 
 }
 
+document.getElementById("msgInput").addEventListener("keypress",function(e){
+
+if(e.key==="Enter"){
+sendMessage()
+}
+
+})
+
 function updateInbox(friend,msg){
 
 db.ref("inbox/"+myUID+"/"+friend).set({
@@ -321,7 +368,6 @@ function loadInbox(){
 db.ref("inbox/"+myUID).orderByChild("time").on("value",snap=>{
 
 let box=document.getElementById("users")
-
 box.innerHTML=""
 
 snap.forEach(chat=>{
@@ -335,9 +381,7 @@ let div=document.createElement("div")
 
 div.className="user"
 
-div.innerHTML=`
-${name.val()} ${data.unread?`(${data.unread})`:""}
-`
+div.innerHTML=`${name.val()} ${data.unread?`(${data.unread})`:""}`
 
 div.onclick=()=>{
 loadChat(friend)
