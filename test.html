@@ -1,3 +1,4 @@
+```html
 <!DOCTYPE html>
 <html>
 <head>
@@ -109,20 +110,17 @@ opacity:.8;
 <body>
 
 <div id="inbox">
-
-<h3 id="myCode">Connecting...</h3>
-
+<h3>Inbox</h3>
 <div id="users"></div>
 
 <input id="friendCode" placeholder="Enter user code">
 <button onclick="startChat()">Chat</button>
-
 </div>
 
 <div id="chat">
 
 <div style="padding:10px;border-bottom:1px solid #334155">
-<span id="title">Select a chat</span>
+<span id="title">Loading...</span>
 <button onclick="deleteChat()" style="float:right">Delete</button>
 </div>
 
@@ -138,7 +136,7 @@ opacity:.8;
 
 <script>
 
-const firebaseConfig={
+const firebaseConfig = {
 apiKey:"AIzaSyBeQR-07p_gkN1ygr49rh-PSI-pRsdmoDw",
 authDomain:"chat-82a4b.firebaseapp.com",
 databaseURL:"https://chat-82a4b-default-rtdb.firebaseio.com",
@@ -152,8 +150,7 @@ const db=firebase.database()
 let myUID
 let myCode
 let currentFriend=null
-
-Notification.requestPermission()
+let chatListener=null
 
 firebase.auth().onAuthStateChanged(user=>{
 
@@ -162,10 +159,9 @@ if(user){
 myUID=user.uid
 myCode=myUID.slice(0,6)
 
-document.getElementById("myCode").innerText="Your code: "+myCode
+document.getElementById("title").innerText="Your Code: "+myCode
 
 createUser()
-
 loadInbox()
 
 }else{
@@ -201,9 +197,9 @@ db.ref("users/"+myUID+"/online").set(true)
 }
 
 window.addEventListener("beforeunload",()=>{
-
+if(myUID){
 db.ref("users/"+myUID+"/online").set(false)
-
+}
 })
 
 function chatID(a,b){
@@ -223,14 +219,14 @@ alert("User not found")
 return
 }
 
-let friendUID=snap.val()
+let uid=snap.val()
 
-if(friendUID===myUID){
+if(uid===myUID){
 alert("You can't chat with yourself")
 return
 }
 
-loadChat(friendUID)
+loadChat(uid)
 
 })
 
@@ -243,14 +239,16 @@ currentFriend=friend
 document.getElementById("messages").innerHTML=""
 
 db.ref("users/"+friend+"/username").once("value",snap=>{
-
 document.getElementById("title").innerText=snap.val()
-
 })
 
 let id=chatID(myUID,friend)
 
-db.ref("chats/"+id).limitToLast(50).on("child_added",snap=>{
+if(chatListener) chatListener.off()
+
+chatListener=db.ref("chats/"+id)
+
+chatListener.limitToLast(50).on("child_added",snap=>{
 
 let data=snap.val()
 
@@ -263,33 +261,16 @@ ${data.text}
 <div class="time">${new Date(data.time).toLocaleTimeString()}</div>
 `
 
-messages.appendChild(div)
+document.getElementById("messages").appendChild(div)
 
-messages.scrollTop=messages.scrollHeight
+document.getElementById("messages").scrollTop=
+document.getElementById("messages").scrollHeight
 
 if(data.sender!==myUID && document.hidden){
-
 new Notification("New message",{body:data.text})
-
 }
 
 })
-
-db.ref("users/"+friend+"/online").on("value",snap=>{
-
-let online=snap.val()
-
-document.getElementById("title").innerText+=online?" (online)":" (offline)"
-
-})
-
-db.ref("typing/"+myUID).on("value",snap=>{
-
-typing.innerText=snap.exists()?"Typing...":""
-
-})
-
-db.ref("inbox/"+myUID+"/"+friend+"/unread").set(0)
 
 }
 
@@ -309,37 +290,24 @@ time:Date.now()
 
 updateInbox(currentFriend,text)
 
-msgInput.value=""
+document.getElementById("msgInput").value=""
 
 }
 
-msgInput.addEventListener("input",()=>{
+function updateInbox(friend,msg){
 
-if(!currentFriend)return
-
-db.ref("typing/"+currentFriend).set(myUID)
-
-setTimeout(()=>{
-
-db.ref("typing/"+currentFriend).remove()
-
-},1500)
-
+db.ref("inbox/"+myUID+"/"+friend).set({
+lastMessage:msg,
+time:Date.now(),
+unread:0
 })
 
-function updateInbox(friendUID,message){
-
-db.ref("inbox/"+myUID+"/"+friendUID).set({
-lastMessage:message,
-time:Date.now()
-})
-
-db.ref("inbox/"+friendUID+"/"+myUID).transaction(data=>{
+db.ref("inbox/"+friend+"/"+myUID).transaction(data=>{
 
 if(!data)data={unread:0}
 
 data.unread=(data.unread||0)+1
-data.lastMessage=message
+data.lastMessage=msg
 data.time=Date.now()
 
 return data
@@ -352,27 +320,31 @@ function loadInbox(){
 
 db.ref("inbox/"+myUID).orderByChild("time").on("value",snap=>{
 
-users.innerHTML=""
+let box=document.getElementById("users")
+
+box.innerHTML=""
 
 snap.forEach(chat=>{
 
-let friendUID=chat.key
+let friend=chat.key
 let data=chat.val()
 
-db.ref("users/"+friendUID+"/username").once("value",name=>{
+db.ref("users/"+friend+"/username").once("value",name=>{
 
 let div=document.createElement("div")
 
 div.className="user"
 
 div.innerHTML=`
-${name.val()}
-${data.unread?`(${data.unread})`:""}
+${name.val()} ${data.unread?`(${data.unread})`:""}
 `
 
-div.onclick=()=>loadChat(friendUID)
+div.onclick=()=>{
+loadChat(friend)
+db.ref("inbox/"+myUID+"/"+friend+"/unread").set(0)
+}
 
-users.appendChild(div)
+box.appendChild(div)
 
 })
 
@@ -381,6 +353,31 @@ users.appendChild(div)
 })
 
 }
+
+document.getElementById("msgInput").addEventListener("input",()=>{
+
+if(!currentFriend)return
+
+db.ref("typing/"+currentFriend).set(myUID)
+
+setTimeout(()=>{
+db.ref("typing/"+currentFriend).remove()
+},1500)
+
+})
+
+db.ref("typing/"+myUID).on("value",snap=>{
+
+if(!snap.exists()){
+typing.innerText=""
+return
+}
+
+typing.innerText="Typing..."
+
+})
+
+Notification.requestPermission()
 
 function deleteChat(){
 
@@ -390,7 +387,7 @@ let id=chatID(myUID,currentFriend)
 
 db.ref("chats/"+id).remove()
 
-messages.innerHTML=""
+document.getElementById("messages").innerHTML=""
 
 }
 
@@ -398,3 +395,4 @@ messages.innerHTML=""
 
 </body>
 </html>
+```
