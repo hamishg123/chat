@@ -27,10 +27,10 @@ overflow-y:auto;
 padding:10px;
 }
 
-#chat{
-flex:1;
-display:flex;
-flex-direction:column;
+#myCode{
+font-size:12px;
+opacity:.7;
+margin-bottom:10px;
 }
 
 .user{
@@ -38,13 +38,26 @@ background:#1e293b;
 padding:10px;
 border-radius:6px;
 margin-bottom:6px;
-cursor:pointer;
 display:flex;
 justify-content:space-between;
+align-items:center;
+cursor:pointer;
 }
 
 .user:hover{
 background:#334155;
+}
+
+.dots{
+cursor:pointer;
+padding:4px 8px;
+font-size:18px;
+}
+
+#chat{
+flex:1;
+display:flex;
+flex-direction:column;
 }
 
 #messages{
@@ -98,10 +111,23 @@ border-radius:6px;
 cursor:pointer;
 }
 
-#typing{
-font-size:12px;
-padding-left:20px;
-opacity:.8;
+#popup{
+position:fixed;
+top:0;
+left:0;
+width:100%;
+height:100%;
+background:rgba(0,0,0,.6);
+display:none;
+align-items:center;
+justify-content:center;
+}
+
+#popupBox{
+background:#020617;
+padding:20px;
+border-radius:10px;
+width:250px;
 }
 
 </style>
@@ -110,22 +136,25 @@ opacity:.8;
 <body>
 
 <div id="inbox">
+
 <h3>Inbox</h3>
+
+<div id="myCode"></div>
+
 <div id="users"></div>
 
 <input id="friendCode" placeholder="Enter user code">
 <button onclick="startChat()">Chat</button>
+
 </div>
 
 <div id="chat">
 
 <div style="padding:10px;border-bottom:1px solid #334155">
-<span id="title">Loading...</span>
-<button onclick="deleteChat()" style="float:right">Delete</button>
+<span id="title">Select chat</span>
 </div>
 
 <div id="messages"></div>
-<div id="typing"></div>
 
 <div id="send">
 <input id="msgInput" placeholder="Type message">
@@ -134,9 +163,19 @@ opacity:.8;
 
 </div>
 
+<div id="popup">
+<div id="popupBox">
+<h4>Rename Contact</h4>
+<input id="renameInput" placeholder="Enter name">
+<br><br>
+<button onclick="saveRename()">Save</button>
+<button onclick="closePopup()">Cancel</button>
+</div>
+</div>
+
 <script>
 
-const firebaseConfig = {
+const firebaseConfig={
 apiKey:"AIzaSyBeQR-07p_gkN1ygr49rh-PSI-pRsdmoDw",
 authDomain:"chat-82a4b.firebaseapp.com",
 databaseURL:"https://chat-82a4b-default-rtdb.firebaseio.com",
@@ -150,7 +189,7 @@ const db=firebase.database()
 let myUID
 let myCode
 let currentFriend=null
-let chatListener=null
+let renameTarget=null
 
 firebase.auth().onAuthStateChanged(user=>{
 
@@ -159,15 +198,13 @@ if(user){
 myUID=user.uid
 myCode=myUID.slice(0,6)
 
-document.getElementById("title").innerText="Your Code: "+myCode
+document.getElementById("myCode").innerText="Your Code: "+myCode
 
 createUser()
 loadInbox()
 
 }else{
-
 firebase.auth().signInAnonymously()
-
 }
 
 })
@@ -180,27 +217,16 @@ if(!snap.exists()){
 
 db.ref("users/"+myUID).set({
 code:myCode,
-username:"User-"+myCode,
-online:true
+username:"User-"+myCode
 })
 
 db.ref("codes/"+myCode).set(myUID)
 
-}else{
-
-db.ref("users/"+myUID+"/online").set(true)
-
 }
 
 })
 
 }
-
-window.addEventListener("beforeunload",()=>{
-if(myUID){
-db.ref("users/"+myUID+"/online").set(false)
-}
-})
 
 function chatID(a,b){
 return[a,b].sort().join("_")
@@ -235,25 +261,19 @@ loadChat(uid)
 function loadChat(friend){
 
 currentFriend=friend
-
-document.getElementById("messages").innerHTML=""
+messages.innerHTML=""
 
 db.ref("users/"+friend+"/username").once("value",snap=>{
-document.getElementById("title").innerText=snap.val()
+title.innerText=snap.val()+" ("+friend.slice(0,6)+")"
 })
 
 let id=chatID(myUID,friend)
 
-if(chatListener) chatListener.off()
-
-chatListener=db.ref("chats/"+id)
-
-chatListener.limitToLast(50).on("child_added",snap=>{
+db.ref("chats/"+id).limitToLast(50).on("child_added",snap=>{
 
 let data=snap.val()
 
 let div=document.createElement("div")
-
 div.className="msg "+(data.sender===myUID?"me":"them")
 
 div.innerHTML=`
@@ -261,14 +281,8 @@ ${data.text}
 <div class="time">${new Date(data.time).toLocaleTimeString()}</div>
 `
 
-document.getElementById("messages").appendChild(div)
-
-document.getElementById("messages").scrollTop=
-document.getElementById("messages").scrollHeight
-
-if(data.sender!==myUID && document.hidden){
-new Notification("New message",{body:data.text})
-}
+messages.appendChild(div)
+messages.scrollTop=messages.scrollHeight
 
 })
 
@@ -276,7 +290,7 @@ new Notification("New message",{body:data.text})
 
 function sendMessage(){
 
-let text=document.getElementById("msgInput").value.trim()
+let text=msgInput.value.trim()
 
 if(!text||!currentFriend)return
 
@@ -290,9 +304,13 @@ time:Date.now()
 
 updateInbox(currentFriend,text)
 
-document.getElementById("msgInput").value=""
+msgInput.value=""
 
 }
+
+msgInput.addEventListener("keydown",e=>{
+if(e.key==="Enter") sendMessage()
+})
 
 function updateInbox(friend,msg){
 
@@ -320,9 +338,7 @@ function loadInbox(){
 
 db.ref("inbox/"+myUID).orderByChild("time").on("value",snap=>{
 
-let box=document.getElementById("users")
-
-box.innerHTML=""
+users.innerHTML=""
 
 snap.forEach(chat=>{
 
@@ -332,19 +348,19 @@ let data=chat.val()
 db.ref("users/"+friend+"/username").once("value",name=>{
 
 let div=document.createElement("div")
-
 div.className="user"
 
+let customName=data.customName?data.customName:name.val()
+
 div.innerHTML=`
-${name.val()} ${data.unread?`(${data.unread})`:""}
+<span onclick="loadChat('${friend}')">
+${customName} (${friend.slice(0,6)})
+</span>
+
+<span class="dots" onclick="openRename('${friend}')">⋮</span>
 `
 
-div.onclick=()=>{
-loadChat(friend)
-db.ref("inbox/"+myUID+"/"+friend+"/unread").set(0)
-}
-
-box.appendChild(div)
+users.appendChild(div)
 
 })
 
@@ -354,40 +370,28 @@ box.appendChild(div)
 
 }
 
-document.getElementById("msgInput").addEventListener("input",()=>{
+function openRename(friend){
 
-if(!currentFriend)return
+renameTarget=friend
+document.getElementById("popup").style.display="flex"
 
-db.ref("typing/"+currentFriend).set(myUID)
-
-setTimeout(()=>{
-db.ref("typing/"+currentFriend).remove()
-},1500)
-
-})
-
-db.ref("typing/"+myUID).on("value",snap=>{
-
-if(!snap.exists()){
-typing.innerText=""
-return
 }
 
-typing.innerText="Typing..."
+function closePopup(){
 
-})
+document.getElementById("popup").style.display="none"
 
-Notification.requestPermission()
+}
 
-function deleteChat(){
+function saveRename(){
 
-if(!currentFriend)return
+let name=document.getElementById("renameInput").value
 
-let id=chatID(myUID,currentFriend)
+if(!name)return
 
-db.ref("chats/"+id).remove()
+db.ref("inbox/"+myUID+"/"+renameTarget+"/customName").set(name)
 
-document.getElementById("messages").innerHTML=""
+closePopup()
 
 }
 
