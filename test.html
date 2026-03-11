@@ -1,490 +1,427 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
 <meta charset="UTF-8">
 <title>SecureChat</title>
 
+<!-- Firebase -->
 <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
 <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js"></script>
 <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
 
+<!-- Styles -->
 <style>
-
-body{
-margin:0;
-font-family:Arial;
-background:#0f172a;
-color:white;
-display:flex;
-height:100vh;
+:root {
+  --bg-dark: #0f172a;
+  --bg-panel: #1e293b;
+  --text: #ffffff;
+  --accent: #2563eb;
+  --bg-light: #f8fafc;
+  --text-dark: #000000;
+  --panel-light: #e2e8f0;
 }
 
-.light{
-background:white;
-color:black;
+body {
+  margin: 0;
+  font-family: Arial, sans-serif;
+  background: var(--bg-dark);
+  color: var(--text);
+  display: flex;
+  height: 100vh;
+  transition: all 0.3s ease;
 }
 
-#sidebar{
-width:260px;
-background:#020617;
-padding:20px;
-overflow:auto;
+/* Light theme */
+.light {
+  background: var(--bg-light);
+  color: var(--text-dark);
 }
 
-#chat{
-flex:1;
-display:flex;
-flex-direction:column;
+.light .sidebar,
+.light .chatHeader,
+.light #inputArea {
+  background: var(--panel-light);
 }
 
-#messages{
-flex:1;
-overflow:auto;
-padding:20px;
+.light .message {
+  background: #e5e7eb;
+  color: #000;
 }
 
-.message{
-background:#1e293b;
-padding:10px;
-margin-bottom:10px;
-border-radius:8px;
-position:relative;
+.light .contact {
+  background: #e2e8f0;
+  color: #000;
 }
 
-.light .message{
-background:#ddd;
+/* Sidebar */
+.sidebar {
+  width: 270px;
+  background: #020617cc;
+  backdrop-filter: blur(10px);
+  padding: 20px;
+  overflow-y: auto;
+  border-right: 1px solid #334155;
 }
 
-.delete{
-position:absolute;
-right:8px;
-top:5px;
-cursor:pointer;
-color:red;
+.sidebar h3 {
+  margin-bottom: 10px;
+  border-bottom: 1px solid #334155;
+  padding-bottom: 5px;
 }
 
-.contact{
-padding:10px;
-background:#1e293b;
-margin-bottom:8px;
-border-radius:6px;
-cursor:pointer;
+#myCodeBox {
+  background: var(--bg-panel);
+  padding: 10px;
+  border-radius: 8px;
+  text-align: center;
+  font-weight: bold;
+  color: var(--accent);
+  margin-bottom: 10px;
 }
 
-.light .contact{
-background:#ccc;
+/* Chat */
+#chat {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
 }
 
-.online{color:#22c55e;}
-.offline{color:#ef4444;}
-
-#inputArea{
-display:flex;
-padding:10px;
-background:#020617;
-gap:5px;
+.chatHeader {
+  background: #020617cc;
+  padding: 15px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-bottom: 1px solid #334155;
 }
 
-input{
-flex:1;
-padding:10px;
-border:none;
-border-radius:6px;
+#chatName {
+  font-size: 18px;
+  font-weight: bold;
 }
 
-button{
-padding:10px;
-background:#2563eb;
-border:none;
-color:white;
-border-radius:6px;
-cursor:pointer;
+#messages {
+  flex: 1;
+  overflow-y: auto;
+  padding: 20px;
+  scroll-behavior: smooth;
 }
 
-img{
-max-width:200px;
-border-radius:6px;
+.message {
+  background: var(--bg-panel);
+  padding: 10px 15px;
+  margin-bottom: 10px;
+  border-radius: 12px;
+  position: relative;
+  word-wrap: break-word;
+  max-width: 70%;
 }
 
+.message img {
+  max-width: 250px;
+  border-radius: 8px;
+}
+
+.delete {
+  position: absolute;
+  right: 8px;
+  top: 6px;
+  cursor: pointer;
+  color: red;
+  font-weight: bold;
+}
+
+#typing {
+  text-align: center;
+  font-style: italic;
+  color: #9ca3af;
+  margin-bottom: 5px;
+}
+
+/* Contacts */
+.contact {
+  padding: 10px;
+  background: var(--bg-panel);
+  margin-bottom: 8px;
+  border-radius: 6px;
+  cursor: pointer;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.contact:hover {
+  background: var(--accent);
+  color: #fff;
+}
+
+.online { color: #22c55e; }
+.offline { color: #ef4444; }
+
+/* Input area */
+#inputArea {
+  display: flex;
+  padding: 10px;
+  background: #020617cc;
+  border-top: 1px solid #334155;
+  gap: 5px;
+}
+
+input, button {
+  border: none;
+  border-radius: 6px;
+}
+
+#msgInput {
+  flex: 1;
+  padding: 10px;
+  background: #1e293b;
+  color: #fff;
+}
+
+.light #msgInput {
+  background: #e5e7eb;
+  color: #000;
+}
+
+button {
+  padding: 10px;
+  background: var(--accent);
+  color: white;
+  cursor: pointer;
+  transition: 0.2s;
+}
+
+button:hover {
+  opacity: 0.8;
+}
+
+input[type="file"] {
+  background: none;
+  color: #fff;
+}
 </style>
-
 </head>
 
 <body>
+<div class="sidebar">
+  <h3>Your Code</h3>
+  <div id="myCodeBox">Loading...</div>
+  <button onclick="addContact()">Add Contact</button>
+  <button onclick="toggleTheme()">Toggle Theme</button>
 
-<div id="sidebar">
-
-<h3>Your Code</h3>
-<div id="myCode"></div>
-
-<button onclick="addContact()">Add Contact</button>
-<button onclick="toggleTheme()">Toggle Theme</button>
-
-<h3>Contacts</h3>
-<div id="contacts"></div>
-
+  <h3>Contacts</h3>
+  <div id="contacts"></div>
 </div>
 
 <div id="chat">
+  <div class="chatHeader">
+    <span id="chatName">Select Chat</span>
+    <div>
+      <button onclick="renameContact()">Rename</button>
+      <button onclick="deleteChat()">Delete Chat</button>
+    </div>
+  </div>
 
-<div style="padding:15px;background:#020617;">
-<span id="chatName">Select Chat</span>
+  <div id="messages"></div>
+  <div id="typing"></div>
 
-<button onclick="renameContact()">Rename</button>
-<button onclick="deleteChat()">Delete Chat</button>
-</div>
-
-<div id="messages"></div>
-
-<div id="typing"></div>
-
-<div id="inputArea">
-
-<input id="msgInput" placeholder="Type message">
-
-<input type="file" id="imgUpload">
-
-<button id="record">🎤</button>
-
-<button onclick="sendMessage()">Send</button>
-
-</div>
-
+  <div id="inputArea">
+    <input id="msgInput" placeholder="Type message...">
+    <input type="file" id="imgUpload" title="Send Image">
+    <button onclick="sendMessage()">Send</button>
+  </div>
 </div>
 
 <script>
-
-const firebaseConfig = {
-apiKey:"YOURKEY",
-authDomain:"YOURKEY",
-databaseURL:"YOURKEY",
-projectId:"YOURKEY"
-};
+const firebaseConfig={
+apiKey:"AIzaSyBeQR-07p_gkN1ygr49rh-PSI-pRsdmoDw",
+authDomain:"chat-82a4b.firebaseapp.com",
+databaseURL:"https://chat-82a4b-default-rtdb.firebaseio.com",
+projectId:"chat-82a4b"
+}
 
 firebase.initializeApp(firebaseConfig);
 
-const auth=firebase.auth();
-const db=firebase.database();
+const auth = firebase.auth();
+const db = firebase.database();
 
-let uid;
-let myCode;
-let currentChat;
-let currentChatUid;
+let uid, myCode, currentChat, currentChatUid;
 
 auth.signInAnonymously();
 
-auth.onAuthStateChanged(async user=>{
+auth.onAuthStateChanged(async user => {
+  uid = user.uid;
+  const userRef = db.ref("users/" + uid);
+  const snap = await userRef.once("value");
 
-uid=user.uid;
+  if (!snap.exists()) {
+    myCode = Math.floor(1000 + Math.random() * 9000).toString();
+    await userRef.set({ code: myCode });
+    db.ref("codes/" + myCode).set(uid);
+  } else {
+    myCode = snap.val().code;
+  }
 
-const userRef=db.ref("users/"+uid);
-
-const snap=await userRef.once("value");
-
-if(!snap.exists()){
-
-myCode=Math.floor(1000+Math.random()*9000).toString();
-
-await userRef.set({code:myCode});
-
-db.ref("codes/"+myCode).set(uid);
-
-}else{
-
-myCode=snap.val().code;
-
-}
-
-document.getElementById("myCode").innerText=myCode;
-
-setupPresence();
-loadContacts();
-
+  document.getElementById("myCodeBox").innerText = myCode;
+  setupPresence();
+  loadContacts();
 });
 
-function setupPresence(){
-
-const presence=db.ref("presence/"+uid);
-
-presence.set(true);
-
-presence.onDisconnect().remove();
-
+function setupPresence() {
+  const presence = db.ref("presence/" + uid);
+  presence.set(true);
+  presence.onDisconnect().remove();
 }
 
-function addContact(){
+function addContact() {
+  let code = prompt("Enter their 4-digit code:");
+  if (!code) return;
 
-let code=prompt("Enter their code");
-
-if(!code) return;
-
-db.ref("codes/"+code).once("value").then(snap=>{
-
-if(!snap.exists()){
-alert("User not found");
-return;
+  db.ref("codes/" + code).once("value").then(snap => {
+    if (!snap.exists()) {
+      alert("User not found");
+      return;
+    }
+    let otherUid = snap.val();
+    db.ref("contacts/" + uid + "/" + otherUid).set({ name: code });
+  });
 }
 
-let otherUid=snap.val();
+function loadContacts() {
+  db.ref("contacts/" + uid).on("value", snap => {
+    const list = document.getElementById("contacts");
+    list.innerHTML = "";
+    snap.forEach(child => {
+      const otherUid = child.key;
+      const data = child.val();
+      const div = document.createElement("div");
+      div.className = "contact";
+      div.innerHTML = `<span>${data.name}</span> <span id="status-${otherUid}"></span>`;
+      div.onclick = () => openChat(otherUid, data.name);
+      list.appendChild(div);
+      watchPresence(otherUid);
+    });
+  });
+}
 
-db.ref("contacts/"+uid+"/"+otherUid).set({
-name:code
+function watchPresence(id) {
+  db.ref("presence/" + id).on("value", snap => {
+    const el = document.getElementById("status-" + id);
+    if (!el) return;
+    if (snap.exists()) {
+      el.innerHTML = "●";
+      el.className = "online";
+    } else {
+      el.innerHTML = "●";
+      el.className = "offline";
+    }
+  });
+}
+
+function chatId(a, b) {
+  return [a, b].sort().join("_");
+}
+
+function openChat(otherUid, name) {
+  currentChatUid = otherUid;
+  currentChat = chatId(uid, otherUid);
+  document.getElementById("chatName").innerText = name;
+  loadMessages();
+  listenTyping();
+}
+
+function loadMessages() {
+  db.ref("messages/" + currentChat).on("value", snap => {
+    const box = document.getElementById("messages");
+    box.innerHTML = "";
+    snap.forEach(child => {
+      const m = child.val();
+      const div = document.createElement("div");
+      div.className = "message";
+
+      let content = "";
+      if (m.type === "image") {
+        content = `<img src="${m.url}">`;
+      } else {
+        content = `<strong>${m.sender}:</strong> ${m.text}`;
+      }
+
+      div.innerHTML = content + `<span class='delete' onclick='deleteMsg("${child.key}")'>×</span>`;
+      box.appendChild(div);
+    });
+    box.scrollTop = box.scrollHeight;
+  });
+}
+
+function sendMessage() {
+  const input = document.getElementById("msgInput");
+  if (input.value.trim() === "") return;
+
+  db.ref("messages/" + currentChat).push({
+    type: "text",
+    sender: myCode,
+    text: input.value,
+    time: Date.now()
+  });
+
+  input.value = "";
+}
+
+function deleteMsg(id) {
+  db.ref("messages/" + currentChat + "/" + id).remove();
+}
+
+function deleteChat() {
+  if (!confirm("Delete entire chat?")) return;
+  db.ref("messages/" + currentChat).remove();
+}
+
+function renameContact() {
+  let name = prompt("Enter new contact name:");
+  if (!name) return;
+  db.ref("contacts/" + uid + "/" + currentChatUid + "/name").set(name);
+}
+
+document.getElementById("msgInput").addEventListener("keypress", e => {
+  if (e.key === "Enter") sendMessage();
 });
 
+document.getElementById("msgInput").addEventListener("input", () => {
+  db.ref("typing/" + currentChat + "/" + uid).set(true);
+  setTimeout(() => {
+    db.ref("typing/" + currentChat + "/" + uid).remove();
+  }, 1000);
 });
 
+function listenTyping() {
+  db.ref("typing/" + currentChat).on("value", snap => {
+    let typing = false;
+    snap.forEach(c => {
+      if (c.key !== uid) typing = true;
+    });
+    document.getElementById("typing").innerText = typing ? "User is typing..." : "";
+  });
 }
 
-function loadContacts(){
-
-db.ref("contacts/"+uid).on("value",snap=>{
-
-const list=document.getElementById("contacts");
-list.innerHTML="";
-
-snap.forEach(child=>{
-
-const otherUid=child.key;
-const data=child.val();
-
-const div=document.createElement("div");
-div.className="contact";
-
-div.innerHTML=data.name+" <span id='status-"+otherUid+"'></span>";
-
-div.onclick=()=>openChat(otherUid,data.name);
-
-list.appendChild(div);
-
-watchPresence(otherUid);
-
-});
-
-});
-
-}
-
-function watchPresence(id){
-
-db.ref("presence/"+id).on("value",snap=>{
-
-const el=document.getElementById("status-"+id);
-
-if(!el) return;
-
-if(snap.exists()){
-el.innerHTML="●";
-el.className="online";
-}else{
-el.innerHTML="●";
-el.className="offline";
-}
-
-});
-
-}
-
-function chatId(a,b){
-return [a,b].sort().join("_");
-}
-
-function openChat(otherUid,name){
-
-currentChatUid=otherUid;
-currentChat=chatId(uid,otherUid);
-
-document.getElementById("chatName").innerText=name;
-
-loadMessages();
-listenTyping();
-
-}
-
-function loadMessages(){
-
-db.ref("messages/"+currentChat).on("value",snap=>{
-
-const box=document.getElementById("messages");
-box.innerHTML="";
-
-snap.forEach(child=>{
-
-const m=child.val();
-
-const div=document.createElement("div");
-div.className="message";
-
-let content="";
-
-if(m.type==="image"){
-
-content=`<img src="${m.url}">`;
-
-}else if(m.type==="audio"){
-
-content=`<audio controls src="${m.url}"></audio>`;
-
-}else{
-
-content=m.sender+": "+m.text;
-
-}
-
-div.innerHTML=content+
-"<span class='delete' onclick='deleteMsg(\""+child.key+"\")'>x</span>";
-
-box.appendChild(div);
-
-});
-
-box.scrollTop=box.scrollHeight;
-
-});
-
-}
-
-function sendMessage(){
-
-const input=document.getElementById("msgInput");
-
-if(input.value==="") return;
-
-db.ref("messages/"+currentChat).push({
-type:"text",
-sender:myCode,
-text:input.value,
-time:Date.now()
-});
-
-input.value="";
-
-}
-
-function deleteMsg(id){
-
-db.ref("messages/"+currentChat+"/"+id).remove();
-
-}
-
-function deleteChat(){
-
-if(!confirm("Delete entire chat?")) return;
-
-db.ref("messages/"+currentChat).remove();
-
-}
-
-function renameContact(){
-
-let name=prompt("New name");
-
-if(!name) return;
-
-db.ref("contacts/"+uid+"/"+currentChatUid+"/name").set(name);
-
-}
-
-document.getElementById("msgInput").addEventListener("keypress",e=>{
-
-if(e.key==="Enter") sendMessage();
-
-});
-
-document.getElementById("msgInput").addEventListener("input",()=>{
-
-db.ref("typing/"+currentChat+"/"+uid).set(true);
-
-setTimeout(()=>{
-db.ref("typing/"+currentChat+"/"+uid).remove();
-},1000);
-
-});
-
-function listenTyping(){
-
-db.ref("typing/"+currentChat).on("value",snap=>{
-
-let typing=false;
-
-snap.forEach(c=>{
-if(c.key!==uid) typing=true;
-});
-
-document.getElementById("typing").innerText=
-typing?"User is typing...":"";
-
-});
-
-}
-
-imgUpload.onchange=e=>{
-
-let file=e.target.files[0];
-
-let reader=new FileReader();
-
-reader.onload=()=>{
-
-db.ref("messages/"+currentChat).push({
-type:"image",
-url:reader.result,
-sender:myCode,
-time:Date.now()
-});
-
+const imgUpload = document.getElementById("imgUpload");
+imgUpload.onchange = e => {
+  let file = e.target.files[0];
+  let reader = new FileReader();
+  reader.onload = () => {
+    db.ref("messages/" + currentChat).push({
+      type: "image",
+      url: reader.result,
+      sender: myCode,
+      time: Date.now()
+    });
+  };
+  reader.readAsDataURL(file);
 };
 
-reader.readAsDataURL(file);
-
-};
-
-let recorder;
-let chunks=[];
-
-record.onclick=async()=>{
-
-let stream=await navigator.mediaDevices.getUserMedia({audio:true});
-
-recorder=new MediaRecorder(stream);
-
-recorder.start();
-
-recorder.ondataavailable=e=>chunks.push(e.data);
-
-recorder.onstop=e=>{
-
-let blob=new Blob(chunks);
-
-let reader=new FileReader();
-
-reader.onload=()=>{
-
-db.ref("messages/"+currentChat).push({
-type:"audio",
-url:reader.result,
-sender:myCode,
-time:Date.now()
-});
-
-};
-
-reader.readAsDataURL(blob);
-
-chunks=[];
-
-};
-
-setTimeout(()=>recorder.stop(),3000);
-
-};
-
-function toggleTheme(){
-
-document.body.classList.toggle("light");
-
+function toggleTheme() {
+  document.body.classList.toggle("light");
 }
-
 </script>
-
 </body>
 </html>
