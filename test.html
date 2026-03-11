@@ -209,10 +209,21 @@ firebase.auth().signInAnonymously()
 
 function createUser(){
 
+let userRef = db.ref("users/"+myUID)
+
+userRef.once("value").then(snap=>{
+
+if(!snap.exists()){
+
 db.ref("users/"+myUID).set({
 code:myCode,
-username:"User-"+myCode,
-online:true
+username:"User-"+myCode
+})
+
+db.ref("codes/"+myCode).set(myUID)
+
+}
+
 })
 
 }
@@ -227,16 +238,21 @@ let code=document.getElementById("friendCode").value.trim()
 
 if(!code)return
 
-db.ref("users").orderByChild("code").equalTo(code).once("value",snap=>{
+db.ref("codes/"+code).once("value").then(snap=>{
 
 if(!snap.exists()){
 alert("User not found")
 return
 }
 
-snap.forEach(user=>{
-loadChat(user.key)
-})
+let friendUID=snap.val()
+
+if(friendUID===myUID){
+alert("You can't chat with yourself")
+return
+}
+
+loadChat(friendUID)
 
 })
 
