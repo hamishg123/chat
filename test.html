@@ -1,8 +1,8 @@
-
 <!DOCTYPE html>
 <html>
 <head>
-<title>Free Chat</title>
+<meta charset="UTF-8">
+<title>SecureChat</title>
 
 <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
 <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js"></script>
@@ -15,42 +15,20 @@ margin:0;
 font-family:Arial;
 background:#0f172a;
 color:white;
+display:flex;
 height:100vh;
-display:flex;
 }
 
-#inbox{
-width:280px;
+.light{
+background:white;
+color:black;
+}
+
+#sidebar{
+width:260px;
 background:#020617;
-border-right:1px solid #334155;
-overflow-y:auto;
-padding:10px;
-}
-
-#myCode{
-font-size:12px;
-opacity:.7;
-margin-bottom:10px;
-}
-
-.user{
-background:#1e293b;
-padding:10px;
-border-radius:6px;
-margin-bottom:6px;
-cursor:pointer;
-display:flex;
-justify-content:space-between;
-align-items:center;
-}
-
-.user:hover{
-background:#334155;
-}
-
-.menu{
-cursor:pointer;
-padding:4px 8px;
+padding:20px;
+overflow:auto;
 }
 
 #chat{
@@ -59,418 +37,454 @@ display:flex;
 flex-direction:column;
 }
 
-#chatHeader{
-padding:10px;
-border-bottom:1px solid #334155;
-display:flex;
-justify-content:space-between;
-}
-
 #messages{
 flex:1;
-overflow-y:auto;
+overflow:auto;
 padding:20px;
 }
 
-.msg{
+.message{
+background:#1e293b;
 padding:10px;
+margin-bottom:10px;
 border-radius:8px;
-margin:10px 0;
-max-width:60%;
 position:relative;
 }
 
-.me{
-background:#2563eb;
-margin-left:auto;
+.light .message{
+background:#ddd;
 }
 
-.them{
-background:#334155;
-}
-
-.msgMenu{
+.delete{
 position:absolute;
+right:8px;
 top:5px;
-right:5px;
 cursor:pointer;
-font-size:14px;
+color:red;
 }
 
-.time{
-font-size:10px;
-opacity:0.6;
-margin-top:4px;
+.contact{
+padding:10px;
+background:#1e293b;
+margin-bottom:8px;
+border-radius:6px;
+cursor:pointer;
 }
 
-#send{
+.light .contact{
+background:#ccc;
+}
+
+.online{color:#22c55e;}
+.offline{color:#ef4444;}
+
+#inputArea{
 display:flex;
 padding:10px;
 background:#020617;
-border-top:1px solid #334155;
+gap:5px;
 }
 
-#msgInput{
+input{
 flex:1;
 padding:10px;
 border:none;
 border-radius:6px;
-margin-right:10px;
 }
 
-#send button{
+button{
+padding:10px;
 background:#2563eb;
 border:none;
-padding:10px 20px;
 color:white;
 border-radius:6px;
 cursor:pointer;
 }
 
-#popup{
-display:none;
-position:fixed;
-top:0;
-left:0;
-width:100%;
-height:100%;
-background:rgba(0,0,0,.6);
-align-items:center;
-justify-content:center;
-}
-
-#popupBox{
-background:#020617;
-padding:20px;
-border-radius:10px;
-width:260px;
-text-align:center;
+img{
+max-width:200px;
+border-radius:6px;
 }
 
 </style>
+
 </head>
 
 <body>
 
-<div id="inbox">
+<div id="sidebar">
 
-<h3>Inbox</h3>
-
+<h3>Your Code</h3>
 <div id="myCode"></div>
 
-<div id="users"></div>
+<button onclick="addContact()">Add Contact</button>
+<button onclick="toggleTheme()">Toggle Theme</button>
 
-<input id="friendCode" placeholder="Enter user code">
-<button onclick="startChat()">Chat</button>
+<h3>Contacts</h3>
+<div id="contacts"></div>
 
 </div>
 
 <div id="chat">
 
-<div id="chatHeader">
-<span id="title">Select chat</span>
-<span class="menu" onclick="deleteConversation()">🗑</span>
+<div style="padding:15px;background:#020617;">
+<span id="chatName">Select Chat</span>
+
+<button onclick="renameContact()">Rename</button>
+<button onclick="deleteChat()">Delete Chat</button>
 </div>
 
 <div id="messages"></div>
 
-<div id="send">
+<div id="typing"></div>
+
+<div id="inputArea">
+
 <input id="msgInput" placeholder="Type message">
+
+<input type="file" id="imgUpload">
+
+<button id="record">🎤</button>
+
 <button onclick="sendMessage()">Send</button>
-</div>
 
 </div>
 
-<div id="popup">
-<div id="popupBox">
-<p id="popupText"></p>
-<button id="popupYes">Confirm</button>
-<button onclick="closePopup()">Cancel</button>
-</div>
 </div>
 
 <script>
 
-const firebaseConfig={
-apiKey:"AIzaSyBeQR-07p_gkN1ygr49rh-PSI-pRsdmoDw",
-authDomain:"chat-82a4b.firebaseapp.com",
-databaseURL:"https://chat-82a4b-default-rtdb.firebaseio.com",
-projectId:"chat-82a4b"
-}
+const firebaseConfig = {
+apiKey:"YOURKEY",
+authDomain:"YOURKEY",
+databaseURL:"YOURKEY",
+projectId:"YOURKEY"
+};
 
-firebase.initializeApp(firebaseConfig)
-const db=firebase.database()
+firebase.initializeApp(firebaseConfig);
 
-let myUID
-let myCode
-let currentFriend=null
-let chatListener=null
-let sending=false
+const auth=firebase.auth();
+const db=firebase.database();
 
-firebase.auth().onAuthStateChanged(user=>{
+let uid;
+let myCode;
+let currentChat;
+let currentChatUid;
 
-if(user){
+auth.signInAnonymously();
 
-myUID=user.uid
-myCode=myUID.slice(0,6)
+auth.onAuthStateChanged(async user=>{
 
-myCodeDiv.innerText="Your Code: "+myCode
+uid=user.uid;
 
-createUser()
-loadInbox()
+const userRef=db.ref("users/"+uid);
 
-}else{
-firebase.auth().signInAnonymously()
-}
-
-})
-
-function createUser(){
-
-db.ref("users/"+myUID).once("value").then(snap=>{
+const snap=await userRef.once("value");
 
 if(!snap.exists()){
 
-db.ref("users/"+myUID).set({
-code:myCode,
-username:"User-"+myCode
-})
+myCode=Math.floor(1000+Math.random()*9000).toString();
 
-db.ref("codes/"+myCode).set(myUID)
+await userRef.set({code:myCode});
+
+db.ref("codes/"+myCode).set(uid);
+
+}else{
+
+myCode=snap.val().code;
 
 }
 
-})
+document.getElementById("myCode").innerText=myCode;
+
+setupPresence();
+loadContacts();
+
+});
+
+function setupPresence(){
+
+const presence=db.ref("presence/"+uid);
+
+presence.set(true);
+
+presence.onDisconnect().remove();
 
 }
 
-function chatID(a,b){
-return[a,b].sort().join("_")
-}
+function addContact(){
 
-function startChat(){
+let code=prompt("Enter their code");
 
-let code=friendCode.value.trim()
-
-if(!code)return
+if(!code) return;
 
 db.ref("codes/"+code).once("value").then(snap=>{
 
 if(!snap.exists()){
-alert("User not found")
-return
+alert("User not found");
+return;
 }
 
-let uid=snap.val()
+let otherUid=snap.val();
 
-if(uid===myUID){
-alert("You can't chat with yourself")
-return
-}
+db.ref("contacts/"+uid+"/"+otherUid).set({
+name:code
+});
 
-loadChat(uid)
-
-})
+});
 
 }
 
-function loadChat(friend){
+function loadContacts(){
 
-currentFriend=friend
-messages.innerHTML=""
+db.ref("contacts/"+uid).on("value",snap=>{
 
-db.ref("users/"+friend+"/username").once("value",snap=>{
-title.innerText=snap.val()+" ("+friend.slice(0,6)+")"
-})
+const list=document.getElementById("contacts");
+list.innerHTML="";
 
-let id=chatID(myUID,friend)
+snap.forEach(child=>{
 
-if(chatListener) chatListener.off()
+const otherUid=child.key;
+const data=child.val();
 
-chatListener=db.ref("chats/"+id)
+const div=document.createElement("div");
+div.className="contact";
 
-chatListener.limitToLast(50).on("child_added",snap=>{
+div.innerHTML=data.name+" <span id='status-"+otherUid+"'></span>";
 
-let data=snap.val()
+div.onclick=()=>openChat(otherUid,data.name);
 
-let div=document.createElement("div")
-div.className="msg "+(data.sender===myUID?"me":"them")
+list.appendChild(div);
 
-div.innerHTML=`
-${data.sender===myUID?`<span class="msgMenu" onclick="deleteMessage('${id}','${snap.key}',event)">⋮</span>`:""}
-${data.text}
-<div class="time">${new Date(data.time).toLocaleTimeString()}</div>
-`
+watchPresence(otherUid);
 
-messages.appendChild(div)
-messages.scrollTop=messages.scrollHeight
+});
 
-})
+});
+
+}
+
+function watchPresence(id){
+
+db.ref("presence/"+id).on("value",snap=>{
+
+const el=document.getElementById("status-"+id);
+
+if(!el) return;
+
+if(snap.exists()){
+el.innerHTML="●";
+el.className="online";
+}else{
+el.innerHTML="●";
+el.className="offline";
+}
+
+});
+
+}
+
+function chatId(a,b){
+return [a,b].sort().join("_");
+}
+
+function openChat(otherUid,name){
+
+currentChatUid=otherUid;
+currentChat=chatId(uid,otherUid);
+
+document.getElementById("chatName").innerText=name;
+
+loadMessages();
+listenTyping();
+
+}
+
+function loadMessages(){
+
+db.ref("messages/"+currentChat).on("value",snap=>{
+
+const box=document.getElementById("messages");
+box.innerHTML="";
+
+snap.forEach(child=>{
+
+const m=child.val();
+
+const div=document.createElement("div");
+div.className="message";
+
+let content="";
+
+if(m.type==="image"){
+
+content=`<img src="${m.url}">`;
+
+}else if(m.type==="audio"){
+
+content=`<audio controls src="${m.url}"></audio>`;
+
+}else{
+
+content=m.sender+": "+m.text;
+
+}
+
+div.innerHTML=content+
+"<span class='delete' onclick='deleteMsg(\""+child.key+"\")'>x</span>";
+
+box.appendChild(div);
+
+});
+
+box.scrollTop=box.scrollHeight;
+
+});
 
 }
 
 function sendMessage(){
 
-if(sending) return
+const input=document.getElementById("msgInput");
 
-let text=msgInput.value.trim()
+if(input.value==="") return;
 
-if(!text||!currentFriend)return
-
-sending=true
-
-let id=chatID(myUID,currentFriend)
-
-db.ref("chats/"+id).push({
-sender:myUID,
-text:text,
+db.ref("messages/"+currentChat).push({
+type:"text",
+sender:myCode,
+text:input.value,
 time:Date.now()
-})
+});
 
-updateInbox(currentFriend,text)
-
-msgInput.value=""
-
-setTimeout(()=>sending=false,300)
+input.value="";
 
 }
 
-msgInput.addEventListener("keydown",e=>{
-if(e.key==="Enter"){
-e.preventDefault()
-sendMessage()
-}
-})
+function deleteMsg(id){
 
-function updateInbox(friend,msg){
-
-db.ref("inbox/"+myUID+"/"+friend).set({
-lastMessage:msg,
-time:Date.now(),
-unread:0
-})
-
-db.ref("inbox/"+friend+"/"+myUID).transaction(data=>{
-
-if(!data)data={unread:0}
-
-data.unread=(data.unread||0)+1
-data.lastMessage=msg
-data.time=Date.now()
-
-return data
-
-})
+db.ref("messages/"+currentChat+"/"+id).remove();
 
 }
 
-function loadInbox(){
+function deleteChat(){
 
-db.ref("inbox/"+myUID).orderByChild("time").on("value",snap=>{
+if(!confirm("Delete entire chat?")) return;
 
-users.innerHTML=""
-
-snap.forEach(chat=>{
-
-let friend=chat.key
-let data=chat.val()
-
-Promise.all([
-db.ref("users/"+friend+"/username").once("value"),
-db.ref("contacts/"+myUID+"/"+friend+"/customName").once("value")
-]).then(([username,custom])=>{
-
-let name=custom.exists()?custom.val():username.val()
-
-let div=document.createElement("div")
-div.className="user"
-
-div.onclick=()=>{
-loadChat(friend)
-db.ref("inbox/"+myUID+"/"+friend+"/unread").set(0)
-}
-
-div.innerHTML=`
-<span>${name} (${friend.slice(0,6)})</span>
-<span class="menu" onclick="contactMenu('${friend}',event)">⋮</span>
-`
-
-users.appendChild(div)
-
-})
-
-})
-
-})
+db.ref("messages/"+currentChat).remove();
 
 }
 
-function contactMenu(friend,e){
+function renameContact(){
 
-e.stopPropagation()
+let name=prompt("New name");
 
-showPopup("Rename or remove contact?",()=>{
+if(!name) return;
 
-let name=prompt("Enter new name")
-
-if(name){
-db.ref("contacts/"+myUID+"/"+friend+"/customName").set(name)
-}
-
-})
+db.ref("contacts/"+uid+"/"+currentChatUid+"/name").set(name);
 
 }
 
-function deleteMessage(chat,id,e){
+document.getElementById("msgInput").addEventListener("keypress",e=>{
 
-e.stopPropagation()
+if(e.key==="Enter") sendMessage();
 
-showPopup("Delete this message?",()=>{
-db.ref("chats/"+chat+"/"+id).remove()
-})
+});
 
-}
+document.getElementById("msgInput").addEventListener("input",()=>{
 
-function deleteConversation(){
+db.ref("typing/"+currentChat+"/"+uid).set(true);
 
-if(!currentFriend)return
+setTimeout(()=>{
+db.ref("typing/"+currentChat+"/"+uid).remove();
+},1000);
 
-let id=chatID(myUID,currentFriend)
+});
 
-showPopup("Delete entire conversation?",()=>{
+function listenTyping(){
 
-db.ref("chats/"+id).remove()
-db.ref("inbox/"+myUID+"/"+currentFriend).remove()
+db.ref("typing/"+currentChat).on("value",snap=>{
 
-messages.innerHTML=""
+let typing=false;
 
-})
+snap.forEach(c=>{
+if(c.key!==uid) typing=true;
+});
 
-}
+document.getElementById("typing").innerText=
+typing?"User is typing...":"";
 
-let popupAction=null
-
-function showPopup(text,action){
-
-popupText.innerText=text
-popup.style.display="flex"
-popupAction=action
+});
 
 }
 
-function closePopup(){
+imgUpload.onchange=e=>{
 
-popup.style.display="none"
+let file=e.target.files[0];
 
-}
+let reader=new FileReader();
 
-popupYes.onclick=()=>{
-if(popupAction) popupAction()
-closePopup()
+reader.onload=()=>{
+
+db.ref("messages/"+currentChat).push({
+type:"image",
+url:reader.result,
+sender:myCode,
+time:Date.now()
+});
+
+};
+
+reader.readAsDataURL(file);
+
+};
+
+let recorder;
+let chunks=[];
+
+record.onclick=async()=>{
+
+let stream=await navigator.mediaDevices.getUserMedia({audio:true});
+
+recorder=new MediaRecorder(stream);
+
+recorder.start();
+
+recorder.ondataavailable=e=>chunks.push(e.data);
+
+recorder.onstop=e=>{
+
+let blob=new Blob(chunks);
+
+let reader=new FileReader();
+
+reader.onload=()=>{
+
+db.ref("messages/"+currentChat).push({
+type:"audio",
+url:reader.result,
+sender:myCode,
+time:Date.now()
+});
+
+};
+
+reader.readAsDataURL(blob);
+
+chunks=[];
+
+};
+
+setTimeout(()=>recorder.stop(),3000);
+
+};
+
+function toggleTheme(){
+
+document.body.classList.toggle("light");
+
 }
 
 </script>
 
 </body>
 </html>
-```
