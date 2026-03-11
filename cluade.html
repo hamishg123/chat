@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Messaging App</title>
+  <style>
+    /* Basic CSS styling */
+    body { font-family: Arial, sans-serif; }
+    #messages { height: 300px; overflow-y: scroll; }
+    #message-input { width: 80%; }
+  </style>
+</head>
+<body>
+  <h1>Messaging App</h1>
+
+  <div id="messages">
+    <!-- Messages will be displayed here -->
+  </div>
+
+  <input type="text" id="message-input" placeholder="Type your message">
+  <button onclick="sendMessage()">Send</button>
+
+  <script>
+    // Cloudflare Realtime Database setup
+    const databaseUrl = 'https://database.cloudflare.com/your-database-id';
+    const database = new Realtime.Database(databaseUrl);
+
+    // Generate a unique user ID
+    const userId = Math.floor(1000 + Math.random() * 9000);
+    console.log('Your user ID:', userId);
+
+    // Function to send a message
+    function sendMessage() {
+      const messageInput = document.getElementById('message-input');
+      const message = messageInput.value.trim();
+      if (message) {
+        database.collection('messages').add({
+          userId: userId,
+          message: message,
+          timestamp: new Date().getTime()
+        });
+        messageInput.value = '';
+        displayMessage(userId, message);
+      }
+    }
+
+    // Function to display a message
+    function displayMessage(userId, message) {
+      const messagesDiv = document.getElementById('messages');
+      const messageDiv = document.createElement('div');
+      messageDiv.textContent = `User ${userId}: ${message}`;
+      messagesDiv.appendChild(messageDiv);
+      messagesDiv.scrollTop = messagesDiv.scrollHeight;
+    }
+
+    // Listen for real-time updates from the database
+    database.collection('messages').onSnapshot(snapshot => {
+      snapshot.docChanges().forEach(change => {
+        if (change.type === 'added') {
+          const data = change.doc.data();
+          displayMessage(data.userId, data.message);
+        }
+      });
+    });
+  </script>
+</body>
+</html>
