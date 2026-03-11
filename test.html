@@ -57,7 +57,6 @@ padding:10px;
 border-radius:8px;
 margin:10px 0;
 max-width:60%;
-animation:fade .2s;
 }
 
 .me{
@@ -104,52 +103,26 @@ padding-left:20px;
 opacity:.8;
 }
 
-.popup{
-position:fixed;
-top:0;
-left:0;
-width:100%;
-height:100%;
-background:rgba(0,0,0,.6);
-display:flex;
-align-items:center;
-justify-content:center;
-}
-
-.popupBox{
-background:#020617;
-padding:20px;
-border-radius:10px;
-width:300px;
-text-align:center;
-}
-
-.hidden{
-display:none;
-}
-
-@keyframes fade{
-from{opacity:0;transform:translateY(5px)}
-to{opacity:1}
-}
-
 </style>
 </head>
 
 <body>
 
 <div id="inbox">
-<h3>Inbox</h3>
+
+<h3 id="myCode">Connecting...</h3>
+
 <div id="users"></div>
 
 <input id="friendCode" placeholder="Enter user code">
 <button onclick="startChat()">Chat</button>
+
 </div>
 
 <div id="chat">
 
 <div style="padding:10px;border-bottom:1px solid #334155">
-<span id="title">Loading...</span>
+<span id="title">Select a chat</span>
 <button onclick="deleteChat()" style="float:right">Delete</button>
 </div>
 
@@ -163,17 +136,9 @@ to{opacity:1}
 
 </div>
 
-<div id="popup" class="popup hidden">
-<div class="popupBox">
-<p id="popupText"></p>
-<button id="popupYes">Confirm</button>
-<button onclick="closePopup()">Cancel</button>
-</div>
-</div>
-
 <script>
 
-const firebaseConfig = {
+const firebaseConfig={
 apiKey:"AIzaSyBeQR-07p_gkN1ygr49rh-PSI-pRsdmoDw",
 authDomain:"chat-82a4b.firebaseapp.com",
 databaseURL:"https://chat-82a4b-default-rtdb.firebaseio.com",
@@ -181,23 +146,27 @@ projectId:"chat-82a4b"
 }
 
 firebase.initializeApp(firebaseConfig)
+
 const db=firebase.database()
 
 let myUID
 let myCode
 let currentFriend=null
-let currentChatListener=null
 
-firebase.auth().onAuthStateChanged(user => {
+Notification.requestPermission()
+
+firebase.auth().onAuthStateChanged(user=>{
 
 if(user){
 
-myUID = user.uid
-myCode = myUID.slice(0,6)
+myUID=user.uid
+myCode=myUID.slice(0,6)
 
-document.getElementById("title").innerText = "Your Code: " + myCode
+document.getElementById("myCode").innerText="Your code: "+myCode
 
 createUser()
+
+loadInbox()
 
 }else{
 
@@ -209,24 +178,33 @@ firebase.auth().signInAnonymously()
 
 function createUser(){
 
-let userRef = db.ref("users/"+myUID)
-
-userRef.once("value").then(snap=>{
+db.ref("users/"+myUID).once("value").then(snap=>{
 
 if(!snap.exists()){
 
 db.ref("users/"+myUID).set({
 code:myCode,
-username:"User-"+myCode
+username:"User-"+myCode,
+online:true
 })
 
 db.ref("codes/"+myCode).set(myUID)
 
+}else{
+
+db.ref("users/"+myUID+"/online").set(true)
+
 }
 
 })
 
 }
+
+window.addEventListener("beforeunload",()=>{
+
+db.ref("users/"+myUID+"/online").set(false)
+
+})
 
 function chatID(a,b){
 return[a,b].sort().join("_")
@@ -266,20 +244,13 @@ document.getElementById("messages").innerHTML=""
 
 db.ref("users/"+friend+"/username").once("value",snap=>{
 
-document.getElementById("title").innerText=
-snap.val()+" ("+friend.slice(0,6)+")"
+document.getElementById("title").innerText=snap.val()
 
 })
 
 let id=chatID(myUID,friend)
 
-if(currentChatListener){
-db.ref("chats/"+id).off()
-}
-
-currentChatListener=db.ref("chats/"+id)
-
-currentChatListener.limitToLast(50).on("child_added",snap=>{
+db.ref("chats/"+id).limitToLast(50).on("child_added",snap=>{
 
 let data=snap.val()
 
@@ -292,12 +263,33 @@ ${data.text}
 <div class="time">${new Date(data.time).toLocaleTimeString()}</div>
 `
 
-document.getElementById("messages").appendChild(div)
+messages.appendChild(div)
 
-document.getElementById("messages").scrollTop=
-document.getElementById("messages").scrollHeight
+messages.scrollTop=messages.scrollHeight
+
+if(data.sender!==myUID && document.hidden){
+
+new Notification("New message",{body:data.text})
+
+}
 
 })
+
+db.ref("users/"+friend+"/online").on("value",snap=>{
+
+let online=snap.val()
+
+document.getElementById("title").innerText+=online?" (online)":" (offline)"
+
+})
+
+db.ref("typing/"+myUID).on("value",snap=>{
+
+typing.innerText=snap.exists()?"Typing...":""
+
+})
+
+db.ref("inbox/"+myUID+"/"+friend+"/unread").set(0)
 
 }
 
@@ -315,42 +307,90 @@ text:text,
 time:Date.now()
 })
 
-document.getElementById("msgInput").value=""
+updateInbox(currentFriend,text)
+
+msgInput.value=""
 
 }
 
-let popupAction=null
+msgInput.addEventListener("input",()=>{
 
-function showPopup(text,action){
+if(!currentFriend)return
 
-document.getElementById("popupText").innerText=text
-popupAction=action
-document.getElementById("popup").classList.remove("hidden")
+db.ref("typing/"+currentFriend).set(myUID)
+
+setTimeout(()=>{
+
+db.ref("typing/"+currentFriend).remove()
+
+},1500)
+
+})
+
+function updateInbox(friendUID,message){
+
+db.ref("inbox/"+myUID+"/"+friendUID).set({
+lastMessage:message,
+time:Date.now()
+})
+
+db.ref("inbox/"+friendUID+"/"+myUID).transaction(data=>{
+
+if(!data)data={unread:0}
+
+data.unread=(data.unread||0)+1
+data.lastMessage=message
+data.time=Date.now()
+
+return data
+
+})
 
 }
 
-function closePopup(){
-document.getElementById("popup").classList.add("hidden")
-}
+function loadInbox(){
 
-document.getElementById("popupYes").onclick=()=>{
-popupAction()
-closePopup()
+db.ref("inbox/"+myUID).orderByChild("time").on("value",snap=>{
+
+users.innerHTML=""
+
+snap.forEach(chat=>{
+
+let friendUID=chat.key
+let data=chat.val()
+
+db.ref("users/"+friendUID+"/username").once("value",name=>{
+
+let div=document.createElement("div")
+
+div.className="user"
+
+div.innerHTML=`
+${name.val()}
+${data.unread?`(${data.unread})`:""}
+`
+
+div.onclick=()=>loadChat(friendUID)
+
+users.appendChild(div)
+
+})
+
+})
+
+})
+
 }
 
 function deleteChat(){
 
 if(!currentFriend)return
 
-showPopup("Delete this chat?",()=>{
-
 let id=chatID(myUID,currentFriend)
 
 db.ref("chats/"+id).remove()
 
-document.getElementById("messages").innerHTML=""
-
-})
+messages.innerHTML=""
 
 }
 
