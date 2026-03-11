@@ -1,0 +1,472 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>SecureChat</title>
+
+<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js"></script>
+<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
+
+<style>
+
+body{
+margin:0;
+font-family:Arial;
+background:#0f172a;
+color:white;
+display:flex;
+height:100vh;
+}
+
+.light{
+background:#f1f5f9;
+color:black;
+}
+
+.sidebar{
+width:270px;
+background:#020617;
+padding:20px;
+overflow:auto;
+}
+
+.light .sidebar{
+background:#e2e8f0;
+}
+
+#myCodeBox{
+background:#1e293b;
+padding:10px;
+border-radius:8px;
+font-weight:bold;
+margin-bottom:10px;
+text-align:center;
+}
+
+.contact{
+padding:10px;
+background:#1e293b;
+margin-bottom:8px;
+border-radius:6px;
+cursor:pointer;
+}
+
+.light .contact{
+background:#cbd5f5;
+}
+
+#chat{
+flex:1;
+display:flex;
+flex-direction:column;
+}
+
+.chatHeader{
+padding:15px;
+background:#020617;
+display:flex;
+justify-content:space-between;
+}
+
+.light .chatHeader{
+background:#e2e8f0;
+}
+
+#messages{
+flex:1;
+overflow:auto;
+padding:20px;
+display:flex;
+flex-direction:column;
+gap:10px;
+}
+
+.message{
+max-width:60%;
+padding:10px;
+border-radius:10px;
+position:relative;
+}
+
+.me{
+align-self:flex-end;
+background:#2563eb;
+color:white;
+}
+
+.other{
+align-self:flex-start;
+background:#374151;
+}
+
+.light .other{
+background:#d1d5db;
+color:black;
+}
+
+.sender{
+font-size:12px;
+opacity:0.8;
+margin-bottom:4px;
+}
+
+.delete{
+position:absolute;
+right:5px;
+top:3px;
+cursor:pointer;
+color:red;
+}
+
+#inputArea{
+display:flex;
+gap:5px;
+padding:10px;
+background:#020617;
+}
+
+.light #inputArea{
+background:#e2e8f0;
+}
+
+#msgInput{
+flex:1;
+padding:10px;
+border:none;
+border-radius:6px;
+}
+
+button{
+padding:10px;
+background:#2563eb;
+border:none;
+color:white;
+border-radius:6px;
+cursor:pointer;
+}
+
+#modal{
+position:fixed;
+top:0;
+left:0;
+width:100%;
+height:100%;
+background:rgba(0,0,0,0.6);
+display:none;
+align-items:center;
+justify-content:center;
+}
+
+#modalBox{
+background:white;
+padding:20px;
+border-radius:10px;
+width:300px;
+color:black;
+}
+
+#modalInput{
+width:100%;
+padding:8px;
+margin-top:10px;
+}
+
+</style>
+</head>
+
+<body>
+
+<div class="sidebar">
+
+<h3>Your Code</h3>
+<div id="myCodeBox"></div>
+
+<button onclick="openPrompt('Add Contact','Enter code',addContact)">Add Contact</button>
+<button onclick="toggleTheme()">Toggle Theme</button>
+
+<h3>Contacts</h3>
+<div id="contacts"></div>
+
+</div>
+
+<div id="chat">
+
+<div class="chatHeader">
+<span id="chatName">Select Chat</span>
+<div>
+<button onclick="renameContact()">Rename</button>
+<button onclick="deleteChat()">Delete Chat</button>
+</div>
+</div>
+
+<div id="messages"></div>
+
+<div id="typing"></div>
+
+<div id="inputArea">
+<input id="msgInput" placeholder="Type message">
+<input type="file" id="imgUpload">
+<button onclick="sendMessage()">Send</button>
+</div>
+
+</div>
+
+<div id="modal">
+<div id="modalBox">
+<h3 id="modalTitle"></h3>
+<input id="modalInput">
+<br><br>
+<button onclick="submitPrompt()">OK</button>
+</div>
+</div>
+
+<script>
+
+
+
+firebase.initializeApp(firebaseConfig)
+
+const auth=firebase.auth()
+const db=firebase.database()
+
+let uid
+let myCode
+let currentChat
+let currentChatUid
+let promptCallback
+
+auth.signInAnonymously()
+
+auth.onAuthStateChanged(async user=>{
+
+uid=user.uid
+
+let userRef=db.ref("users/"+uid)
+let snap=await userRef.once("value")
+
+if(!snap.exists()){
+
+myCode=Math.floor(1000+Math.random()*9000).toString()
+
+await userRef.set({code:myCode})
+
+db.ref("codes/"+myCode).set(uid)
+
+}else{
+myCode=snap.val().code
+}
+
+document.getElementById("myCodeBox").innerText=myCode
+
+setupPresence()
+loadContacts()
+
+})
+
+function setupPresence(){
+
+let p=db.ref("presence/"+uid)
+p.set(true)
+p.onDisconnect().remove()
+
+}
+
+function openPrompt(title,placeholder,callback){
+
+document.getElementById("modal").style.display="flex"
+document.getElementById("modalTitle").innerText=title
+document.getElementById("modalInput").placeholder=placeholder
+document.getElementById("modalInput").value=""
+promptCallback=callback
+
+}
+
+function submitPrompt(){
+
+let value=document.getElementById("modalInput").value
+
+document.getElementById("modal").style.display="none"
+
+if(promptCallback) promptCallback(value)
+
+}
+
+function addContact(code){
+
+if(!code) return
+
+db.ref("codes/"+code).once("value").then(async snap=>{
+
+if(!snap.exists()) return
+
+let otherUid=snap.val()
+
+await db.ref("contacts/"+uid+"/"+otherUid).set({name:code,id:code})
+
+await db.ref("contacts/"+otherUid+"/"+uid).set({name:myCode,id:myCode})
+
+})
+
+}
+
+function loadContacts(){
+
+db.ref("contacts/"+uid).on("value",snap=>{
+
+let list=document.getElementById("contacts")
+list.innerHTML=""
+
+snap.forEach(child=>{
+
+let otherUid=child.key
+let data=child.val()
+
+let div=document.createElement("div")
+div.className="contact"
+
+div.innerText=data.name+" ("+data.id+")"
+
+div.onclick=()=>openChat(otherUid,data)
+
+list.appendChild(div)
+
+})
+
+})
+
+}
+
+function chatId(a,b){
+
+return[a,b].sort().join("_")
+
+}
+
+function openChat(otherUid,data){
+
+currentChatUid=otherUid
+currentChat=chatId(uid,otherUid)
+
+document.getElementById("chatName").innerText=data.name+" ("+data.id+")"
+
+loadMessages()
+
+}
+
+function loadMessages(){
+
+db.ref("messages/"+currentChat).on("value",snap=>{
+
+let box=document.getElementById("messages")
+box.innerHTML=""
+
+snap.forEach(child=>{
+
+let m=child.val()
+
+let div=document.createElement("div")
+
+let mine=m.sender===myCode
+
+div.className="message "+(mine?"me":"other")
+
+let label=mine?"Me":m.name+" ("+m.sender+")"
+
+let content=""
+
+if(m.type==="image"){
+content=`<img src="${m.url}">`
+}else{
+content=m.text
+}
+
+div.innerHTML=`<div class="sender">${label}</div>${content}<span class="delete" onclick="deleteMsg('${child.key}')">x</span>`
+
+box.appendChild(div)
+
+})
+
+box.scrollTop=box.scrollHeight
+
+})
+
+}
+
+function sendMessage(){
+
+let input=document.getElementById("msgInput")
+
+if(input.value==="") return
+
+db.ref("messages/"+currentChat).push({
+type:"text",
+text:input.value,
+sender:myCode,
+name:document.getElementById("myCodeBox").innerText,
+time:Date.now()
+})
+
+input.value=""
+
+}
+
+function deleteMsg(id){
+
+db.ref("messages/"+currentChat+"/"+id).remove()
+
+}
+
+function deleteChat(){
+
+db.ref("messages/"+currentChat).remove()
+
+}
+
+function renameContact(){
+
+openPrompt("Rename Contact","New name",name=>{
+
+if(!name) return
+
+db.ref("contacts/"+uid+"/"+currentChatUid+"/name").set(name)
+
+})
+
+}
+
+document.getElementById("msgInput").addEventListener("keypress",e=>{
+if(e.key==="Enter") sendMessage()
+})
+
+imgUpload.onchange=e=>{
+
+let file=e.target.files[0]
+let reader=new FileReader()
+
+reader.onload=()=>{
+
+db.ref("messages/"+currentChat).push({
+type:"image",
+url:reader.result,
+sender:myCode,
+name:"Me",
+time:Date.now()
+})
+
+}
+
+reader.readAsDataURL(file)
+
+}
+
+function toggleTheme(){
+
+document.body.classList.toggle("light")
+
+}
+
+</script>
+
+</body>
+</html>
