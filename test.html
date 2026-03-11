@@ -1,4 +1,4 @@
-```html
+
 <!DOCTYPE html>
 <html>
 <head>
@@ -30,28 +30,7 @@ padding:10px;
 #myCode{
 font-size:12px;
 opacity:.7;
-margin-bottom:8px;
-}
-
-#renameBtn{
 margin-bottom:10px;
-width:100%;
-background:#1e293b;
-border:none;
-padding:6px;
-color:white;
-border-radius:6px;
-cursor:pointer;
-}
-
-#renameBtn:hover{
-background:#334155;
-}
-
-#chat{
-flex:1;
-display:flex;
-flex-direction:column;
 }
 
 .user{
@@ -59,13 +38,26 @@ background:#1e293b;
 padding:10px;
 border-radius:6px;
 margin-bottom:6px;
-cursor:pointer;
 display:flex;
 justify-content:space-between;
+align-items:center;
+cursor:pointer;
 }
 
 .user:hover{
 background:#334155;
+}
+
+.dots{
+cursor:pointer;
+padding:4px 8px;
+font-size:18px;
+}
+
+#chat{
+flex:1;
+display:flex;
+flex-direction:column;
 }
 
 #messages{
@@ -119,10 +111,23 @@ border-radius:6px;
 cursor:pointer;
 }
 
-#typing{
-font-size:12px;
-padding-left:20px;
-opacity:.8;
+#popup{
+position:fixed;
+top:0;
+left:0;
+width:100%;
+height:100%;
+background:rgba(0,0,0,.6);
+display:none;
+align-items:center;
+justify-content:center;
+}
+
+#popupBox{
+background:#020617;
+padding:20px;
+border-radius:10px;
+width:250px;
 }
 
 </style>
@@ -134,9 +139,7 @@ opacity:.8;
 
 <h3>Inbox</h3>
 
-<div id="myCode">Your Code: loading...</div>
-
-<button id="renameBtn" onclick="renameUser()">Rename</button>
+<div id="myCode"></div>
 
 <div id="users"></div>
 
@@ -148,13 +151,10 @@ opacity:.8;
 <div id="chat">
 
 <div style="padding:10px;border-bottom:1px solid #334155">
-<span id="title">Select a chat</span>
-<button onclick="deleteChat()" style="float:right">Delete</button>
+<span id="title">Select chat</span>
 </div>
 
 <div id="messages"></div>
-
-<div id="typing"></div>
 
 <div id="send">
 <input id="msgInput" placeholder="Type message">
@@ -163,9 +163,19 @@ opacity:.8;
 
 </div>
 
+<div id="popup">
+<div id="popupBox">
+<h4>Rename Contact</h4>
+<input id="renameInput" placeholder="Enter name">
+<br><br>
+<button onclick="saveRename()">Save</button>
+<button onclick="closePopup()">Cancel</button>
+</div>
+</div>
+
 <script>
 
-const firebaseConfig = {
+const firebaseConfig={
 apiKey:"AIzaSyBeQR-07p_gkN1ygr49rh-PSI-pRsdmoDw",
 authDomain:"chat-82a4b.firebaseapp.com",
 databaseURL:"https://chat-82a4b-default-rtdb.firebaseio.com",
@@ -173,12 +183,13 @@ projectId:"chat-82a4b"
 }
 
 firebase.initializeApp(firebaseConfig)
+
 const db=firebase.database()
 
 let myUID
 let myCode
 let currentFriend=null
-let chatListener=null
+let renameTarget=null
 
 firebase.auth().onAuthStateChanged(user=>{
 
@@ -193,9 +204,7 @@ createUser()
 loadInbox()
 
 }else{
-
 firebase.auth().signInAnonymously()
-
 }
 
 })
@@ -208,37 +217,14 @@ if(!snap.exists()){
 
 db.ref("users/"+myUID).set({
 code:myCode,
-username:"User-"+myCode,
-online:true
+username:"User-"+myCode
 })
 
 db.ref("codes/"+myCode).set(myUID)
 
-}else{
-
-db.ref("users/"+myUID+"/online").set(true)
-
 }
 
 })
-
-}
-
-window.addEventListener("beforeunload",()=>{
-if(myUID){
-db.ref("users/"+myUID+"/online").set(false)
-}
-})
-
-function renameUser(){
-
-let name=prompt("Enter new name")
-
-if(!name) return
-
-db.ref("users/"+myUID+"/username").set(name)
-
-alert("Name updated")
 
 }
 
@@ -275,25 +261,19 @@ loadChat(uid)
 function loadChat(friend){
 
 currentFriend=friend
-
-document.getElementById("messages").innerHTML=""
+messages.innerHTML=""
 
 db.ref("users/"+friend+"/username").once("value",snap=>{
-document.getElementById("title").innerText=snap.val()
+title.innerText=snap.val()+" ("+friend.slice(0,6)+")"
 })
 
 let id=chatID(myUID,friend)
 
-if(chatListener) chatListener.off()
-
-chatListener=db.ref("chats/"+id)
-
-chatListener.limitToLast(50).on("child_added",snap=>{
+db.ref("chats/"+id).limitToLast(50).on("child_added",snap=>{
 
 let data=snap.val()
 
 let div=document.createElement("div")
-
 div.className="msg "+(data.sender===myUID?"me":"them")
 
 div.innerHTML=`
@@ -302,12 +282,7 @@ ${data.text}
 `
 
 messages.appendChild(div)
-
 messages.scrollTop=messages.scrollHeight
-
-if(data.sender!==myUID && document.hidden){
-new Notification("New message",{body:data.text})
-}
 
 })
 
@@ -315,7 +290,7 @@ new Notification("New message",{body:data.text})
 
 function sendMessage(){
 
-let text=document.getElementById("msgInput").value.trim()
+let text=msgInput.value.trim()
 
 if(!text||!currentFriend)return
 
@@ -329,16 +304,12 @@ time:Date.now()
 
 updateInbox(currentFriend,text)
 
-document.getElementById("msgInput").value=""
+msgInput.value=""
 
 }
 
-document.getElementById("msgInput").addEventListener("keypress",function(e){
-
-if(e.key==="Enter"){
-sendMessage()
-}
-
+msgInput.addEventListener("keydown",e=>{
+if(e.key==="Enter") sendMessage()
 })
 
 function updateInbox(friend,msg){
@@ -367,8 +338,7 @@ function loadInbox(){
 
 db.ref("inbox/"+myUID).orderByChild("time").on("value",snap=>{
 
-let box=document.getElementById("users")
-box.innerHTML=""
+users.innerHTML=""
 
 snap.forEach(chat=>{
 
@@ -378,60 +348,50 @@ let data=chat.val()
 db.ref("users/"+friend+"/username").once("value",name=>{
 
 let div=document.createElement("div")
-
 div.className="user"
 
-div.innerHTML=`${name.val()} ${data.unread?`(${data.unread})`:""}`
+let customName=data.customName?data.customName:name.val()
 
-div.onclick=()=>{
-loadChat(friend)
-db.ref("inbox/"+myUID+"/"+friend+"/unread").set(0)
+div.innerHTML=`
+<span onclick="loadChat('${friend}')">
+${customName} (${friend.slice(0,6)})
+</span>
+
+<span class="dots" onclick="openRename('${friend}')">⋮</span>
+`
+
+users.appendChild(div)
+
+})
+
+})
+
+})
+
 }
 
-box.appendChild(div)
+function openRename(friend){
 
-})
-
-})
-
-})
+renameTarget=friend
+document.getElementById("popup").style.display="flex"
 
 }
 
-document.getElementById("msgInput").addEventListener("input",()=>{
+function closePopup(){
 
-if(!currentFriend)return
+document.getElementById("popup").style.display="none"
 
-db.ref("typing/"+currentFriend).set(myUID)
-
-setTimeout(()=>{
-db.ref("typing/"+currentFriend).remove()
-},1500)
-
-})
-
-db.ref("typing/"+myUID).on("value",snap=>{
-
-if(!snap.exists()){
-typing.innerText=""
-return
 }
 
-typing.innerText="Typing..."
+function saveRename(){
 
-})
+let name=document.getElementById("renameInput").value
 
-Notification.requestPermission()
+if(!name)return
 
-function deleteChat(){
+db.ref("inbox/"+myUID+"/"+renameTarget+"/customName").set(name)
 
-if(!currentFriend)return
-
-let id=chatID(myUID,currentFriend)
-
-db.ref("chats/"+id).remove()
-
-document.getElementById("messages").innerHTML=""
+closePopup()
 
 }
 
