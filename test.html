@@ -98,10 +98,6 @@ border-radius:6px;
 cursor:pointer;
 }
 
-#send button:hover{
-background:#1d4ed8;
-}
-
 #typing{
 font-size:12px;
 padding-left:20px;
@@ -189,6 +185,8 @@ const db=firebase.database()
 
 let myUID
 let myCode
+let currentFriend=null
+let currentChatListener=null
 
 firebase.auth().onAuthStateChanged(user => {
 
@@ -199,7 +197,7 @@ myCode = myUID.slice(0,6)
 
 document.getElementById("title").innerText = "Your Code: " + myCode
 
-startApp()
+createUser()
 
 }else{
 
@@ -209,20 +207,35 @@ firebase.auth().signInAnonymously()
 
 })
 
+function createUser(){
+
+db.ref("users/"+myUID).set({
+code:myCode,
+username:"User-"+myCode,
+online:true
+})
+
+}
+
 function chatID(a,b){
 return[a,b].sort().join("_")
 }
 
 function startChat(){
 
-let code=document.getElementById("friendCode").value
+let code=document.getElementById("friendCode").value.trim()
+
+if(!code)return
 
 db.ref("users").orderByChild("code").equalTo(code).once("value",snap=>{
 
+if(!snap.exists()){
+alert("User not found")
+return
+}
+
 snap.forEach(user=>{
-
 loadChat(user.key)
-
 })
 
 })
@@ -233,6 +246,8 @@ function loadChat(friend){
 
 currentFriend=friend
 
+document.getElementById("messages").innerHTML=""
+
 db.ref("users/"+friend+"/username").once("value",snap=>{
 
 document.getElementById("title").innerText=
@@ -242,7 +257,13 @@ snap.val()+" ("+friend.slice(0,6)+")"
 
 let id=chatID(myUID,friend)
 
-db.ref("chats/"+id).limitToLast(50).on("child_added",snap=>{
+if(currentChatListener){
+db.ref("chats/"+id).off()
+}
+
+currentChatListener=db.ref("chats/"+id)
+
+currentChatListener.limitToLast(50).on("child_added",snap=>{
 
 let data=snap.val()
 
@@ -257,13 +278,16 @@ ${data.text}
 
 document.getElementById("messages").appendChild(div)
 
+document.getElementById("messages").scrollTop=
+document.getElementById("messages").scrollHeight
+
 })
 
 }
 
 function sendMessage(){
 
-let text=document.getElementById("msgInput").value
+let text=document.getElementById("msgInput").value.trim()
 
 if(!text||!currentFriend)return
 
