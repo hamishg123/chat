@@ -1,180 +1,239 @@
-
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-<title>Free Chat</title>
+<meta charset="UTF-8">
+<title>SecureChat</title>
 
+<!-- Firebase -->
 <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
 <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js"></script>
 <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
 
+<!-- Styles -->
 <style>
-
-body{
-margin:0;
-font-family:Arial;
-background:#0f172a;
-color:white;
-height:100vh;
-display:flex;
+:root {
+  --bg-dark: #0f172a;
+  --bg-panel: #1e293b;
+  --text: #ffffff;
+  --accent: #2563eb;
+  --bg-light: #f8fafc;
+  --text-dark: #000000;
+  --panel-light: #e2e8f0;
 }
 
-#inbox{
-width:280px;
-background:#020617;
-border-right:1px solid #334155;
-overflow-y:auto;
-padding:10px;
+body {
+  margin: 0;
+  font-family: Arial, sans-serif;
+  background: var(--bg-dark);
+  color: var(--text);
+  display: flex;
+  height: 100vh;
+  transition: all 0.3s ease;
 }
 
-#myCode{
-font-size:12px;
-opacity:.7;
-margin-bottom:10px;
+/* Light theme */
+.light {
+  background: var(--bg-light);
+  color: var(--text-dark);
 }
 
-.user{
-background:#1e293b;
-padding:10px;
-border-radius:6px;
-margin-bottom:6px;
-display:flex;
-justify-content:space-between;
-align-items:center;
-cursor:pointer;
+.light .sidebar,
+.light .chatHeader,
+.light #inputArea {
+  background: var(--panel-light);
 }
 
-.user:hover{
-background:#334155;
+.light .message {
+  background: #e5e7eb;
+  color: #000;
 }
 
-.dots{
-cursor:pointer;
-padding:4px 8px;
-font-size:18px;
+.light .contact {
+  background: #e2e8f0;
+  color: #000;
 }
 
-#chat{
-flex:1;
-display:flex;
-flex-direction:column;
+/* Sidebar */
+.sidebar {
+  width: 270px;
+  background: #020617cc;
+  backdrop-filter: blur(10px);
+  padding: 20px;
+  overflow-y: auto;
+  border-right: 1px solid #334155;
 }
 
-#messages{
-flex:1;
-overflow-y:auto;
-padding:20px;
+.sidebar h3 {
+  margin-bottom: 10px;
+  border-bottom: 1px solid #334155;
+  padding-bottom: 5px;
 }
 
-.msg{
-padding:10px;
-border-radius:8px;
-margin:10px 0;
-max-width:60%;
+#myCodeBox {
+  background: var(--bg-panel);
+  padding: 10px;
+  border-radius: 8px;
+  text-align: center;
+  font-weight: bold;
+  color: var(--accent);
+  margin-bottom: 10px;
 }
 
-.me{
-background:#2563eb;
-margin-left:auto;
+/* Chat */
+#chat {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
 }
 
-.them{
-background:#334155;
+.chatHeader {
+  background: #020617cc;
+  padding: 15px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-bottom: 1px solid #334155;
 }
 
-.time{
-font-size:10px;
-opacity:0.6;
+#chatName {
+  font-size: 18px;
+  font-weight: bold;
 }
 
-#send{
-display:flex;
-padding:10px;
-background:#020617;
-border-top:1px solid #334155;
+#messages {
+  flex: 1;
+  overflow-y: auto;
+  padding: 20px;
+  scroll-behavior: smooth;
 }
 
-#send input{
-flex:1;
-padding:10px;
-border:none;
-border-radius:6px;
-margin-right:10px;
+.message {
+  background: var(--bg-panel);
+  padding: 10px 15px;
+  margin-bottom: 10px;
+  border-radius: 12px;
+  position: relative;
+  word-wrap: break-word;
+  max-width: 70%;
 }
 
-#send button{
-background:#2563eb;
-border:none;
-padding:10px 20px;
-color:white;
-border-radius:6px;
-cursor:pointer;
+.message img {
+  max-width: 250px;
+  border-radius: 8px;
 }
 
-#popup{
-position:fixed;
-top:0;
-left:0;
-width:100%;
-height:100%;
-background:rgba(0,0,0,.6);
-display:none;
-align-items:center;
-justify-content:center;
+.delete {
+  position: absolute;
+  right: 8px;
+  top: 6px;
+  cursor: pointer;
+  color: red;
+  font-weight: bold;
 }
 
-#popupBox{
-background:#020617;
-padding:20px;
-border-radius:10px;
-width:250px;
+#typing {
+  text-align: center;
+  font-style: italic;
+  color: #9ca3af;
+  margin-bottom: 5px;
 }
 
+/* Contacts */
+.contact {
+  padding: 10px;
+  background: var(--bg-panel);
+  margin-bottom: 8px;
+  border-radius: 6px;
+  cursor: pointer;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.contact:hover {
+  background: var(--accent);
+  color: #fff;
+}
+
+.online { color: #22c55e; }
+.offline { color: #ef4444; }
+
+/* Input area */
+#inputArea {
+  display: flex;
+  padding: 10px;
+  background: #020617cc;
+  border-top: 1px solid #334155;
+  gap: 5px;
+}
+
+input, button {
+  border: none;
+  border-radius: 6px;
+}
+
+#msgInput {
+  flex: 1;
+  padding: 10px;
+  background: #1e293b;
+  color: #fff;
+}
+
+.light #msgInput {
+  background: #e5e7eb;
+  color: #000;
+}
+
+button {
+  padding: 10px;
+  background: var(--accent);
+  color: white;
+  cursor: pointer;
+  transition: 0.2s;
+}
+
+button:hover {
+  opacity: 0.8;
+}
+
+input[type="file"] {
+  background: none;
+  color: #fff;
+}
 </style>
 </head>
 
 <body>
+<div class="sidebar">
+  <h3>Your Code</h3>
+  <div id="myCodeBox">Loading...</div>
+  <button onclick="addContact()">Add Contact</button>
+  <button onclick="toggleTheme()">Toggle Theme</button>
 
-<div id="inbox">
-
-<h3>Inbox</h3>
-
-<div id="myCode"></div>
-
-<div id="users"></div>
-
-<input id="friendCode" placeholder="Enter user code">
-<button onclick="startChat()">Chat</button>
-
+  <h3>Contacts</h3>
+  <div id="contacts"></div>
 </div>
 
 <div id="chat">
+  <div class="chatHeader">
+    <span id="chatName">Select Chat</span>
+    <div>
+      <button onclick="renameContact()">Rename</button>
+      <button onclick="deleteChat()">Delete Chat</button>
+    </div>
+  </div>
 
-<div style="padding:10px;border-bottom:1px solid #334155">
-<span id="title">Select chat</span>
-</div>
+  <div id="messages"></div>
+  <div id="typing"></div>
 
-<div id="messages"></div>
-
-<div id="send">
-<input id="msgInput" placeholder="Type message">
-<button onclick="sendMessage()">Send</button>
-</div>
-
-</div>
-
-<div id="popup">
-<div id="popupBox">
-<h4>Rename Contact</h4>
-<input id="renameInput" placeholder="Enter name">
-<br><br>
-<button onclick="saveRename()">Save</button>
-<button onclick="closePopup()">Cancel</button>
-</div>
+  <div id="inputArea">
+    <input id="msgInput" placeholder="Type message...">
+    <input type="file" id="imgUpload" title="Send Image">
+    <button onclick="sendMessage()">Send</button>
+  </div>
 </div>
 
 <script>
-
 const firebaseConfig={
 apiKey:"AIzaSyBeQR-07p_gkN1ygr49rh-PSI-pRsdmoDw",
 authDomain:"chat-82a4b.firebaseapp.com",
@@ -182,221 +241,187 @@ databaseURL:"https://chat-82a4b-default-rtdb.firebaseio.com",
 projectId:"chat-82a4b"
 }
 
-firebase.initializeApp(firebaseConfig)
+firebase.initializeApp(firebaseConfig);
 
-const db=firebase.database()
+const auth = firebase.auth();
+const db = firebase.database();
 
-let myUID
-let myCode
-let currentFriend=null
-let renameTarget=null
+let uid, myCode, currentChat, currentChatUid;
 
-firebase.auth().onAuthStateChanged(user=>{
+auth.signInAnonymously();
 
-if(user){
+auth.onAuthStateChanged(async user => {
+  uid = user.uid;
+  const userRef = db.ref("users/" + uid);
+  const snap = await userRef.once("value");
 
-myUID=user.uid
-myCode=myUID.slice(0,6)
+  if (!snap.exists()) {
+    myCode = Math.floor(1000 + Math.random() * 9000).toString();
+    await userRef.set({ code: myCode });
+    db.ref("codes/" + myCode).set(uid);
+  } else {
+    myCode = snap.val().code;
+  }
 
-document.getElementById("myCode").innerText="Your Code: "+myCode
+  document.getElementById("myCodeBox").innerText = myCode;
+  setupPresence();
+  loadContacts();
+});
 
-createUser()
-loadInbox()
-
-}else{
-firebase.auth().signInAnonymously()
+function setupPresence() {
+  const presence = db.ref("presence/" + uid);
+  presence.set(true);
+  presence.onDisconnect().remove();
 }
 
-})
+function addContact() {
+  let code = prompt("Enter their 4-digit code:");
+  if (!code) return;
 
-function createUser(){
-
-db.ref("users/"+myUID).once("value").then(snap=>{
-
-if(!snap.exists()){
-
-db.ref("users/"+myUID).set({
-code:myCode,
-username:"User-"+myCode
-})
-
-db.ref("codes/"+myCode).set(myUID)
-
+  db.ref("codes/" + code).once("value").then(snap => {
+    if (!snap.exists()) {
+      alert("User not found");
+      return;
+    }
+    let otherUid = snap.val();
+    db.ref("contacts/" + uid + "/" + otherUid).set({ name: code });
+  });
 }
 
-})
-
+function loadContacts() {
+  db.ref("contacts/" + uid).on("value", snap => {
+    const list = document.getElementById("contacts");
+    list.innerHTML = "";
+    snap.forEach(child => {
+      const otherUid = child.key;
+      const data = child.val();
+      const div = document.createElement("div");
+      div.className = "contact";
+      div.innerHTML = `<span>${data.name}</span> <span id="status-${otherUid}"></span>`;
+      div.onclick = () => openChat(otherUid, data.name);
+      list.appendChild(div);
+      watchPresence(otherUid);
+    });
+  });
 }
 
-function chatID(a,b){
-return[a,b].sort().join("_")
+function watchPresence(id) {
+  db.ref("presence/" + id).on("value", snap => {
+    const el = document.getElementById("status-" + id);
+    if (!el) return;
+    if (snap.exists()) {
+      el.innerHTML = "●";
+      el.className = "online";
+    } else {
+      el.innerHTML = "●";
+      el.className = "offline";
+    }
+  });
 }
 
-function startChat(){
-
-let code=document.getElementById("friendCode").value.trim()
-
-if(!code)return
-
-db.ref("codes/"+code).once("value").then(snap=>{
-
-if(!snap.exists()){
-alert("User not found")
-return
+function chatId(a, b) {
+  return [a, b].sort().join("_");
 }
 
-let uid=snap.val()
-
-if(uid===myUID){
-alert("You can't chat with yourself")
-return
+function openChat(otherUid, name) {
+  currentChatUid = otherUid;
+  currentChat = chatId(uid, otherUid);
+  document.getElementById("chatName").innerText = name;
+  loadMessages();
+  listenTyping();
 }
 
-loadChat(uid)
+function loadMessages() {
+  db.ref("messages/" + currentChat).on("value", snap => {
+    const box = document.getElementById("messages");
+    box.innerHTML = "";
+    snap.forEach(child => {
+      const m = child.val();
+      const div = document.createElement("div");
+      div.className = "message";
 
-})
+      let content = "";
+      if (m.type === "image") {
+        content = `<img src="${m.url}">`;
+      } else {
+        content = `<strong>${m.sender}:</strong> ${m.text}`;
+      }
 
+      div.innerHTML = content + `<span class='delete' onclick='deleteMsg("${child.key}")'>×</span>`;
+      box.appendChild(div);
+    });
+    box.scrollTop = box.scrollHeight;
+  });
 }
 
-function loadChat(friend){
+function sendMessage() {
+  const input = document.getElementById("msgInput");
+  if (input.value.trim() === "") return;
 
-currentFriend=friend
-messages.innerHTML=""
+  db.ref("messages/" + currentChat).push({
+    type: "text",
+    sender: myCode,
+    text: input.value,
+    time: Date.now()
+  });
 
-db.ref("users/"+friend+"/username").once("value",snap=>{
-title.innerText=snap.val()+" ("+friend.slice(0,6)+")"
-})
-
-let id=chatID(myUID,friend)
-
-db.ref("chats/"+id).limitToLast(50).on("child_added",snap=>{
-
-let data=snap.val()
-
-let div=document.createElement("div")
-div.className="msg "+(data.sender===myUID?"me":"them")
-
-div.innerHTML=`
-${data.text}
-<div class="time">${new Date(data.time).toLocaleTimeString()}</div>
-`
-
-messages.appendChild(div)
-messages.scrollTop=messages.scrollHeight
-
-})
-
+  input.value = "";
 }
 
-function sendMessage(){
-
-let text=msgInput.value.trim()
-
-if(!text||!currentFriend)return
-
-let id=chatID(myUID,currentFriend)
-
-db.ref("chats/"+id).push({
-sender:myUID,
-text:text,
-time:Date.now()
-})
-
-updateInbox(currentFriend,text)
-
-msgInput.value=""
-
+function deleteMsg(id) {
+  db.ref("messages/" + currentChat + "/" + id).remove();
 }
 
-msgInput.addEventListener("keydown",e=>{
-if(e.key==="Enter") sendMessage()
-})
-
-function updateInbox(friend,msg){
-
-db.ref("inbox/"+myUID+"/"+friend).set({
-lastMessage:msg,
-time:Date.now(),
-unread:0
-})
-
-db.ref("inbox/"+friend+"/"+myUID).transaction(data=>{
-
-if(!data)data={unread:0}
-
-data.unread=(data.unread||0)+1
-data.lastMessage=msg
-data.time=Date.now()
-
-return data
-
-})
-
+function deleteChat() {
+  if (!confirm("Delete entire chat?")) return;
+  db.ref("messages/" + currentChat).remove();
 }
 
-function loadInbox(){
-
-db.ref("inbox/"+myUID).orderByChild("time").on("value",snap=>{
-
-users.innerHTML=""
-
-snap.forEach(chat=>{
-
-let friend=chat.key
-let data=chat.val()
-
-db.ref("users/"+friend+"/username").once("value",name=>{
-
-let div=document.createElement("div")
-div.className="user"
-
-let customName=data.customName?data.customName:name.val()
-
-div.innerHTML=`
-<span onclick="loadChat('${friend}')">
-${customName} (${friend.slice(0,6)})
-</span>
-
-<span class="dots" onclick="openRename('${friend}')">⋮</span>
-`
-
-users.appendChild(div)
-
-})
-
-})
-
-})
-
+function renameContact() {
+  let name = prompt("Enter new contact name:");
+  if (!name) return;
+  db.ref("contacts/" + uid + "/" + currentChatUid + "/name").set(name);
 }
 
-function openRename(friend){
+document.getElementById("msgInput").addEventListener("keypress", e => {
+  if (e.key === "Enter") sendMessage();
+});
 
-renameTarget=friend
-document.getElementById("popup").style.display="flex"
+document.getElementById("msgInput").addEventListener("input", () => {
+  db.ref("typing/" + currentChat + "/" + uid).set(true);
+  setTimeout(() => {
+    db.ref("typing/" + currentChat + "/" + uid).remove();
+  }, 1000);
+});
 
+function listenTyping() {
+  db.ref("typing/" + currentChat).on("value", snap => {
+    let typing = false;
+    snap.forEach(c => {
+      if (c.key !== uid) typing = true;
+    });
+    document.getElementById("typing").innerText = typing ? "User is typing..." : "";
+  });
 }
 
-function closePopup(){
+const imgUpload = document.getElementById("imgUpload");
+imgUpload.onchange = e => {
+  let file = e.target.files[0];
+  let reader = new FileReader();
+  reader.onload = () => {
+    db.ref("messages/" + currentChat).push({
+      type: "image",
+      url: reader.result,
+      sender: myCode,
+      time: Date.now()
+    });
+  };
+  reader.readAsDataURL(file);
+};
 
-document.getElementById("popup").style.display="none"
-
+function toggleTheme() {
+  document.body.classList.toggle("light");
 }
-
-function saveRename(){
-
-let name=document.getElementById("renameInput").value
-
-if(!name)return
-
-db.ref("inbox/"+myUID+"/"+renameTarget+"/customName").set(name)
-
-closePopup()
-
-}
-
 </script>
-
 </body>
 </html>
-```
