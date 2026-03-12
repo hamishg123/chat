@@ -31,10 +31,6 @@ padding:20px;
 overflow:auto;
 }
 
-.light .sidebar{
-background:#e2e8f0;
-}
-
 #myCodeBox{
 background:#1e293b;
 padding:10px;
@@ -50,10 +46,16 @@ background:#1e293b;
 margin-bottom:8px;
 border-radius:6px;
 cursor:pointer;
+display:flex;
+justify-content:space-between;
 }
 
-.light .contact{
-background:#cbd5f5;
+.unread{
+background:red;
+color:white;
+padding:2px 6px;
+border-radius:10px;
+font-size:12px;
 }
 
 #chat{
@@ -69,10 +71,6 @@ display:flex;
 justify-content:space-between;
 }
 
-.light .chatHeader{
-background:#e2e8f0;
-}
-
 #messages{
 flex:1;
 overflow:auto;
@@ -86,23 +84,17 @@ gap:10px;
 max-width:60%;
 padding:10px;
 border-radius:10px;
-position:relative;
+word-wrap:break-word;
 }
 
 .me{
 align-self:flex-end;
 background:#2563eb;
-color:white;
 }
 
 .other{
 align-self:flex-start;
 background:#374151;
-}
-
-.light .other{
-background:#d1d5db;
-color:black;
 }
 
 .sender{
@@ -111,12 +103,9 @@ opacity:0.8;
 margin-bottom:4px;
 }
 
-.delete{
-position:absolute;
-right:5px;
-top:3px;
-cursor:pointer;
-color:red;
+img{
+max-width:250px;
+border-radius:6px;
 }
 
 #inputArea{
@@ -124,10 +113,6 @@ display:flex;
 gap:5px;
 padding:10px;
 background:#020617;
-}
-
-.light #inputArea{
-background:#e2e8f0;
 }
 
 #msgInput{
@@ -146,32 +131,6 @@ border-radius:6px;
 cursor:pointer;
 }
 
-#modal{
-position:fixed;
-top:0;
-left:0;
-width:100%;
-height:100%;
-background:rgba(0,0,0,0.6);
-display:none;
-align-items:center;
-justify-content:center;
-}
-
-#modalBox{
-background:white;
-padding:20px;
-border-radius:10px;
-width:300px;
-color:black;
-}
-
-#modalInput{
-width:100%;
-padding:8px;
-margin-top:10px;
-}
-
 </style>
 </head>
 
@@ -182,8 +141,7 @@ margin-top:10px;
 <h3>Your Code</h3>
 <div id="myCodeBox"></div>
 
-<button onclick="openPrompt('Add Contact','Enter code',addContact)">Add Contact</button>
-<button onclick="toggleTheme()">Toggle Theme</button>
+<button onclick="addContact()">Add Contact</button>
 
 <h3>Contacts</h3>
 <div id="contacts"></div>
@@ -194,15 +152,9 @@ margin-top:10px;
 
 <div class="chatHeader">
 <span id="chatName">Select Chat</span>
-<div>
-<button onclick="renameContact()">Rename</button>
-<button onclick="deleteChat()">Delete Chat</button>
-</div>
 </div>
 
 <div id="messages"></div>
-
-<div id="typing"></div>
 
 <div id="inputArea">
 <input id="msgInput" placeholder="Type message">
@@ -210,15 +162,6 @@ margin-top:10px;
 <button onclick="sendMessage()">Send</button>
 </div>
 
-</div>
-
-<div id="modal">
-<div id="modalBox">
-<h3 id="modalTitle"></h3>
-<input id="modalInput">
-<br><br>
-<button onclick="submitPrompt()">OK</button>
-</div>
 </div>
 
 <script>
@@ -239,9 +182,10 @@ let uid
 let myCode
 let currentChat
 let currentChatUid
-let promptCallback
 
 auth.signInAnonymously()
+
+Notification.requestPermission()
 
 auth.onAuthStateChanged(async user=>{
 
@@ -264,40 +208,13 @@ myCode=snap.val().code
 
 document.getElementById("myCodeBox").innerText=myCode
 
-setupPresence()
 loadContacts()
 
 })
 
-function setupPresence(){
+function addContact(){
 
-let p=db.ref("presence/"+uid)
-p.set(true)
-p.onDisconnect().remove()
-
-}
-
-function openPrompt(title,placeholder,callback){
-
-document.getElementById("modal").style.display="flex"
-document.getElementById("modalTitle").innerText=title
-document.getElementById("modalInput").placeholder=placeholder
-document.getElementById("modalInput").value=""
-promptCallback=callback
-
-}
-
-function submitPrompt(){
-
-let value=document.getElementById("modalInput").value
-
-document.getElementById("modal").style.display="none"
-
-if(promptCallback) promptCallback(value)
-
-}
-
-function addContact(code){
+let code=prompt("Enter their code")
 
 if(!code) return
 
@@ -307,9 +224,15 @@ if(!snap.exists()) return
 
 let otherUid=snap.val()
 
-await db.ref("contacts/"+uid+"/"+otherUid).set({name:code,id:code})
+await db.ref("contacts/"+uid+"/"+otherUid).set({
+name:code,
+id:code
+})
 
-await db.ref("contacts/"+otherUid+"/"+uid).set({name:myCode,id:myCode})
+await db.ref("contacts/"+otherUid+"/"+uid).set({
+name:myCode,
+id:myCode
+})
 
 })
 
@@ -330,13 +253,56 @@ let data=child.val()
 let div=document.createElement("div")
 div.className="contact"
 
-div.innerText=data.name+" ("+data.id+")"
+let label=data.name+" ("+data.id+")"
+
+let unread=document.createElement("span")
+unread.className="unread"
+unread.id="unread-"+otherUid
+unread.style.display="none"
+
+div.innerHTML="<span>"+label+"</span>"
+div.appendChild(unread)
 
 div.onclick=()=>openChat(otherUid,data)
 
 list.appendChild(div)
 
+watchUnread(otherUid)
+
 })
+
+})
+
+}
+
+function watchUnread(otherUid){
+
+let chat=chatId(uid,otherUid)
+
+db.ref("messages/"+chat).on("value",snap=>{
+
+let count=0
+
+snap.forEach(m=>{
+
+let msg=m.val()
+
+if(!msg.seenBy || !msg.seenBy[uid]){
+if(msg.sender!==myCode) count++
+}
+
+})
+
+let badge=document.getElementById("unread-"+otherUid)
+
+if(!badge) return
+
+if(count>0){
+badge.style.display="inline"
+badge.innerText=count
+}else{
+badge.style.display="none"
+}
 
 })
 
@@ -376,7 +342,7 @@ let mine=m.sender===myCode
 
 div.className="message "+(mine?"me":"other")
 
-let label=mine?"Me":m.name+" ("+m.sender+")"
+let label=mine?"Me":m.senderName+" ("+m.senderId+")"
 
 let content=""
 
@@ -386,9 +352,11 @@ content=`<img src="${m.url}">`
 content=m.text
 }
 
-div.innerHTML=`<div class="sender">${label}</div>${content}<span class="delete" onclick="deleteMsg('${child.key}')">x</span>`
+div.innerHTML=`<div class="sender">${label}</div>${content}`
 
 box.appendChild(div)
+
+db.ref("messages/"+currentChat+"/"+child.key+"/seenBy/"+uid).set(true)
 
 })
 
@@ -408,41 +376,14 @@ db.ref("messages/"+currentChat).push({
 type:"text",
 text:input.value,
 sender:myCode,
-name:document.getElementById("myCodeBox").innerText,
+senderName:"Me",
+senderId:myCode,
 time:Date.now()
 })
 
 input.value=""
 
 }
-
-function deleteMsg(id){
-
-db.ref("messages/"+currentChat+"/"+id).remove()
-
-}
-
-function deleteChat(){
-
-db.ref("messages/"+currentChat).remove()
-
-}
-
-function renameContact(){
-
-openPrompt("Rename Contact","New name",name=>{
-
-if(!name) return
-
-db.ref("contacts/"+uid+"/"+currentChatUid+"/name").set(name)
-
-})
-
-}
-
-document.getElementById("msgInput").addEventListener("keypress",e=>{
-if(e.key==="Enter") sendMessage()
-})
 
 imgUpload.onchange=e=>{
 
@@ -455,7 +396,8 @@ db.ref("messages/"+currentChat).push({
 type:"image",
 url:reader.result,
 sender:myCode,
-name:"Me",
+senderName:"Me",
+senderId:myCode,
 time:Date.now()
 })
 
@@ -465,11 +407,29 @@ reader.readAsDataURL(file)
 
 }
 
-function toggleTheme(){
+db.ref("messages").on("child_added",snap=>{
 
-document.body.classList.toggle("light")
+let chat=snap.key
+
+snap.ref.limitToLast(1).on("child_added",msg=>{
+
+let m=msg.val()
+
+if(m.sender!==myCode){
+
+new Notification("New Message",{
+body:m.text || "Image"
+})
 
 }
+
+})
+
+})
+
+document.getElementById("msgInput").addEventListener("keypress",e=>{
+if(e.key==="Enter") sendMessage()
+})
 
 </script>
 
