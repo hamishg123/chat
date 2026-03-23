@@ -1203,11 +1203,12 @@ body {
     </div>
 
     <div id="myCodeSection">
-      <label>Your Code</label>
+      <label>Your 4-Digit Code</label>
       <div id="myCodeRow">
         <div id="myCodeBox">----</div>
         <button id="copyCodeBtn" onclick="copyCode()">Copy</button>
       </div>
+      <p style="font-size:11px;color:var(--text-muted-dark);margin-top:8px">Share this to let friends add you</p>
     </div>
 
     <div id="usernameSection">
@@ -1216,8 +1217,8 @@ body {
         <button id="editUsernameBtn" onclick="toggleUsernameEdit()">✏️ Edit</button>
       </div>
       <div id="usernameEditRow">
-        <input id="usernameInput" type="text" placeholder="New username..." maxlength="24">
-        <button id="saveUsernameBtn" onclick="saveUsername()">Save</button>
+        <input id="usernameInput" type="text" placeholder="3+ letters, numbers, underscores" maxlength="24">
+        <button id="saveUsernameBtn" onclick="saveUsername()">✓ Save</button>
       </div>
     </div>
 
@@ -1275,12 +1276,13 @@ body {
 <div class="modal-overlay" id="addContactModal">
   <div class="modal">
     <h3>Add Contact</h3>
-    <input type="text" id="addCodeInput" placeholder="Enter their 4-digit code" maxlength="4"
+    <p style="font-size:12px;color:var(--text-muted-dark);margin-bottom:16px">Enter their 4-digit code from the sidebar.</p>
+    <input type="text" id="addCodeInput" placeholder="e.g. 1234" maxlength="4"
       onkeydown="if(event.key==='Enter')addContact()">
     <div id="addContactError" style="color:var(--danger);font-size:13px;margin-bottom:10px;display:none"></div>
     <div class="modal-actions">
       <button class="btn-secondary" onclick="closeModal('addContactModal')">Cancel</button>
-      <button class="btn-primary" onclick="addContact()">Add Contact</button>
+      <button class="btn-primary" onclick="addContact()">✓ Add Contact</button>
     </div>
   </div>
 </div>
@@ -1289,11 +1291,12 @@ body {
 <div class="modal-overlay" id="createGroupModal">
   <div class="modal">
     <h3>Create Group</h3>
-    <input type="text" id="groupNameInput" placeholder="Group name" maxlength="40"
+    <p style="font-size:12px;color:var(--text-muted-dark);margin-bottom:16px">You'll be the owner and can manage members.</p>
+    <input type="text" id="groupNameInput" placeholder="e.g. Friends, Team, Study Group" maxlength="40"
       onkeydown="if(event.key==='Enter')createGroup()">
     <div class="modal-actions">
       <button class="btn-secondary" onclick="closeModal('createGroupModal')">Cancel</button>
-      <button class="btn-primary" onclick="createGroup()">Create</button>
+      <button class="btn-primary" onclick="createGroup()">✓ Create Group</button>
     </div>
   </div>
 </div>
@@ -1301,25 +1304,26 @@ body {
 <!-- Group Settings Modal -->
 <div class="modal-overlay" id="groupSettingsModal">
   <div class="modal">
-    <h3>Group Settings</h3>
+    <h3>Group Settings (Owner Only)</h3>
+    <p style="font-size:12px;color:var(--text-muted-dark);margin-bottom:16px">Only the group owner can change these settings.</p>
     
     <div class="modal-section">
-      <div class="modal-section-title">Group Name</div>
+      <div class="modal-section-title">📝 Group Name</div>
       <input type="text" id="groupNameEdit" placeholder="Group name" maxlength="40">
     </div>
 
     <div class="modal-section">
-      <div class="modal-section-title">Members</div>
+      <div class="modal-section-title">👥 Members</div>
       <div class="member-list" id="memberList"></div>
-      <input type="text" id="addMemberCode" placeholder="Enter member's code to add" maxlength="4" style="margin-top:10px">
+      <input type="text" id="addMemberCode" placeholder="Enter member's 4-digit code" maxlength="4" style="margin-top:10px">
     </div>
 
     <div id="addMemberError" style="color:var(--danger);font-size:13px;margin-bottom:10px;display:none"></div>
 
     <div class="modal-actions">
       <button class="btn-secondary" onclick="closeModal('groupSettingsModal')">Close</button>
-      <button class="btn-primary" onclick="addGroupMember()">Add Member</button>
-      <button class="btn-primary" onclick="updateGroupName()" style="background:var(--success)">Save Name</button>
+      <button class="btn-primary" onclick="addGroupMember()">+ Add Member</button>
+      <button class="btn-primary" onclick="updateGroupName()" style="background:var(--success)">💾 Save Name</button>
     </div>
   </div>
 </div>
@@ -1630,6 +1634,12 @@ function saveUsername() {
     return;
   }
   if (newUsername === myUsername) {
+    showToast('That\'s already your username');
+    cancelUsernameEdit();
+    return;
+  }
+  if (newUsername.toLowerCase() === myUsername.toLowerCase()) {
+    showToast('Username is the same (case-insensitive)');
     cancelUsernameEdit();
     return;
   }
@@ -1739,26 +1749,35 @@ function loadGroups() {
   db.ref('groupMembers/' + uid).on('value', function(snap) {
     var list = document.getElementById('groupList');
     list.innerHTML = '';
-    if (!snap.exists()) return;
+    if (!snap.exists()) {
+      list.innerHTML = '<div style="padding:16px;text-align:center;color:var(--text-muted-dark);font-size:13px">No groups yet. Create one to get started!</div>';
+      return;
+    }
     snap.forEach(function(child) {
       var groupId = child.key;
       db.ref('groups/' + groupId).once('value').then(function(gSnap) {
-        if (!gSnap.exists()) return;
+        if (!gSnap.exists()) {
+          console.warn('Group ' + groupId + ' not found');
+          return;
+        }
         var g = gSnap.val();
         var item = document.createElement('div');
         item.className = 'group-item' + (currentChat === groupId && currentChatType === 'group' ? ' active' : '');
         item.id = 'group-' + groupId;
-        var gname = g.name || 'Group';
+        var gname = g.name || 'Unnamed Group';
+        var memberCount = g.memberCount || 0;
         item.innerHTML =
           '<div class="avatar">' + escapeHtml(gname[0].toUpperCase()) + '</div>' +
           '<div class="contact-info">' +
             '<div class="contact-name">' + escapeHtml(gname) + '</div>' +
-            '<div class="contact-code">' + (g.memberCount || '?') + ' members</div>' +
+            '<div class="contact-code">' + memberCount + ' member' + (memberCount !== 1 ? 's' : '') + '</div>' +
           '</div>';
         item.onclick = (function(gId, gName) {
           return function() { openGroup(gId, gName); };
         })(groupId, gname);
         list.appendChild(item);
+      }).catch(function(e) {
+        console.error('Error loading group ' + groupId + ':', e);
       });
     });
   });
@@ -2044,7 +2063,19 @@ function openGroupSettings() {
   db.ref('groups/' + currentGroupId).once('value').then(function(snap) {
     if (!snap.exists()) return;
     var g = snap.val();
+    var isOwner = g.createdBy === uid;
+    
+    if (!isOwner) {
+      showToast('Only the group owner can change settings');
+      return;
+    }
+    
     document.getElementById('groupNameEdit').value = g.name || '';
+    document.getElementById('groupNameEdit').disabled = false;
+    document.getElementById('addMemberCode').disabled = false;
+    var saveNameBtn = document.querySelector('#groupSettingsModal .btn-primary:nth-of-type(2)');
+    if (saveNameBtn) saveNameBtn.disabled = false;
+    
     loadGroupMembers();
     document.getElementById('addMemberCode').value = '';
     document.getElementById('addMemberError').style.display = 'none';
@@ -2079,61 +2110,93 @@ function loadGroupMembers() {
 }
 
 function addGroupMember() {
-  var code = document.getElementById('addMemberCode').value.trim();
-  var errEl = document.getElementById('addMemberError');
-  errEl.style.display = 'none';
-
-  if (!code) { errEl.textContent = 'Please enter a code'; errEl.style.display = 'block'; return; }
-
-  db.ref('codes/' + code).once('value').then(function(snap) {
-    if (!snap.exists()) {
-      errEl.textContent = 'User not found';
-      errEl.style.display = 'block';
+  if (!currentGroupId) return;
+  db.ref('groups/' + currentGroupId).once('value').then(function(snap) {
+    if (!snap.exists()) return;
+    var g = snap.val();
+    if (g.createdBy !== uid) {
+      showToast('Only the group owner can add members');
       return;
     }
-    var memberId = snap.val();
-    if (memberId === uid) {
-      errEl.textContent = "That's your own code!";
-      errEl.style.display = 'block';
-      return;
-    }
-    db.ref('groupMembers/' + memberId + '/' + currentGroupId).once('value').then(function(memberSnap) {
-      if (memberSnap.exists()) {
-        errEl.textContent = 'User is already in this group';
+    
+    var code = document.getElementById('addMemberCode').value.trim();
+    var errEl = document.getElementById('addMemberError');
+    errEl.style.display = 'none';
+
+    if (!code) { errEl.textContent = 'Please enter a code'; errEl.style.display = 'block'; return; }
+
+    db.ref('codes/' + code).once('value').then(function(snap) {
+      if (!snap.exists()) {
+        errEl.textContent = 'User not found';
         errEl.style.display = 'block';
         return;
       }
-      db.ref('groupMembers/' + memberId + '/' + currentGroupId).set(true);
-      db.ref('groups/' + currentGroupId + '/memberCount').transaction(function(current) {
-        return (current || 0) + 1;
+      var memberId = snap.val();
+      if (memberId === uid) {
+        errEl.textContent = "That's your own code!";
+        errEl.style.display = 'block';
+        return;
+      }
+      db.ref('groupMembers/' + memberId + '/' + currentGroupId).once('value').then(function(memberSnap) {
+        if (memberSnap.exists()) {
+          errEl.textContent = 'User is already in this group';
+          errEl.style.display = 'block';
+          return;
+        }
+        db.ref('groupMembers/' + memberId + '/' + currentGroupId).set(true);
+        db.ref('groups/' + currentGroupId + '/memberCount').transaction(function(current) {
+          return (current || 0) + 1;
+        });
+        document.getElementById('addMemberCode').value = '';
+        showToast('Member added!');
+        loadGroupMembers();
       });
-      document.getElementById('addMemberCode').value = '';
-      showToast('Member added!');
-      loadGroupMembers();
     });
   });
 }
 
 function removeGroupMember(memberId) {
-  if (!confirm('Remove this member?')) return;
-  db.ref('groupMembers/' + memberId + '/' + currentGroupId).remove();
-  db.ref('groups/' + currentGroupId + '/memberCount').transaction(function(current) {
-    return Math.max((current || 1) - 1, 0);
+  if (!currentGroupId) return;
+  db.ref('groups/' + currentGroupId).once('value').then(function(snap) {
+    if (!snap.exists()) return;
+    var g = snap.val();
+    if (g.createdBy !== uid) {
+      showToast('Only the group owner can remove members');
+      return;
+    }
+    if (!confirm('Remove this member?')) return;
+    db.ref('groupMembers/' + memberId + '/' + currentGroupId).remove();
+    db.ref('groups/' + currentGroupId + '/memberCount').transaction(function(current) {
+      return Math.max((current || 1) - 1, 0);
+    });
+    showToast('Member removed');
+    loadGroupMembers();
   });
-  showToast('Member removed');
-  loadGroupMembers();
 }
 
 function updateGroupName() {
-  var newName = document.getElementById('groupNameEdit').value.trim();
-  if (!newName) {
-    showToast('Group name cannot be empty');
-    return;
-  }
-  db.ref('groups/' + currentGroupId + '/name').set(newName).then(function() {
-    document.getElementById('chatName').textContent = newName;
-    closeModal('groupSettingsModal');
-    showToast('Group name updated!');
+  if (!currentGroupId) return;
+  db.ref('groups/' + currentGroupId).once('value').then(function(snap) {
+    if (!snap.exists()) return;
+    var g = snap.val();
+    if (g.createdBy !== uid) {
+      showToast('Only the group owner can rename the group');
+      return;
+    }
+    var newName = document.getElementById('groupNameEdit').value.trim();
+    if (!newName) {
+      showToast('Group name cannot be empty');
+      return;
+    }
+    if (newName === g.name) {
+      showToast('That\'s already the group name');
+      return;
+    }
+    db.ref('groups/' + currentGroupId + '/name').set(newName).then(function() {
+      document.getElementById('chatName').textContent = newName;
+      closeModal('groupSettingsModal');
+      showToast('Group name updated!');
+    });
   });
 }
 
