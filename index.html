@@ -578,19 +578,28 @@ body {
 
 .msg-container {
   display: flex;
-  gap: 8px;
-  margin-bottom: 4px;
+  flex-direction: column;
+  gap: 2px;
+  margin-bottom: 8px;
 }
 
 .msg-container.me {
-  justify-content: flex-end;
+  align-items: flex-end;
+}
+
+.msg-container.other {
+  align-items: flex-start;
 }
 
 .msg-sender-label {
   font-size: 11px;
   color: var(--text-muted-dark);
-  margin-bottom: 4px;
-  margin-left: 4px;
+  margin-bottom: 2px;
+  font-weight: 600;
+}
+
+.msg-container.me .msg-sender-label {
+  display: none;
 }
 
 .message {
@@ -645,13 +654,7 @@ body {
 .msg-time {
   font-size: 11px;
   color: var(--text-muted-dark);
-  margin-top: 4px;
-  margin-left: 4px;
-}
-
-.msg-container.me .msg-time {
-  text-align: right;
-  margin-right: 4px;
+  margin-bottom: 0;
 }
 
 #typingIndicator {
@@ -1736,9 +1739,9 @@ function renderMessage(m, isGroup, box) {
 
   var senderLabel = '';
   if (isGroup && !isMe) {
-    senderLabel = '<div class="msg-sender-label">' + escapeHtml(m.senderName || m.sender || '') + '</div>';
+    senderLabel = '<div class="msg-sender-label">@' + escapeHtml(m.senderName || m.sender || '') + '</div>';
   } else if (!isGroup && !isMe) {
-    senderLabel = '<div class="msg-sender-label">' + escapeHtml(m.senderName || m.sender || '') + '</div>';
+    senderLabel = '<div class="msg-sender-label">@' + escapeHtml(m.senderName || m.sender || '') + '</div>';
   }
 
   var content = '';
@@ -1750,7 +1753,7 @@ function renderMessage(m, isGroup, box) {
   }
 
   var time = m.time ? formatTime(m.time) : '';
-  var deleteBtn = isMe ? '<button class="msg-delete" onclick="deleteMsg(\'' + m._key + '\')">×</button>' : '';
+  var deleteBtn = isMe ? '<button class="msg-delete" onclick="deleteMsg(\'' + m._key + '\')" >×</button>' : '';
 
   div.innerHTML = senderLabel +
     '<div class="message">' + content + deleteBtn + '</div>' +
