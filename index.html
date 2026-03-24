@@ -416,15 +416,16 @@ body {
   text-overflow: ellipsis;
 }
 
-.contact-code {
-  font-size: 12px;
+.contact-status {
+  font-size: 11px;
   color: var(--text-muted-dark);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  margin-top: 2px;
 }
 
-.contact-item.active .contact-code {
+.contact-item.active .contact-status {
   color: rgba(255, 255, 255, 0.7);
 }
 
@@ -616,6 +617,7 @@ body {
   display: flex;
   align-items: center;
   gap: 8px;
+  border: 2px solid transparent;
 }
 
 .msg-container.me .message {
@@ -627,6 +629,11 @@ body {
 .msg-container.other .message {
   background: var(--surface-light);
   color: var(--text);
+}
+
+.msg-container.other.group-msg .message {
+  border: 2px solid;
+  border-color: inherit;
 }
 
 .message img {
@@ -1116,6 +1123,10 @@ body {
     height: 36px;
     font-size: 14px;
   }
+
+  .contact-status {
+    font-size: 10px;
+  }
 }
 </style>
 </head>
@@ -1314,6 +1325,8 @@ var messageListeners = [];
 var typingTimeout = null;
 var memberColors = {};
 var colorPalette = ['#FF6B6B', '#4ECDC4', '#45B7D1', '#FFA07A', '#98D8C8', '#F7DC6F', '#BB8FCE', '#85C1E2'];
+var lastMessageStatus = {};
+var groupSettingsListener = null;
 
 // ──────────────────────────────────────────────────────────────────────────────
 // AUTH
@@ -1450,6 +1463,7 @@ function doSignup() {
 function doLogout() {
   if (!confirm('Sign out?')) return;
   clearMessageListeners();
+  if (groupSettingsListener) groupSettingsListener();
   auth.signOut();
 }
 
@@ -1523,23 +1537,30 @@ function loadContacts() {
     snap.forEach(function(child) {
       var otherUid = child.key;
       var data = child.val();
-      var item = document.createElement('div');
-      item.className = 'contact-item' + (currentChatUid === otherUid && currentChatType === 'dm' ? ' active' : '');
-      item.id = 'contact-' + otherUid;
-      var name = data.name || '?';
-      item.innerHTML =
-        '<div class="avatar">' + escapeHtml(name[0].toUpperCase()) + '</div>' +
-        '<div class="contact-info">' +
-          '<div class="contact-name">@' + escapeHtml(name) + '</div>' +
-        '</div>' +
-        '<div class="status-dot" id="dot-' + otherUid + '"></div>';
-      item.onclick = (function(oUid, oName) {
-        return function() { openDM(oUid, oName); };
-      })(otherUid, name);
-      list.appendChild(item);
+      renderContactItem(otherUid, data.name || '?', list);
       watchPresence(otherUid);
     });
   });
+}
+
+function renderContactItem(otherUid, name, list) {
+  var item = document.createElement('div');
+  item.className = 'contact-item' + (currentChatUid === otherUid && currentChatType === 'dm' ? ' active' : '');
+  item.id = 'contact-' + otherUid;
+  
+  var status = lastMessageStatus[otherUid] || 'No messages';
+  
+  item.innerHTML =
+    '<div class="avatar">' + escapeHtml(name[0].toUpperCase()) + '</div>' +
+    '<div class="contact-info">' +
+      '<div class="contact-name">@' + escapeHtml(name) + '</div>' +
+      '<div class="contact-status">' + status + '</div>' +
+    '</div>' +
+    '<div class="status-dot" id="dot-' + otherUid + '"></div>';
+  item.onclick = (function(oUid, oName) {
+    return function() { openDM(oUid, oName); };
+  })(otherUid, name);
+  list.appendChild(item);
 }
 
 function watchPresence(id) {
@@ -1613,24 +1634,28 @@ function loadGroups() {
     }
     snap.forEach(function(child) {
       var groupId = child.key;
-      db.ref('groups/' + groupId).once('value').then(function(gSnap) {
+      db.ref('groups/' + groupId).on('value', function(gSnap) {
         if (!gSnap.exists()) return;
         var g = gSnap.val();
-        var item = document.createElement('div');
+        var item = document.getElementById('group-' + groupId);
+        if (!item) {
+          item = document.createElement('div');
+          item.id = 'group-' + groupId;
+          list.appendChild(item);
+        }
         item.className = 'group-item' + (currentChat === groupId && currentChatType === 'group' ? ' active' : '');
-        item.id = 'group-' + groupId;
         var gname = g.name || 'Group';
         var memberCount = g.memberCount || 0;
+        var status = lastMessageStatus[groupId] || 'No messages';
         item.innerHTML =
           '<div class="avatar">' + escapeHtml(gname[0].toUpperCase()) + '</div>' +
           '<div class="contact-info">' +
             '<div class="contact-name">' + escapeHtml(gname) + '</div>' +
-            '<div class="contact-code">' + memberCount + ' member' + (memberCount !== 1 ? 's' : '') + '</div>' +
+            '<div class="contact-status">' + status + '</div>' +
           '</div>';
         item.onclick = (function(gId, gName) {
           return function() { openGroup(gId, gName); };
         })(groupId, gname);
-        list.appendChild(item);
       });
     });
   });
@@ -1684,9 +1709,9 @@ function loadGroupMembers() {
             var memberName = userData.username || memberId;
             var item = document.createElement('div');
             item.className = 'member-item';
-            var isOwner = memberId === db.ref('groups/' + currentGroupId).once('value').then(function(s) { return s.val().createdBy; });
-            var badge = '';
             db.ref('groups/' + currentGroupId).once('value').then(function(gSnap) {
+              if (!gSnap.exists()) return;
+              var badge = '';
               if (gSnap.val().createdBy === memberId) {
                 badge = '<span class="member-badge">Owner</span>';
               }
@@ -1797,6 +1822,7 @@ function updateGroupName() {
       document.getElementById('chatName').textContent = newName;
       closeModal('groupSettingsModal');
       showToast('Group name updated!');
+      loadGroups();
     });
   });
 }
@@ -1807,6 +1833,7 @@ function updateGroupName() {
 
 function openDM(otherUid, name) {
   clearMessageListeners();
+  if (groupSettingsListener) groupSettingsListener();
   currentChatUid = otherUid;
   currentChat = chatId(uid, otherUid);
   currentChatType = 'dm';
@@ -1831,6 +1858,7 @@ function openDM(otherUid, name) {
 
 function openGroup(groupId, name) {
   clearMessageListeners();
+  if (groupSettingsListener) groupSettingsListener();
   currentGroupId = groupId;
   currentChat = groupId;
   currentChatType = 'group';
@@ -1849,8 +1877,18 @@ function openGroup(groupId, name) {
 
   loadMessages('groupMessages/' + groupId, true);
   listenTyping('groupTyping/' + groupId);
+  watchGroupName(groupId);
   hideSidebarOnMobile();
   markMessagesAsSeen('groupMessages/' + groupId);
+}
+
+function watchGroupName(groupId) {
+  if (groupSettingsListener) groupSettingsListener();
+  groupSettingsListener = db.ref('groups/' + groupId + '/name').on('value', function(snap) {
+    if (snap.exists()) {
+      document.getElementById('chatName').textContent = snap.val();
+    }
+  });
 }
 
 function showChatArea(name) {
@@ -1874,8 +1912,40 @@ function loadMessages(path, isGroup) {
       renderMessage(m, isGroup, box);
     });
     box.scrollTop = box.scrollHeight;
+    updateLastMessageStatus(path, snap);
   });
   messageListeners.push({ ref: ref, listener: listener, event: 'value' });
+}
+
+function updateLastMessageStatus(path, snap) {
+  var lastMsg = null;
+  snap.forEach(function(child) {
+    lastMsg = child.val();
+  });
+  
+  if (!lastMsg) return;
+  
+  var chatKey = path.includes('groupMessages/') ? path.split('/')[1] : currentChatUid;
+  var status = 'New message';
+  
+  if (lastMsg.opened) status = 'Opened';
+  else if (lastMsg.seen) status = 'Seen';
+  else if (lastMsg.delivered) status = 'Delivered';
+  else status = 'Sent';
+  
+  lastMessageStatus[chatKey] = status;
+  
+  var contactEl = document.getElementById('contact-' + chatKey);
+  if (contactEl) {
+    var statusEl = contactEl.querySelector('.contact-status');
+    if (statusEl) statusEl.textContent = status;
+  }
+  
+  var groupEl = document.getElementById('group-' + chatKey);
+  if (groupEl) {
+    var statusEl = groupEl.querySelector('.contact-status');
+    if (statusEl) statusEl.textContent = status;
+  }
 }
 
 function getMemberColor(memberId) {
@@ -1889,12 +1959,13 @@ function getMemberColor(memberId) {
 function renderMessage(m, isGroup, box) {
   var isMe = m.sender === uid;
   var div = document.createElement('div');
-  div.className = 'msg-container' + (isMe ? ' me' : ' other');
+  div.className = 'msg-container' + (isMe ? ' me' : ' other') + (isGroup && !isMe ? ' group-msg' : '');
 
   var senderLabel = '';
+  var borderColor = '';
   if (isGroup && !isMe) {
-    var color = getMemberColor(m.sender);
-    senderLabel = '<div class="msg-sender-label" style="color:' + color + '">@' + escapeHtml(m.senderName || m.sender || '') + '</div>';
+    borderColor = getMemberColor(m.sender);
+    senderLabel = '<div class="msg-sender-label" style="color:' + borderColor + '">@' + escapeHtml(m.senderName || m.sender || '') + '</div>';
   } else if (!isGroup && !isMe) {
     senderLabel = '<div class="msg-sender-label">@' + escapeHtml(m.senderName || m.sender || '') + '</div>';
   }
@@ -1917,8 +1988,13 @@ function renderMessage(m, isGroup, box) {
     else status = '✓';
   }
 
+  var msgStyle = '';
+  if (isGroup && !isMe && borderColor) {
+    msgStyle = ' style="border-color:' + borderColor + '"';
+  }
+
   div.innerHTML = senderLabel +
-    '<div class="message">' + content + deleteBtn + '</div>' +
+    '<div class="message"' + msgStyle + '>' + content + deleteBtn + '</div>' +
     '<div class="msg-time">' + time + (status ? ' <span class="msg-status">' + status + '</span>' : '') + '</div>';
   box.appendChild(div);
 }
@@ -2127,6 +2203,12 @@ function clearMessageListeners() {
     l.ref.off(l.event, l.listener);
   });
   messageListeners = [];
+}
+
+function hideSidebarOnMobile() {
+  if (window.innerWidth <= 768) {
+    hideSidebar();
+  }
 }
 
 // Load theme preference
