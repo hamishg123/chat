@@ -9,6 +9,7 @@
 <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js"></script>
 <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
 <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-storage.js"></script>
+<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-messaging.js"></script>
 <style>
 :root {
   --primary: #3b82f6;
@@ -215,6 +216,7 @@ body {
   display: flex;
   flex-direction: column;
   overflow: hidden;
+  transition: transform 0.3s;
 }
 
 #chatArea {
@@ -266,7 +268,7 @@ body {
   gap: 8px;
 }
 
-#themeBtn, #logoutBtn {
+#themeBtn, #logoutBtn, #menuBtn {
   background: var(--surface-light);
   border: 1px solid var(--border);
   color: var(--text);
@@ -281,9 +283,13 @@ body {
   transition: all 0.2s;
 }
 
-#themeBtn:hover, #logoutBtn:hover {
+#themeBtn:hover, #logoutBtn:hover, #menuBtn:hover {
   background: var(--surface-lighter);
   border-color: var(--primary);
+}
+
+#menuBtn {
+  display: none;
 }
 
 #usernameSection {
@@ -593,9 +599,8 @@ body {
 
 .msg-sender-label {
   font-size: 11px;
-  color: var(--text-muted-dark);
-  margin-bottom: 2px;
   font-weight: 600;
+  margin-bottom: 2px;
 }
 
 .msg-container.me .msg-sender-label {
@@ -649,6 +654,12 @@ body {
 
 .msg-delete:hover {
   opacity: 1;
+}
+
+.msg-status {
+  font-size: 10px;
+  margin-left: 4px;
+  opacity: 0.7;
 }
 
 .msg-time {
@@ -853,6 +864,16 @@ body {
   font-weight: 600;
 }
 
+.member-badge {
+  font-size: 10px;
+  background: var(--primary);
+  color: white;
+  padding: 2px 6px;
+  border-radius: 4px;
+  margin-right: 8px;
+  font-weight: 600;
+}
+
 .member-remove {
   background: var(--danger);
   border: none;
@@ -974,7 +995,7 @@ body {
 }
 
 /* ──────────────────────────────────────────────────────────────────────────────
-   RESPONSIVE
+   RESPONSIVE / MOBILE
    ────────────────────────────────────────────────────────────────────────────── */
 
 @media (max-width: 768px) {
@@ -984,12 +1005,16 @@ body {
     top: 0;
     height: 100%;
     z-index: 50;
+    width: 100%;
     transform: translateX(-100%);
-    transition: transform 0.3s;
   }
 
   #sidebar.visible {
     transform: translateX(0);
+  }
+
+  #menuBtn {
+    display: flex;
   }
 
   #backBtn {
@@ -998,6 +1023,98 @@ body {
 
   .message {
     max-width: 85%;
+  }
+
+  #chatHeaderActions {
+    flex-wrap: wrap;
+  }
+
+  .hdr-btn {
+    padding: 6px 10px;
+    font-size: 12px;
+  }
+
+  #sidebarActions {
+    flex-direction: row;
+  }
+
+  .action-btn {
+    font-size: 12px;
+    padding: 8px;
+  }
+
+  #authBox {
+    padding: 32px 24px;
+  }
+
+  #authBox h1 {
+    font-size: 24px;
+  }
+
+  .modal {
+    padding: 20px;
+  }
+
+  .modal h3 {
+    font-size: 16px;
+  }
+
+  #chatName {
+    font-size: 14px;
+  }
+
+  #chatSubtitle {
+    font-size: 11px;
+  }
+}
+
+@media (max-width: 480px) {
+  #sidebarHeader h2 {
+    font-size: 18px;
+  }
+
+  #usernameDisplay {
+    font-size: 14px;
+  }
+
+  .tab {
+    font-size: 12px;
+    padding: 10px;
+  }
+
+  #msgInput {
+    font-size: 13px;
+  }
+
+  #messages {
+    padding: 12px;
+  }
+
+  .message {
+    max-width: 90%;
+    padding: 8px 12px;
+    font-size: 13px;
+  }
+
+  #chatHeader {
+    padding: 12px;
+    gap: 8px;
+  }
+
+  #chatHeaderAvatar {
+    width: 36px;
+    height: 36px;
+    font-size: 16px;
+  }
+
+  .contact-item, .group-item {
+    padding: 10px;
+  }
+
+  .avatar {
+    width: 36px;
+    height: 36px;
+    font-size: 14px;
   }
 }
 </style>
@@ -1041,6 +1158,7 @@ body {
     <div id="sidebarHeader">
       <h2>Chat</h2>
       <div class="header-actions">
+        <button id="menuBtn" onclick="hideSidebar()" title="Close menu">✕</button>
         <button id="themeBtn" onclick="toggleTheme()" title="Toggle theme">🌙</button>
         <button id="logoutBtn" onclick="doLogout()" title="Sign out">↪️</button>
       </div>
@@ -1075,7 +1193,7 @@ body {
 
     <div id="chatMain" style="display:none; flex-direction:column; flex:1; overflow:hidden;">
       <div id="chatHeader">
-        <button id="backBtn" onclick="showSidebar()">←</button>
+        <button id="backBtn" onclick="hideSidebar()">←</button>
         <div id="chatHeaderAvatar">?</div>
         <div id="chatHeaderInfo">
           <div id="chatName">Chat</div>
@@ -1194,6 +1312,8 @@ var currentChatType = null;
 var currentGroupId = null;
 var messageListeners = [];
 var typingTimeout = null;
+var memberColors = {};
+var colorPalette = ['#FF6B6B', '#4ECDC4', '#45B7D1', '#FFA07A', '#98D8C8', '#F7DC6F', '#BB8FCE', '#85C1E2'];
 
 // ──────────────────────────────────────────────────────────────────────────────
 // AUTH
@@ -1205,6 +1325,7 @@ auth.onAuthStateChanged(function(user) {
     document.getElementById('authScreen').style.display = 'none';
     document.getElementById('mainContainer').classList.add('active');
     initUser();
+    requestNotificationPermission();
   } else {
     uid = null;
     document.getElementById('authScreen').style.display = 'flex';
@@ -1236,9 +1357,7 @@ function doLogin() {
   btn.disabled = true;
   btn.textContent = 'Signing in...';
 
-  // Try email first
   auth.signInWithEmailAndPassword(input, password).catch(function(e) {
-    // If email fails, try username
     if (e.code === 'auth/user-not-found' || e.code === 'auth/invalid-email') {
       return db.ref('usernames/' + input.toLowerCase()).once('value').then(function(snap) {
         if (!snap.exists()) throw new Error('User not found');
@@ -1361,6 +1480,22 @@ function setupPresence() {
       presenceRef.set(true);
     }
   });
+}
+
+// ──────────────────────────────────────────────────────────────────────────────
+// NOTIFICATIONS
+// ──────────────────────────────────────────────────────────────────────────────
+
+function requestNotificationPermission() {
+  if ('Notification' in window && Notification.permission === 'default') {
+    Notification.requestPermission();
+  }
+}
+
+function sendNotification(title, options) {
+  if ('Notification' in window && Notification.permission === 'granted') {
+    new Notification(title, options);
+  }
 }
 
 // ──────────────────────────────────────────────────────────────────────────────
@@ -1549,10 +1684,17 @@ function loadGroupMembers() {
             var memberName = userData.username || memberId;
             var item = document.createElement('div');
             item.className = 'member-item';
-            var removeBtn = memberId === uid
-              ? '<span style="color:var(--text-muted-dark);font-size:11px">Owner</span>'
-              : '<button class="member-remove" onclick="removeGroupMember(\'' + memberId + '\')">×</button>';
-            item.innerHTML = '<div class="member-name">@' + escapeHtml(memberName) + '</div>' + removeBtn;
+            var isOwner = memberId === db.ref('groups/' + currentGroupId).once('value').then(function(s) { return s.val().createdBy; });
+            var badge = '';
+            db.ref('groups/' + currentGroupId).once('value').then(function(gSnap) {
+              if (gSnap.val().createdBy === memberId) {
+                badge = '<span class="member-badge">Owner</span>';
+              }
+              var removeBtn = memberId === uid
+                ? '<span style="color:var(--text-muted-dark);font-size:11px">You</span>'
+                : '<button class="member-remove" onclick="removeGroupMember(\'' + memberId + '\')">×</button>';
+              item.innerHTML = '<div class="member-name">' + badge + '@' + escapeHtml(memberName) + '</div>' + removeBtn;
+            });
             list.appendChild(item);
           });
         }
@@ -1669,6 +1811,7 @@ function openDM(otherUid, name) {
   currentChat = chatId(uid, otherUid);
   currentChatType = 'dm';
   currentGroupId = null;
+  memberColors = {};
 
   document.querySelectorAll('.contact-item').forEach(function(el) { el.classList.remove('active'); });
   var item = document.getElementById('contact-' + otherUid);
@@ -1683,6 +1826,7 @@ function openDM(otherUid, name) {
   loadMessages('messages/' + currentChat, false);
   listenTyping('typing/' + currentChat);
   hideSidebarOnMobile();
+  markMessagesAsSeen('messages/' + currentChat);
 }
 
 function openGroup(groupId, name) {
@@ -1691,6 +1835,7 @@ function openGroup(groupId, name) {
   currentChat = groupId;
   currentChatType = 'group';
   currentChatUid = null;
+  memberColors = {};
 
   document.querySelectorAll('.group-item').forEach(function(el) { el.classList.remove('active'); });
   var item = document.getElementById('group-' + groupId);
@@ -1705,6 +1850,7 @@ function openGroup(groupId, name) {
   loadMessages('groupMessages/' + groupId, true);
   listenTyping('groupTyping/' + groupId);
   hideSidebarOnMobile();
+  markMessagesAsSeen('groupMessages/' + groupId);
 }
 
 function showChatArea(name) {
@@ -1732,6 +1878,14 @@ function loadMessages(path, isGroup) {
   messageListeners.push({ ref: ref, listener: listener, event: 'value' });
 }
 
+function getMemberColor(memberId) {
+  if (!memberColors[memberId]) {
+    var colorIndex = Object.keys(memberColors).length % colorPalette.length;
+    memberColors[memberId] = colorPalette[colorIndex];
+  }
+  return memberColors[memberId];
+}
+
 function renderMessage(m, isGroup, box) {
   var isMe = m.sender === uid;
   var div = document.createElement('div');
@@ -1739,7 +1893,8 @@ function renderMessage(m, isGroup, box) {
 
   var senderLabel = '';
   if (isGroup && !isMe) {
-    senderLabel = '<div class="msg-sender-label">@' + escapeHtml(m.senderName || m.sender || '') + '</div>';
+    var color = getMemberColor(m.sender);
+    senderLabel = '<div class="msg-sender-label" style="color:' + color + '">@' + escapeHtml(m.senderName || m.sender || '') + '</div>';
   } else if (!isGroup && !isMe) {
     senderLabel = '<div class="msg-sender-label">@' + escapeHtml(m.senderName || m.sender || '') + '</div>';
   }
@@ -1753,11 +1908,18 @@ function renderMessage(m, isGroup, box) {
   }
 
   var time = m.time ? formatTime(m.time) : '';
-  var deleteBtn = isMe ? '<button class="msg-delete" onclick="deleteMsg(\'' + m._key + '\')" >×</button>' : '';
+  var deleteBtn = isMe ? '<button class="msg-delete" onclick="deleteMsg(\'' + m._key + '\')">×</button>' : '';
+  var status = '';
+  if (isMe) {
+    if (m.opened) status = '👁';
+    else if (m.seen) status = '✓✓';
+    else if (m.delivered) status = '✓';
+    else status = '✓';
+  }
 
   div.innerHTML = senderLabel +
     '<div class="message">' + content + deleteBtn + '</div>' +
-    '<div class="msg-time">' + time + '</div>';
+    '<div class="msg-time">' + time + (status ? ' <span class="msg-status">' + status + '</span>' : '') + '</div>';
   box.appendChild(div);
 }
 
@@ -1767,12 +1929,19 @@ function sendMessage() {
   if (!text || !currentChat) return;
 
   var path = currentChatType === 'group' ? 'groupMessages/' + currentChat : 'messages/' + currentChat;
-  db.ref(path).push({
+  var msgRef = db.ref(path).push();
+  msgRef.set({
     type: 'text',
     sender: uid,
     senderName: myUsername || '?',
     text: text,
-    time: firebase.database.ServerValue.TIMESTAMP
+    time: firebase.database.ServerValue.TIMESTAMP,
+    delivered: false,
+    seen: false,
+    opened: false
+  }).then(function() {
+    msgRef.update({ delivered: true });
+    sendNotification('Message sent', { body: text.substring(0, 50) });
   });
   input.value = '';
   input.style.height = 'auto';
@@ -1798,12 +1967,19 @@ function sendImage(event) {
     return storageRef.getDownloadURL();
   }).then(function(url) {
     var path = currentChatType === 'group' ? 'groupMessages/' + currentChat : 'messages/' + currentChat;
-    return db.ref(path).push({
+    var msgRef = db.ref(path).push();
+    return msgRef.set({
       type: 'image',
       sender: uid,
       senderName: myUsername || '?',
       url: url,
-      time: firebase.database.ServerValue.TIMESTAMP
+      time: firebase.database.ServerValue.TIMESTAMP,
+      delivered: false,
+      seen: false,
+      opened: false
+    }).then(function() {
+      msgRef.update({ delivered: true });
+      sendNotification('Photo sent', { body: 'Image' });
     });
   }).then(function() {
     showToast('Image sent!');
@@ -1831,6 +2007,18 @@ function deleteChat() {
     showToast('Chat deleted');
     document.getElementById('emptyState').style.display = 'flex';
     document.getElementById('chatMain').style.display = 'none';
+  });
+}
+
+function markMessagesAsSeen(path) {
+  db.ref(path).once('value').then(function(snap) {
+    snap.forEach(function(child) {
+      var msg = child.val();
+      if (msg.sender !== uid && !msg.seen) {
+        db.ref(path + '/' + child.key).update({ seen: true, opened: true });
+        sendNotification('Message seen', { body: 'Marked as seen' });
+      }
+    });
   });
 }
 
@@ -1916,14 +2104,12 @@ function switchTab(tab) {
   document.getElementById('groupList').style.display = tab === 'groups' ? 'block' : 'none';
 }
 
-function showSidebar() {
-  document.getElementById('sidebar').classList.add('visible');
+function hideSidebar() {
+  document.getElementById('sidebar').classList.remove('visible');
 }
 
-function hideSidebarOnMobile() {
-  if (window.innerWidth <= 768) {
-    document.getElementById('sidebar').classList.remove('visible');
-  }
+function showSidebar() {
+  document.getElementById('sidebar').classList.add('visible');
 }
 
 function toggleTheme() {
@@ -1953,6 +2139,14 @@ document.querySelectorAll('.modal-overlay').forEach(function(el) {
   el.addEventListener('click', function(e) {
     if (e.target === el) el.classList.remove('open');
   });
+});
+
+// Mobile menu toggle
+document.addEventListener('click', function(e) {
+  var sidebar = document.getElementById('sidebar');
+  if (window.innerWidth <= 768 && !sidebar.contains(e.target) && e.target.id !== 'menuBtn') {
+    sidebar.classList.remove('visible');
+  }
 });
 </script>
 </body>
