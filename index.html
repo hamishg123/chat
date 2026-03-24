@@ -1838,7 +1838,6 @@ function openDM(otherUid, name) {
   currentChat = chatId(uid, otherUid);
   currentChatType = 'dm';
   currentGroupId = null;
-  memberColors = {};
 
   document.querySelectorAll('.contact-item').forEach(function(el) { el.classList.remove('active'); });
   var item = document.getElementById('contact-' + otherUid);
@@ -1863,7 +1862,6 @@ function openGroup(groupId, name) {
   currentChat = groupId;
   currentChatType = 'group';
   currentChatUid = null;
-  memberColors = {};
 
   document.querySelectorAll('.group-item').forEach(function(el) { el.classList.remove('active'); });
   var item = document.getElementById('group-' + groupId);
@@ -1949,16 +1947,21 @@ function updateLastMessageStatus(path, snap) {
 }
 
 function getMemberColor(memberId) {
-  if (!memberColors[memberId]) {
-    var usedColors = Object.values(memberColors);
-    var availableColors = colorPalette.filter(function(c) { return usedColors.indexOf(c) === -1; });
-    if (availableColors.length === 0) {
-      availableColors = colorPalette;
-    }
-    var randomIndex = Math.floor(Math.random() * availableColors.length);
-    memberColors[memberId] = availableColors[randomIndex];
+  var colorKey = 'memberColor_' + memberId;
+  var storedColor = localStorage.getItem(colorKey);
+  if (storedColor) {
+    return storedColor;
   }
-  return memberColors[memberId];
+  var usedColors = Object.values(memberColors);
+  var availableColors = colorPalette.filter(function(c) { return usedColors.indexOf(c) === -1; });
+  if (availableColors.length === 0) {
+    availableColors = colorPalette;
+  }
+  var randomIndex = Math.floor(Math.random() * availableColors.length);
+  var selectedColor = availableColors[randomIndex];
+  memberColors[memberId] = selectedColor;
+  localStorage.setItem(colorKey, selectedColor);
+  return selectedColor;
 }
 
 function renderMessage(m, isGroup, box) {
