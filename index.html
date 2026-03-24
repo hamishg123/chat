@@ -2207,9 +2207,19 @@ function openLightbox(url) {
 }
 
 function clearMessageListeners() {
-  messageListeners.forEach(function(l) {
-    l.ref.off(l.event, l.listener);
-  });
+  try {
+    messageListeners.forEach(function(l) {
+      try {
+        if (l && l.ref && l.event && l.listener) {
+          l.ref.off(l.event, l.listener);
+        }
+      } catch (e) {
+        console.error('Error removing listener:', e);
+      }
+    });
+  } catch (e) {
+    console.error('Error in clearMessageListeners:', e);
+  }
   messageListeners = [];
 }
 
