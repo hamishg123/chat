@@ -1324,7 +1324,7 @@ var currentGroupId = null;
 var messageListeners = [];
 var typingTimeout = null;
 var memberColors = {};
-var colorPalette = ['#FF6B6B', '#4ECDC4', '#45B7D1', '#FFA07A', '#98D8C8', '#F7DC6F', '#BB8FCE', '#85C1E2'];
+var colorPalette = ['#FF6B6B', '#4ECDC4', '#45B7D1', '#FFA07A', '#98D8C8', '#F7DC6F', '#BB8FCE', '#85C1E2', '#FF9FF3', '#54A0FF', '#48DBFB', '#1DD1A1', '#FDCB6E', '#6C5CE7', '#A29BFE', '#FD79A8', '#FDCB6E', '#74B9FF', '#55EFC4', '#FF7675', '#D63031', '#00B894', '#0984E3', '#6C5CE7'];
 var lastMessageStatus = {};
 var groupSettingsListener = null;
 
@@ -1950,8 +1950,13 @@ function updateLastMessageStatus(path, snap) {
 
 function getMemberColor(memberId) {
   if (!memberColors[memberId]) {
-    var colorIndex = Object.keys(memberColors).length % colorPalette.length;
-    memberColors[memberId] = colorPalette[colorIndex];
+    var usedColors = Object.values(memberColors);
+    var availableColors = colorPalette.filter(function(c) { return usedColors.indexOf(c) === -1; });
+    if (availableColors.length === 0) {
+      availableColors = colorPalette;
+    }
+    var randomIndex = Math.floor(Math.random() * availableColors.length);
+    memberColors[memberId] = availableColors[randomIndex];
   }
   return memberColors[memberId];
 }
