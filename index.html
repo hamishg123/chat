@@ -582,20 +582,21 @@
 
     /* Scrollbar */
     ::-webkit-scrollbar {
-      width: 6px;
+      width: 8px;
     }
 
     ::-webkit-scrollbar-track {
-      background: transparent;
+      background: var(--bg-hover);
+      border-radius: 4px;
     }
 
     ::-webkit-scrollbar-thumb {
-      background: var(--border);
-      border-radius: 3px;
+      background: linear-gradient(135deg, var(--primary), var(--secondary));
+      border-radius: 4px;
     }
 
     ::-webkit-scrollbar-thumb:hover {
-      background: var(--text-muted);
+      background: linear-gradient(135deg, var(--primary-dark), var(--secondary));
     }
 
     /* Responsive */
@@ -888,11 +889,13 @@ function handleSignup(e) {
 
     auth.createUserWithEmailAndPassword(email, password).then(result => {
       var uid = result.user.uid;
+      var profileColor = colorPalette[Math.floor(Math.random() * colorPalette.length)];
       var updates = {};
       updates['users/' + uid] = {
         username: username,
         usernameLower: username.toLowerCase(),
         email: email,
+        profileColor: profileColor,
         createdAt: Date.now()
       };
       updates['usernames/' + username.toLowerCase()] = { uid: uid, email: email };
@@ -948,13 +951,28 @@ function renderChatItem(id, name, type, list) {
   item.className = 'chat-item';
   item.setAttribute('data-id', id);
   item.setAttribute('data-type', type);
-  item.innerHTML = `
-    <div class="chat-avatar">${name[0].toUpperCase()}</div>
-    <div class="chat-info">
-      <div class="chat-name">${name}</div>
-      <div class="chat-preview">Start a conversation...</div>
-    </div>
+  
+  var avatarDiv = document.createElement('div');
+  avatarDiv.className = 'chat-avatar';
+  avatarDiv.textContent = name[0].toUpperCase();
+  
+  if (type === 'dm') {
+    db.ref('users/' + id).once('value').then(snap => {
+      if (snap.exists() && snap.val().profileColor) {
+        avatarDiv.style.background = snap.val().profileColor;
+      }
+    });
+  }
+  
+  var infoDiv = document.createElement('div');
+  infoDiv.className = 'chat-info';
+  infoDiv.innerHTML = `
+    <div class="chat-name">${name}</div>
+    <div class="chat-preview">Start a conversation...</div>
   `;
+  
+  item.appendChild(avatarDiv);
+  item.appendChild(infoDiv);
   item.onclick = () => openChat(id, name, type);
   list.appendChild(item);
 }
@@ -987,7 +1005,9 @@ function loadMessages(path, isGroup) {
       msg._key = child.key;
       renderMessage(msg, isGroup);
     });
-    container.scrollTop = container.scrollHeight;
+    setTimeout(() => {
+      container.scrollTop = container.scrollHeight;
+    }, 0);
   });
   messageListeners.push({ ref: ref, listener: listener });
 }
