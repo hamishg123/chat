@@ -9,6 +9,7 @@ import {
   decimal,
   longtext,
   uniqueIndex,
+  index,
 } from "drizzle-orm/mysql-core";
 
 /**
@@ -112,7 +113,7 @@ export const groups = mysqlTable(
     updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
   },
   (table) => ({
-    creatorIdx: uniqueIndex("creator_idx").on(table.creatorId),
+    creatorIdx: index("creator_idx").on(table.creatorId),
   })
 );
 

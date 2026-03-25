@@ -2,6 +2,7 @@ import { COOKIE_NAME } from "@shared/const";
 import { getSessionCookieOptions } from "./_core/cookies";
 import { systemRouter } from "./_core/systemRouter";
 import { publicProcedure, protectedProcedure, router } from "./_core/trpc";
+import { sdk } from "./_core/sdk";
 import { z } from "zod";
 import { friendsRouter } from "./routers/friends";
 import { messagesRouter } from "./routers/messages";
@@ -124,7 +125,7 @@ export const appRouter = router({
         email: z.string().email(),
         password: z.string(),
       }))
-      .mutation(async ({ input }) => {
+      .mutation(async ({ input, ctx }) => {
         const user = await getUserByEmail(input.email);
         if (!user || !user.passwordHash) {
           throw new TRPCError({
@@ -147,6 +148,15 @@ export const appRouter = router({
             message: "Invalid email or password",
           });
         }
+
+        // Create session token and set cookie
+        const { ONE_YEAR_MS } = await import("@shared/const");
+        const sessionToken = await sdk.createSessionToken(user.openId, {
+          expiresInMs: ONE_YEAR_MS,
+          name: user.email ?? user.openId,
+        });
+        const cookieOptions = getSessionCookieOptions(ctx.req);
+        ctx.res.cookie(COOKIE_NAME, sessionToken, { ...cookieOptions, maxAge: ONE_YEAR_MS });
 
         return {
           success: true,

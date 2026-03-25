@@ -48,6 +48,18 @@ export async function upsertUser(user: InsertUser): Promise<void> {
 
     textFields.forEach(assignNullable);
 
+    // Handle passwordHash for email signup
+    if (user.passwordHash !== undefined) {
+      values.passwordHash = user.passwordHash;
+      updateSet.passwordHash = user.passwordHash;
+    }
+
+    // Handle emailVerified for email signup
+    if (user.emailVerified !== undefined) {
+      values.emailVerified = user.emailVerified;
+      updateSet.emailVerified = user.emailVerified;
+    }
+
     if (user.lastSignedIn !== undefined) {
       values.lastSignedIn = user.lastSignedIn;
       updateSet.lastSignedIn = user.lastSignedIn;
