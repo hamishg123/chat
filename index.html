@@ -1832,52 +1832,72 @@ function updateGroupName() {
 // ──────────────────────────────────────────────────────────────────────────────
 
 function openDM(otherUid, name) {
-  clearMessageListeners();
-  if (groupSettingsListener) groupSettingsListener();
-  currentChatUid = otherUid;
-  currentChat = chatId(uid, otherUid);
-  currentChatType = 'dm';
-  currentGroupId = null;
+  try {
+    clearMessageListeners();
+    if (groupSettingsListener) {
+      groupSettingsListener();
+      groupSettingsListener = null;
+    }
+    clearTimeout(typingTimeout);
+    
+    currentChatUid = otherUid;
+    currentChat = chatId(uid, otherUid);
+    currentChatType = 'dm';
+    currentGroupId = null;
 
-  document.querySelectorAll('.contact-item').forEach(function(el) { el.classList.remove('active'); });
-  var item = document.getElementById('contact-' + otherUid);
-  if (item) item.classList.add('active');
+    document.querySelectorAll('.contact-item').forEach(function(el) { el.classList.remove('active'); });
+    document.querySelectorAll('.group-item').forEach(function(el) { el.classList.remove('active'); });
+    var item = document.getElementById('contact-' + otherUid);
+    if (item) item.classList.add('active');
 
-  document.getElementById('groupSettingsBtn').style.display = 'none';
+    document.getElementById('groupSettingsBtn').style.display = 'none';
 
-  showChatArea(name);
-  document.getElementById('chatHeaderAvatar').textContent = name[0].toUpperCase();
-  document.getElementById('chatHeaderAvatar').style.background = 'var(--gradient)';
+    showChatArea(name);
+    document.getElementById('chatHeaderAvatar').textContent = name[0].toUpperCase();
+    document.getElementById('chatHeaderAvatar').style.background = 'var(--gradient)';
 
-  loadMessages('messages/' + currentChat, false);
-  listenTyping('typing/' + currentChat);
-  hideSidebarOnMobile();
-  markMessagesAsSeen('messages/' + currentChat);
+    loadMessages('messages/' + currentChat, false);
+    listenTyping('typing/' + currentChat);
+    hideSidebarOnMobile();
+    markMessagesAsSeen('messages/' + currentChat);
+  } catch (e) {
+    console.error('Error in openDM:', e);
+  }
 }
 
 function openGroup(groupId, name) {
-  clearMessageListeners();
-  if (groupSettingsListener) groupSettingsListener();
-  currentGroupId = groupId;
-  currentChat = groupId;
-  currentChatType = 'group';
-  currentChatUid = null;
+  try {
+    clearMessageListeners();
+    if (groupSettingsListener) {
+      groupSettingsListener();
+      groupSettingsListener = null;
+    }
+    clearTimeout(typingTimeout);
+    
+    currentGroupId = groupId;
+    currentChat = groupId;
+    currentChatType = 'group';
+    currentChatUid = null;
 
-  document.querySelectorAll('.group-item').forEach(function(el) { el.classList.remove('active'); });
-  var item = document.getElementById('group-' + groupId);
-  if (item) item.classList.add('active');
+    document.querySelectorAll('.contact-item').forEach(function(el) { el.classList.remove('active'); });
+    document.querySelectorAll('.group-item').forEach(function(el) { el.classList.remove('active'); });
+    var item = document.getElementById('group-' + groupId);
+    if (item) item.classList.add('active');
 
-  document.getElementById('groupSettingsBtn').style.display = 'flex';
+    document.getElementById('groupSettingsBtn').style.display = 'flex';
 
-  showChatArea(name);
-  document.getElementById('chatHeaderAvatar').textContent = name[0].toUpperCase();
-  document.getElementById('chatHeaderAvatar').style.background = 'var(--gradient-alt)';
+    showChatArea(name);
+    document.getElementById('chatHeaderAvatar').textContent = name[0].toUpperCase();
+    document.getElementById('chatHeaderAvatar').style.background = 'var(--gradient-alt)';
 
-  loadMessages('groupMessages/' + groupId, true);
-  listenTyping('groupTyping/' + groupId);
-  watchGroupName(groupId);
-  hideSidebarOnMobile();
-  markMessagesAsSeen('groupMessages/' + groupId);
+    loadMessages('groupMessages/' + groupId, true);
+    listenTyping('groupTyping/' + groupId);
+    watchGroupName(groupId);
+    hideSidebarOnMobile();
+    markMessagesAsSeen('groupMessages/' + groupId);
+  } catch (e) {
+    console.error('Error in openGroup:', e);
+  }
 }
 
 function watchGroupName(groupId) {
