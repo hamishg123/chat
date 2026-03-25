@@ -68,52 +68,52 @@ export default function ProfileSetup() {
   if (!user) return null;
 
   return (
-    <div className="min-h-screen bg-[#0f0f13] flex items-center justify-center p-4">
+    <div className="min-h-screen bg-slate-950 flex items-center justify-center p-4">
       <div className="w-full max-w-md">
         <div className="text-center mb-8">
-          <div className="inline-flex items-center justify-center bg-indigo-600 rounded-2xl p-3 mb-4">
-            <MessageCircle className="h-8 w-8 text-white" />
+          <div className="inline-flex items-center justify-center bg-slate-800 rounded-2xl p-3 mb-4">
+            <MessageCircle className="h-8 w-8 text-slate-400" />
           </div>
           <h1 className="text-2xl font-bold text-white">Complete Your Profile</h1>
-          <p className="text-gray-400 mt-2">Set up your unique handle and display name</p>
+          <p className="text-slate-400 mt-2">Set up your unique handle and display name</p>
         </div>
 
-        <div className="bg-[#16161f] rounded-2xl border border-[#2a2a38] p-6">
+        <div className="bg-slate-900 rounded-2xl border border-slate-800 p-6">
           <form onSubmit={handleSave} className="space-y-5">
             {/* Handle */}
             <div>
-              <label className="block text-sm font-medium text-gray-300 mb-2">
-                @Handle <span className="text-red-400">*</span>
+              <label className="block text-sm font-medium text-slate-300 mb-2">
+                @Handle <span className="text-red-500">*</span>
               </label>
               <div className="relative">
-                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-indigo-400 font-medium">@</span>
+                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 font-medium">@</span>
                 <Input
                   type="text"
                   placeholder="yourhandle"
                   value={handle}
                   onChange={(e) => handleHandleChange(e.target.value)}
-                  className="pl-8 bg-[#1e1e2a] border-[#2a2a38] text-white placeholder:text-gray-600 focus:border-indigo-500 h-12 rounded-xl"
+                  className="pl-8 bg-slate-800 border-slate-700 text-white placeholder:text-slate-600 focus:border-slate-500 h-12 rounded-xl"
                   minLength={3}
                   maxLength={32}
                 />
                 <div className="absolute right-3 top-1/2 -translate-y-1/2">
-                  {checkingHandle && <Loader2 className="h-4 w-4 animate-spin text-gray-500" />}
+                  {checkingHandle && <Loader2 className="h-4 w-4 animate-spin text-slate-500" />}
                   {!checkingHandle && handle.length >= 3 && handleAvailable && (
-                    <Check className="h-4 w-4 text-green-500" />
+                    <Check className="h-4 w-4 text-green-600" />
                   )}
                   {!checkingHandle && handle.length >= 3 && !handleAvailable && (
-                    <X className="h-4 w-4 text-red-500" />
+                    <X className="h-4 w-4 text-red-600" />
                   )}
                 </div>
               </div>
               <p className={`text-xs mt-1.5 ${
                 handle.length < 3
-                  ? "text-gray-600"
+                  ? "text-slate-600"
                   : checkHandleQuery.isFetching
-                  ? "text-gray-500"
+                  ? "text-slate-500"
                   : handleAvailable
-                  ? "text-green-500"
-                  : "text-red-400"
+                  ? "text-green-600"
+                  : "text-red-500"
               }`}>
                 {handle.length < 3
                   ? "At least 3 characters, lowercase letters, numbers, underscores"
@@ -127,8 +127,8 @@ export default function ProfileSetup() {
 
             {/* Display Name */}
             <div>
-              <label className="block text-sm font-medium text-gray-300 mb-2">
-                Display Name <span className="text-red-400">*</span>
+              <label className="block text-sm font-medium text-slate-300 mb-2">
+                Display Name <span className="text-red-500">*</span>
               </label>
               <Input
                 type="text"
@@ -136,14 +136,14 @@ export default function ProfileSetup() {
                 value={displayName}
                 onChange={(e) => setDisplayName(e.target.value)}
                 maxLength={100}
-                className="bg-[#1e1e2a] border-[#2a2a38] text-white placeholder:text-gray-600 focus:border-indigo-500 h-12 rounded-xl"
+                className="bg-slate-800 border-slate-700 text-white placeholder:text-slate-600 focus:border-slate-500 h-12 rounded-xl"
               />
             </div>
 
             {/* Bio */}
             <div>
-              <label className="block text-sm font-medium text-gray-300 mb-2">
-                Bio <span className="text-gray-500">(Optional)</span>
+              <label className="block text-sm font-medium text-slate-300 mb-2">
+                Bio <span className="text-slate-500">(Optional)</span>
               </label>
               <Textarea
                 placeholder="Tell us about yourself..."
@@ -151,14 +151,14 @@ export default function ProfileSetup() {
                 onChange={(e) => setBio(e.target.value)}
                 maxLength={500}
                 rows={3}
-                className="bg-[#1e1e2a] border-[#2a2a38] text-white placeholder:text-gray-600 focus:border-indigo-500 rounded-xl resize-none"
+                className="bg-slate-800 border-slate-700 text-white placeholder:text-slate-600 focus:border-slate-500 rounded-xl resize-none"
               />
-              <p className="text-xs text-gray-600 mt-1 text-right">{bio.length}/500</p>
+              <p className="text-xs text-slate-600 mt-1 text-right">{bio.length}/500</p>
             </div>
 
             <Button
               type="submit"
-              className="w-full h-12 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold rounded-xl"
+              className="w-full h-12 bg-slate-700 hover:bg-slate-600 text-white font-semibold rounded-xl"
               disabled={
                 updateProfileMutation.isPending ||
                 !handle ||

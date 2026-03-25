@@ -53,14 +53,14 @@ export default function Chat() {
   };
 
   return (
-    <div className="h-screen flex bg-[#0f0f13] text-white overflow-hidden">
+    <div className="h-screen flex bg-slate-950 text-white overflow-hidden">
       {/* Sidebar */}
-      <div className="w-72 flex flex-col bg-[#16161f] border-r border-[#2a2a38]">
+      <div className="w-72 flex flex-col bg-slate-900 border-r border-slate-800">
         {/* App Header */}
-        <div className="px-4 py-4 border-b border-[#2a2a38]">
+        <div className="px-4 py-4 border-b border-slate-800">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2.5">
-              <div className="bg-indigo-600 rounded-lg p-1.5">
+              <div className="bg-slate-700 rounded-lg p-1.5">
                 <MessageCircle className="h-5 w-5 text-white" />
               </div>
               <span className="font-bold text-lg text-white">TopTier</span>
@@ -69,7 +69,7 @@ export default function Chat() {
               <Button
                 variant="ghost"
                 size="icon"
-                className="h-8 w-8 text-gray-400 hover:text-white hover:bg-[#2a2a38] rounded-lg"
+                className="h-8 w-8 text-slate-400 hover:text-white hover:bg-slate-800 rounded-lg"
                 onClick={() => setLocation("/profile")}
                 title="Profile Settings"
               >
@@ -78,7 +78,7 @@ export default function Chat() {
               <Button
                 variant="ghost"
                 size="icon"
-                className="h-8 w-8 text-gray-400 hover:text-red-400 hover:bg-[#2a2a38] rounded-lg"
+                className="h-8 w-8 text-slate-400 hover:text-red-400 hover:bg-slate-800 rounded-lg"
                 onClick={logout}
                 title="Logout"
               >
@@ -89,13 +89,13 @@ export default function Chat() {
         </div>
 
         {/* Nav Tabs */}
-        <div className="flex border-b border-[#2a2a38]">
+        <div className="flex border-b border-slate-800">
           <button
             onClick={() => setSidebarTab("chats")}
             className={`flex-1 py-3 text-xs font-semibold uppercase tracking-wider transition-colors ${
               sidebarTab === "chats"
-                ? "text-indigo-400 border-b-2 border-indigo-500"
-                : "text-gray-500 hover:text-gray-300"
+                ? "text-white border-b-2 border-slate-500"
+                : "text-slate-500 hover:text-slate-300"
             }`}
           >
             Chats
@@ -104,13 +104,13 @@ export default function Chat() {
             onClick={() => setSidebarTab("friends")}
             className={`flex-1 py-3 text-xs font-semibold uppercase tracking-wider transition-colors relative ${
               sidebarTab === "friends"
-                ? "text-indigo-400 border-b-2 border-indigo-500"
-                : "text-gray-500 hover:text-gray-300"
+                ? "text-white border-b-2 border-slate-500"
+                : "text-slate-500 hover:text-slate-300"
             }`}
           >
             Friends
             {pendingCount > 0 && (
-              <span className="absolute top-2 right-3 bg-red-500 text-white text-xs rounded-full h-4 w-4 flex items-center justify-center font-bold">
+              <span className="absolute top-2 right-3 bg-red-600 text-white text-xs rounded-full h-4 w-4 flex items-center justify-center font-bold">
                 {pendingCount}
               </span>
             )}
@@ -119,8 +119,8 @@ export default function Chat() {
             onClick={() => setSidebarTab("add")}
             className={`flex-1 py-3 text-xs font-semibold uppercase tracking-wider transition-colors ${
               sidebarTab === "add"
-                ? "text-indigo-400 border-b-2 border-indigo-500"
-                : "text-gray-500 hover:text-gray-300"
+                ? "text-white border-b-2 border-slate-500"
+                : "text-slate-500 hover:text-slate-300"
             }`}
           >
             Add
@@ -151,10 +151,10 @@ export default function Chat() {
         </div>
 
         {/* User Profile Footer */}
-        <div className="px-3 py-3 border-t border-[#2a2a38] bg-[#12121a]">
+        <div className="px-3 py-3 border-t border-slate-800 bg-slate-950">
           <div className="flex items-center gap-3">
-            <Avatar className="h-8 w-8 ring-2 ring-indigo-500/30">
-              <AvatarFallback className="bg-indigo-600 text-white text-xs font-bold">
+            <Avatar className="h-8 w-8 ring-2 ring-slate-700">
+              <AvatarFallback className="bg-slate-700 text-white text-xs font-bold">
                 {(user as any)?.email?.charAt(0)?.toUpperCase() ?? "U"}
               </AvatarFallback>
             </Avatar>
@@ -162,14 +162,14 @@ export default function Chat() {
               <p className="text-sm font-medium text-white truncate">
                 {(user as any)?.email ?? "User"}
               </p>
-              <p className="text-xs text-green-400">Online</p>
+              <p className="text-xs text-green-500">Online</p>
             </div>
           </div>
         </div>
       </div>
 
       {/* Main Chat Area */}
-      <div className="flex-1 flex flex-col bg-[#0f0f13]">
+      <div className="flex-1 flex flex-col bg-slate-950">
         {selectedChat ? (
           <ChatWindow chatId={selectedChat} chatName={selectedChatName} currentUserId={user.id} />
         ) : (
@@ -185,11 +185,11 @@ function ChatsTab({ conversationsQuery, groupsQuery, selectedChat, onSelectChat 
     <div className="p-2 space-y-1">
       {/* DMs Section */}
       <div className="px-2 pt-3 pb-1">
-        <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Direct Messages</p>
+        <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Direct Messages</p>
       </div>
       {conversationsQuery.isLoading ? (
         <div className="flex justify-center py-4">
-          <Loader2 className="h-5 w-5 animate-spin text-gray-500" />
+          <Loader2 className="h-5 w-5 animate-spin text-slate-500" />
         </div>
       ) : conversationsQuery.data?.length > 0 ? (
         conversationsQuery.data.map((conv: any) => (
@@ -198,36 +198,36 @@ function ChatsTab({ conversationsQuery, groupsQuery, selectedChat, onSelectChat 
             onClick={() => onSelectChat(conv.contactId, conv.contactDisplayName)}
             className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all text-left group ${
               selectedChat === conv.contactId
-                ? "bg-indigo-600/20 border border-indigo-500/30"
-                : "hover:bg-[#2a2a38]"
+                ? "bg-slate-800 border border-slate-700"
+                : "hover:bg-slate-800"
             }`}
           >
             <Avatar className="h-9 w-9 flex-shrink-0">
-              <AvatarFallback className={`text-sm font-bold ${selectedChat === conv.contactId ? "bg-indigo-600 text-white" : "bg-[#2a2a38] text-gray-300"}`}>
+              <AvatarFallback className={`text-sm font-bold ${selectedChat === conv.contactId ? "bg-slate-700 text-white" : "bg-slate-800 text-slate-300"}`}>
                 {conv.contactDisplayName?.charAt(0)?.toUpperCase() ?? "?"}
               </AvatarFallback>
             </Avatar>
             <div className="flex-1 min-w-0">
-              <p className={`text-sm font-semibold truncate ${selectedChat === conv.contactId ? "text-indigo-300" : "text-gray-200"}`}>
+              <p className={`text-sm font-semibold truncate ${selectedChat === conv.contactId ? "text-slate-100" : "text-slate-200"}`}>
                 {conv.contactDisplayName}
               </p>
-              <p className="text-xs text-gray-500 truncate">
+              <p className="text-xs text-slate-500 truncate">
                 {conv.lastMessage || "No messages yet"}
               </p>
             </div>
           </button>
         ))
       ) : (
-        <p className="text-xs text-gray-600 px-3 py-2">No conversations yet</p>
+        <p className="text-xs text-slate-600 px-3 py-2">No conversations yet</p>
       )}
 
       {/* Groups Section */}
       <div className="px-2 pt-4 pb-1">
-        <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Group Chats</p>
+        <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Group Chats</p>
       </div>
       {groupsQuery.isLoading ? (
         <div className="flex justify-center py-4">
-          <Loader2 className="h-5 w-5 animate-spin text-gray-500" />
+          <Loader2 className="h-5 w-5 animate-spin text-slate-500" />
         </div>
       ) : groupsQuery.data?.length > 0 ? (
         groupsQuery.data.map((group: any) => (
@@ -236,23 +236,23 @@ function ChatsTab({ conversationsQuery, groupsQuery, selectedChat, onSelectChat 
             onClick={() => onSelectChat(-group.id, group.name)}
             className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all text-left ${
               selectedChat === -group.id
-                ? "bg-indigo-600/20 border border-indigo-500/30"
-                : "hover:bg-[#2a2a38]"
+                ? "bg-slate-800 border border-slate-700"
+                : "hover:bg-slate-800"
             }`}
           >
-            <div className={`h-9 w-9 rounded-lg flex items-center justify-center flex-shrink-0 ${selectedChat === -group.id ? "bg-indigo-600" : "bg-[#2a2a38]"}`}>
-              <Hash className="h-4 w-4 text-gray-300" />
+            <div className={`h-9 w-9 rounded-lg flex items-center justify-center flex-shrink-0 ${selectedChat === -group.id ? "bg-slate-700" : "bg-slate-800"}`}>
+              <Hash className="h-4 w-4 text-slate-300" />
             </div>
             <div className="flex-1 min-w-0">
-              <p className={`text-sm font-semibold truncate ${selectedChat === -group.id ? "text-indigo-300" : "text-gray-200"}`}>
+              <p className={`text-sm font-semibold truncate ${selectedChat === -group.id ? "text-slate-100" : "text-slate-200"}`}>
                 {group.name}
               </p>
-              <p className="text-xs text-gray-500">Group chat</p>
+              <p className="text-xs text-slate-500">Group chat</p>
             </div>
           </button>
         ))
       ) : (
-        <p className="text-xs text-gray-600 px-3 py-2">No groups yet</p>
+        <p className="text-xs text-slate-600 px-3 py-2">No groups yet</p>
       )}
     </div>
   );
@@ -290,31 +290,31 @@ function FriendsTab({ friendsQuery, pendingQuery, selectedChat, onSelectChat }: 
       {pendingQuery.data?.length > 0 && (
         <>
           <div className="px-2 pt-3 pb-1">
-            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider">
+            <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
               Pending Requests
-              <span className="ml-2 bg-red-500 text-white text-xs rounded-full px-1.5 py-0.5">
+              <span className="ml-2 bg-red-600 text-white text-xs rounded-full px-1.5 py-0.5">
                 {pendingQuery.data.length}
               </span>
             </p>
           </div>
           {pendingQuery.data.map((req: any) => (
-            <div key={req.id} className="px-3 py-2.5 rounded-lg bg-[#1e1e2a] border border-[#2a2a38]">
+            <div key={req.id} className="px-3 py-2.5 rounded-lg bg-slate-800 border border-slate-700">
               <div className="flex items-center gap-2 mb-2">
                 <Avatar className="h-7 w-7">
                   <AvatarImage src={req.senderAvatar} />
-                  <AvatarFallback className="bg-purple-600 text-white text-xs">
+                  <AvatarFallback className="bg-slate-700 text-white text-xs">
                     {req.senderDisplayName?.charAt(0)?.toUpperCase()}
                   </AvatarFallback>
                 </Avatar>
                 <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium text-gray-200 truncate">{req.senderDisplayName}</p>
-                  <p className="text-xs text-gray-500">@{req.senderHandle}</p>
+                  <p className="text-sm font-medium text-slate-200 truncate">{req.senderDisplayName}</p>
+                  <p className="text-xs text-slate-500">@{req.senderHandle}</p>
                 </div>
               </div>
               <div className="flex gap-2">
                 <Button
                   size="sm"
-                  className="flex-1 h-7 bg-indigo-600 hover:bg-indigo-700 text-white text-xs rounded-lg"
+                  className="flex-1 h-7 bg-slate-700 hover:bg-slate-600 text-white text-xs rounded-lg"
                   onClick={() => handleAccept(req.id)}
                   disabled={acceptRequestMutation.isPending}
                 >
@@ -324,7 +324,7 @@ function FriendsTab({ friendsQuery, pendingQuery, selectedChat, onSelectChat }: 
                 <Button
                   size="sm"
                   variant="ghost"
-                  className="flex-1 h-7 text-gray-400 hover:text-red-400 hover:bg-red-500/10 text-xs rounded-lg"
+                  className="flex-1 h-7 text-slate-400 hover:text-red-400 hover:bg-red-500/10 text-xs rounded-lg"
                   onClick={() => handleReject(req.id)}
                   disabled={rejectRequestMutation.isPending}
                 >
@@ -339,11 +339,11 @@ function FriendsTab({ friendsQuery, pendingQuery, selectedChat, onSelectChat }: 
 
       {/* Friends List */}
       <div className="px-2 pt-3 pb-1">
-        <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Friends</p>
+        <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Friends</p>
       </div>
       {friendsQuery.isLoading ? (
         <div className="flex justify-center py-4">
-          <Loader2 className="h-5 w-5 animate-spin text-gray-500" />
+          <Loader2 className="h-5 w-5 animate-spin text-slate-500" />
         </div>
       ) : friendsQuery.data?.length > 0 ? (
         friendsQuery.data.map((friend: any) => (
@@ -352,30 +352,30 @@ function FriendsTab({ friendsQuery, pendingQuery, selectedChat, onSelectChat }: 
             onClick={() => onSelectChat(friend.userId, friend.displayName)}
             className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all text-left ${
               selectedChat === friend.userId
-                ? "bg-indigo-600/20 border border-indigo-500/30"
-                : "hover:bg-[#2a2a38]"
+                ? "bg-slate-800 border border-slate-700"
+                : "hover:bg-slate-800"
             }`}
           >
             <Avatar className="h-9 w-9 flex-shrink-0">
               <AvatarImage src={friend.avatar} />
-              <AvatarFallback className="bg-emerald-600 text-white text-sm font-bold">
+              <AvatarFallback className="bg-slate-700 text-white text-sm font-bold">
                 {friend.displayName?.charAt(0)?.toUpperCase()}
               </AvatarFallback>
             </Avatar>
             <div className="flex-1 min-w-0">
-              <p className="text-sm font-semibold text-gray-200 truncate">{friend.displayName}</p>
-              <p className="text-xs text-gray-500">@{friend.handle}</p>
+              <p className="text-sm font-semibold text-slate-200 truncate">{friend.displayName}</p>
+              <p className="text-xs text-slate-500">@{friend.handle}</p>
             </div>
             <div className="flex-shrink-0">
-              <span className="text-xs text-amber-500 font-medium">{friend.karma} ✦</span>
+              <span className="text-xs text-amber-600 font-medium">{friend.karma} ✦</span>
             </div>
           </button>
         ))
       ) : (
         <div className="text-center py-8 px-4">
-          <Users className="h-8 w-8 text-gray-600 mx-auto mb-2" />
-          <p className="text-sm text-gray-500">No friends yet</p>
-          <p className="text-xs text-gray-600 mt-1">Use the Add tab to find friends</p>
+          <Users className="h-8 w-8 text-slate-600 mx-auto mb-2" />
+          <p className="text-sm text-slate-500">No friends yet</p>
+          <p className="text-xs text-slate-600 mt-1">Use the Add tab to find friends</p>
         </div>
       )}
     </div>
@@ -422,7 +422,7 @@ function AddFriendTab() {
   return (
     <div className="p-3 space-y-3">
       <div className="px-1 pt-2 pb-1">
-        <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Find Friends</p>
+        <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Find Friends</p>
       </div>
       <div className="flex gap-2">
         <Input
@@ -431,12 +431,12 @@ function AddFriendTab() {
           value={searchHandle}
           onChange={(e) => setSearchHandle(e.target.value)}
           onKeyDown={(e) => e.key === "Enter" && handleSearch()}
-          className="bg-[#1a1a24] border-[#2a2a38] text-white placeholder:text-gray-600 focus:border-indigo-500 h-9 text-sm rounded-lg"
+          className="bg-slate-800 border-slate-700 text-white placeholder:text-slate-600 focus:border-slate-500 h-9 text-sm rounded-lg"
         />
         <Button
           onClick={handleSearch}
           disabled={searchProfileQuery.isFetching}
-          className="h-9 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg px-3"
+          className="h-9 bg-slate-700 hover:bg-slate-600 text-white rounded-lg px-3"
         >
           {searchProfileQuery.isFetching ? (
             <Loader2 className="h-4 w-4 animate-spin" />
@@ -447,26 +447,26 @@ function AddFriendTab() {
       </div>
 
       {searchResult && (
-        <div className="bg-[#1e1e2a] border border-indigo-500/30 rounded-xl p-3">
+        <div className="bg-slate-800 border border-slate-700 rounded-xl p-3">
           <div className="flex items-center gap-3 mb-3">
             <Avatar className="h-10 w-10">
               <AvatarImage src={searchResult.avatar} />
-              <AvatarFallback className="bg-indigo-600 text-white font-bold">
+              <AvatarFallback className="bg-slate-700 text-white font-bold">
                 {searchResult.displayName?.charAt(0)?.toUpperCase()}
               </AvatarFallback>
             </Avatar>
             <div className="flex-1 min-w-0">
               <p className="font-semibold text-white text-sm">{searchResult.displayName}</p>
-              <p className="text-xs text-gray-400">@{searchResult.handle}</p>
+              <p className="text-xs text-slate-400">@{searchResult.handle}</p>
               {searchResult.bio && (
-                <p className="text-xs text-gray-500 mt-1 truncate">{searchResult.bio}</p>
+                <p className="text-xs text-slate-500 mt-1 truncate">{searchResult.bio}</p>
               )}
             </div>
           </div>
           <Button
             onClick={() => handleSendRequest(searchResult.userId)}
             disabled={sendRequestMutation.isPending}
-            className="w-full h-8 bg-indigo-600 hover:bg-indigo-700 text-white text-sm rounded-lg"
+            className="w-full h-8 bg-slate-700 hover:bg-slate-600 text-white text-sm rounded-lg"
           >
             {sendRequestMutation.isPending ? (
               <Loader2 className="h-4 w-4 animate-spin mr-2" />
@@ -485,11 +485,11 @@ function EmptyState() {
   return (
     <div className="flex-1 flex items-center justify-center">
       <div className="text-center">
-        <div className="bg-[#1a1a24] rounded-2xl p-6 mb-4 inline-block">
-          <MessageSquare className="h-12 w-12 text-indigo-500 mx-auto" />
+        <div className="bg-slate-800 rounded-2xl p-6 mb-4 inline-block">
+          <MessageSquare className="h-12 w-12 text-slate-600" />
         </div>
         <h3 className="text-xl font-semibold text-white mb-2">No chat selected</h3>
-        <p className="text-gray-500 text-sm max-w-xs">
+        <p className="text-slate-500 text-sm max-w-xs">
           Choose a conversation from the sidebar or add a friend to get started
         </p>
       </div>
@@ -551,21 +551,21 @@ function ChatWindow({ chatId, chatName, currentUserId }: { chatId: number; chatN
   return (
     <div className="flex flex-col h-full">
       {/* Chat Header */}
-      <div className="flex items-center gap-3 px-5 py-4 border-b border-[#2a2a38] bg-[#12121a]">
+      <div className="flex items-center gap-3 px-5 py-4 border-b border-slate-800 bg-slate-900">
         <Avatar className="h-9 w-9">
           {isGroup ? (
-            <AvatarFallback className="bg-[#2a2a38] text-gray-300">
+            <AvatarFallback className="bg-slate-800 text-slate-300">
               <Hash className="h-4 w-4" />
             </AvatarFallback>
           ) : (
-            <AvatarFallback className="bg-indigo-600 text-white font-bold">
+            <AvatarFallback className="bg-slate-700 text-white font-bold">
               {chatName?.charAt(0)?.toUpperCase() ?? "?"}
             </AvatarFallback>
           )}
         </Avatar>
         <div>
           <h2 className="font-semibold text-white">{chatName}</h2>
-          <p className="text-xs text-gray-500">{isGroup ? "Group chat" : "Direct message"}</p>
+          <p className="text-xs text-slate-500">{isGroup ? "Group chat" : "Direct message"}</p>
         </div>
       </div>
 
@@ -573,7 +573,7 @@ function ChatWindow({ chatId, chatName, currentUserId }: { chatId: number; chatN
       <div className="flex-1 overflow-y-auto px-4 py-4 space-y-3">
         {(dmHistoryQuery?.isLoading || groupMessagesQuery?.isLoading) ? (
           <div className="flex justify-center py-8">
-            <Loader2 className="h-6 w-6 animate-spin text-gray-500" />
+            <Loader2 className="h-6 w-6 animate-spin text-slate-500" />
           </div>
         ) : messages && messages.length > 0 ? (
           messages.map((msg: any) => {
@@ -582,20 +582,20 @@ function ChatWindow({ chatId, chatName, currentUserId }: { chatId: number; chatN
               <div key={msg.id} className={`flex items-end gap-2 ${isOwn ? "flex-row-reverse" : "flex-row"}`}>
                 {!isOwn && (
                   <Avatar className="h-7 w-7 flex-shrink-0 mb-1">
-                    <AvatarFallback className="bg-[#2a2a38] text-gray-300 text-xs">
+                    <AvatarFallback className="bg-slate-800 text-slate-300 text-xs">
                       {msg.senderHandle?.charAt(0)?.toUpperCase() ?? "?"}
                     </AvatarFallback>
                   </Avatar>
                 )}
                 <div className={`max-w-[65%] ${isOwn ? "items-end" : "items-start"} flex flex-col gap-1`}>
                   {isGroup && !isOwn && (
-                    <span className="text-xs text-gray-500 px-1">@{msg.senderHandle}</span>
+                    <span className="text-xs text-slate-500 px-1">@{msg.senderHandle}</span>
                   )}
                   <div
                     className={`px-4 py-2.5 rounded-2xl text-sm leading-relaxed ${
                       isOwn
-                        ? "bg-indigo-600 text-white rounded-br-sm"
-                        : "bg-[#1e1e2a] text-gray-100 rounded-bl-sm border border-[#2a2a38]"
+                        ? "bg-slate-700 text-white rounded-br-sm"
+                        : "bg-slate-800 text-slate-100 rounded-bl-sm border border-slate-700"
                     }`}
                   >
                     {msg.type === "image" ? (
@@ -604,7 +604,7 @@ function ChatWindow({ chatId, chatName, currentUserId }: { chatId: number; chatN
                       <p>{msg.content}</p>
                     )}
                   </div>
-                  <span className="text-xs text-gray-600 px-1">
+                  <span className="text-xs text-slate-600 px-1">
                     {new Date(msg.createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
                   </span>
                 </div>
@@ -613,18 +613,18 @@ function ChatWindow({ chatId, chatName, currentUserId }: { chatId: number; chatN
           })
         ) : (
           <div className="flex flex-col items-center justify-center h-full text-center py-12">
-            <div className="bg-[#1a1a24] rounded-2xl p-4 mb-3">
-              <MessageSquare className="h-8 w-8 text-gray-600" />
+            <div className="bg-slate-800 rounded-2xl p-4 mb-3">
+              <MessageSquare className="h-8 w-8 text-slate-600" />
             </div>
-            <p className="text-gray-500 text-sm">No messages yet</p>
-            <p className="text-gray-600 text-xs mt-1">Say hello to start the conversation!</p>
+            <p className="text-slate-500 text-sm">No messages yet</p>
+            <p className="text-slate-600 text-xs mt-1">Say hello to start the conversation!</p>
           </div>
         )}
         <div ref={messagesEndRef} />
       </div>
 
       {/* Message Input */}
-      <div className="px-4 py-4 border-t border-[#2a2a38] bg-[#12121a]">
+      <div className="px-4 py-4 border-t border-slate-800 bg-slate-900">
         <form onSubmit={handleSendMessage} className="flex items-center gap-3">
           <Input
             type="text"
@@ -632,12 +632,12 @@ function ChatWindow({ chatId, chatName, currentUserId }: { chatId: number; chatN
             value={message}
             onChange={(e) => setMessage(e.target.value)}
             disabled={isSending}
-            className="flex-1 bg-[#1e1e2a] border-[#2a2a38] text-white placeholder:text-gray-600 focus:border-indigo-500 h-11 rounded-xl"
+            className="flex-1 bg-slate-800 border-slate-700 text-white placeholder:text-slate-600 focus:border-slate-500 h-11 rounded-xl"
           />
           <Button
             type="submit"
             disabled={isSending || !message.trim()}
-            className="h-11 w-11 p-0 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl flex-shrink-0 disabled:opacity-40"
+            className="h-11 w-11 p-0 bg-slate-700 hover:bg-slate-600 text-white rounded-xl flex-shrink-0 disabled:opacity-40"
           >
             {isSending ? (
               <Loader2 className="h-4 w-4 animate-spin" />

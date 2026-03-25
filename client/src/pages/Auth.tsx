@@ -81,45 +81,45 @@ export default function Auth() {
 
   if (isAuthenticated) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-[#0f0f13]">
+      <div className="min-h-screen flex items-center justify-center bg-slate-950">
         <div className="text-white text-center">
-          <Loader2 className="h-8 w-8 animate-spin mx-auto mb-4 text-indigo-400" />
-          <p className="text-gray-400">Redirecting...</p>
+          <Loader2 className="h-8 w-8 animate-spin mx-auto mb-4 text-slate-400" />
+          <p className="text-slate-400">Redirecting...</p>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen flex bg-[#0f0f13]">
+    <div className="min-h-screen flex bg-slate-950">
       {/* Left branding panel */}
-      <div className="hidden lg:flex lg:w-1/2 flex-col items-center justify-center bg-gradient-to-br from-indigo-600 via-purple-600 to-blue-700 p-12 relative overflow-hidden">
-        <div className="absolute inset-0 opacity-10">
+      <div className="hidden lg:flex lg:w-1/2 flex-col items-center justify-center bg-gradient-to-br from-slate-800 via-slate-700 to-slate-800 p-12 relative overflow-hidden">
+        <div className="absolute inset-0 opacity-5">
           <div className="absolute top-20 left-20 w-64 h-64 rounded-full bg-white blur-3xl" />
           <div className="absolute bottom-20 right-20 w-80 h-80 rounded-full bg-white blur-3xl" />
         </div>
         <div className="relative z-10 text-center">
           <div className="flex items-center justify-center mb-6">
-            <div className="bg-white/20 backdrop-blur-sm rounded-2xl p-4">
-              <MessageCircle className="h-12 w-12 text-white" />
+            <div className="bg-slate-700/50 backdrop-blur-sm rounded-2xl p-4">
+              <MessageCircle className="h-12 w-12 text-slate-200" />
             </div>
           </div>
           <h1 className="text-5xl font-bold text-white mb-4">TopTier Chat</h1>
-          <p className="text-xl text-indigo-100 max-w-sm leading-relaxed">
+          <p className="text-xl text-slate-300 max-w-sm leading-relaxed">
             Connect with friends, share moments, and stay in touch — all in one place.
           </p>
           <div className="mt-10 grid grid-cols-3 gap-6 text-center">
-            <div className="bg-white/10 backdrop-blur-sm rounded-xl p-4">
+            <div className="bg-slate-700/30 backdrop-blur-sm rounded-xl p-4">
               <p className="text-2xl font-bold text-white">DMs</p>
-              <p className="text-indigo-200 text-sm mt-1">Direct Messages</p>
+              <p className="text-slate-400 text-sm mt-1">Direct Messages</p>
             </div>
-            <div className="bg-white/10 backdrop-blur-sm rounded-xl p-4">
+            <div className="bg-slate-700/30 backdrop-blur-sm rounded-xl p-4">
               <p className="text-2xl font-bold text-white">Groups</p>
-              <p className="text-indigo-200 text-sm mt-1">Group Chats</p>
+              <p className="text-slate-400 text-sm mt-1">Group Chats</p>
             </div>
-            <div className="bg-white/10 backdrop-blur-sm rounded-xl p-4">
+            <div className="bg-slate-700/30 backdrop-blur-sm rounded-xl p-4">
               <p className="text-2xl font-bold text-white">Karma</p>
-              <p className="text-indigo-200 text-sm mt-1">Photo Sharing</p>
+              <p className="text-slate-400 text-sm mt-1">Photo Sharing</p>
             </div>
           </div>
         </div>
@@ -130,7 +130,7 @@ export default function Auth() {
         <div className="w-full max-w-md">
           {/* Mobile logo */}
           <div className="flex items-center gap-3 mb-8 lg:hidden">
-            <div className="bg-indigo-600 rounded-xl p-2">
+            <div className="bg-slate-700 rounded-xl p-2">
               <MessageCircle className="h-6 w-6 text-white" />
             </div>
             <h1 className="text-2xl font-bold text-white">TopTier Chat</h1>
@@ -139,22 +139,22 @@ export default function Auth() {
           {step === "verify" ? (
             <div>
               <h2 className="text-2xl font-bold text-white mb-2">Check your email</h2>
-              <p className="text-gray-400 mb-8">We sent a 6-digit code to <span className="text-indigo-400">{email}</span></p>
+              <p className="text-slate-400 mb-8">We sent a 6-digit code to <span className="text-slate-300">{email}</span></p>
               <form onSubmit={handleVerify} className="space-y-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-300 mb-2">Verification Code</label>
+                  <label className="block text-sm font-medium text-slate-300 mb-2">Verification Code</label>
                   <Input
                     type="text"
                     placeholder="000000"
                     value={verificationCode}
                     onChange={(e) => setVerificationCode(e.target.value)}
                     maxLength={6}
-                    className="bg-[#1a1a24] border-[#2a2a38] text-white placeholder:text-gray-600 focus:border-indigo-500 text-center text-2xl tracking-widest h-14"
+                    className="bg-slate-800 border-slate-700 text-white placeholder:text-slate-600 focus:border-slate-500 text-center text-2xl tracking-widest h-14"
                   />
                 </div>
                 <Button
                   type="submit"
-                  className="w-full h-12 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold rounded-xl"
+                  className="w-full h-12 bg-slate-700 hover:bg-slate-600 text-white font-semibold rounded-xl"
                   disabled={verifyMutation.isPending}
                 >
                   {verifyMutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
@@ -163,7 +163,7 @@ export default function Auth() {
                 <Button
                   type="button"
                   variant="ghost"
-                  className="w-full text-gray-400 hover:text-white"
+                  className="w-full text-slate-400 hover:text-white"
                   onClick={handleResendCode}
                   disabled={resendMutation.isPending}
                 >
@@ -173,7 +173,7 @@ export default function Auth() {
                 <Button
                   type="button"
                   variant="ghost"
-                  className="w-full text-gray-500 hover:text-gray-300 text-sm"
+                  className="w-full text-slate-500 hover:text-slate-300 text-sm"
                   onClick={() => setStep("signup")}
                 >
                   Back to sign up
@@ -185,18 +185,18 @@ export default function Auth() {
               <h2 className="text-2xl font-bold text-white mb-2">
                 {activeTab === "login" ? "Welcome back" : "Create an account"}
               </h2>
-              <p className="text-gray-400 mb-8">
+              <p className="text-slate-400 mb-8">
                 {activeTab === "login" ? "Sign in to continue to TopTier Chat" : "Join TopTier Chat today"}
               </p>
 
               {/* Tab switcher */}
-              <div className="flex bg-[#1a1a24] rounded-xl p-1 mb-6">
+              <div className="flex bg-slate-800 rounded-xl p-1 mb-6">
                 <button
                   onClick={() => setActiveTab("login")}
                   className={`flex-1 py-2.5 rounded-lg text-sm font-semibold transition-all ${
                     activeTab === "login"
-                      ? "bg-indigo-600 text-white shadow-lg"
-                      : "text-gray-400 hover:text-white"
+                      ? "bg-slate-700 text-white shadow-lg"
+                      : "text-slate-400 hover:text-white"
                   }`}
                 >
                   Sign In
@@ -205,8 +205,8 @@ export default function Auth() {
                   onClick={() => setActiveTab("signup")}
                   className={`flex-1 py-2.5 rounded-lg text-sm font-semibold transition-all ${
                     activeTab === "signup"
-                      ? "bg-indigo-600 text-white shadow-lg"
-                      : "text-gray-400 hover:text-white"
+                      ? "bg-slate-700 text-white shadow-lg"
+                      : "text-slate-400 hover:text-white"
                   }`}
                 >
                   Sign Up
@@ -218,7 +218,7 @@ export default function Auth() {
                 <Button
                   type="button"
                   variant="outline"
-                  className="w-full h-12 bg-[#1a1a24] border-[#2a2a38] text-white hover:bg-[#22222e] hover:border-indigo-500 rounded-xl font-medium"
+                  className="w-full h-12 bg-slate-800 border-slate-700 text-white hover:bg-slate-700 hover:border-slate-600 rounded-xl font-medium"
                 >
                   <svg className="mr-3 h-5 w-5" viewBox="0 0 24 24">
                     <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
@@ -232,38 +232,38 @@ export default function Auth() {
 
               <div className="relative mb-6">
                 <div className="absolute inset-0 flex items-center">
-                  <div className="w-full border-t border-[#2a2a38]" />
+                  <div className="w-full border-t border-slate-700" />
                 </div>
                 <div className="relative flex justify-center">
-                  <span className="bg-[#0f0f13] px-3 text-xs text-gray-500 uppercase tracking-wider">or</span>
+                  <span className="bg-slate-950 px-3 text-xs text-slate-500 uppercase tracking-wider">or</span>
                 </div>
               </div>
 
               {activeTab === "login" ? (
                 <form onSubmit={handleLogin} className="space-y-4">
                   <div>
-                    <label className="block text-sm font-medium text-gray-300 mb-2">Email</label>
+                    <label className="block text-sm font-medium text-slate-300 mb-2">Email</label>
                     <Input
                       type="email"
                       placeholder="you@example.com"
                       value={email}
                       onChange={(e) => setEmail(e.target.value)}
-                      className="bg-[#1a1a24] border-[#2a2a38] text-white placeholder:text-gray-600 focus:border-indigo-500 h-12 rounded-xl"
+                      className="bg-slate-800 border-slate-700 text-white placeholder:text-slate-600 focus:border-slate-500 h-12 rounded-xl"
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-gray-300 mb-2">Password</label>
+                    <label className="block text-sm font-medium text-slate-300 mb-2">Password</label>
                     <Input
                       type="password"
                       placeholder="••••••••"
                       value={password}
                       onChange={(e) => setPassword(e.target.value)}
-                      className="bg-[#1a1a24] border-[#2a2a38] text-white placeholder:text-gray-600 focus:border-indigo-500 h-12 rounded-xl"
+                      className="bg-slate-800 border-slate-700 text-white placeholder:text-slate-600 focus:border-slate-500 h-12 rounded-xl"
                     />
                   </div>
                   <Button
                     type="submit"
-                    className="w-full h-12 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold rounded-xl mt-2"
+                    className="w-full h-12 bg-slate-700 hover:bg-slate-600 text-white font-semibold rounded-xl mt-2"
                     disabled={loginMutation.isPending}
                   >
                     {loginMutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
@@ -273,38 +273,38 @@ export default function Auth() {
               ) : (
                 <form onSubmit={handleSignup} className="space-y-4">
                   <div>
-                    <label className="block text-sm font-medium text-gray-300 mb-2">Display Name</label>
+                    <label className="block text-sm font-medium text-slate-300 mb-2">Display Name</label>
                     <Input
                       type="text"
                       placeholder="Your name"
                       value={displayName}
                       onChange={(e) => setDisplayName(e.target.value)}
-                      className="bg-[#1a1a24] border-[#2a2a38] text-white placeholder:text-gray-600 focus:border-indigo-500 h-12 rounded-xl"
+                      className="bg-slate-800 border-slate-700 text-white placeholder:text-slate-600 focus:border-slate-500 h-12 rounded-xl"
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-gray-300 mb-2">Email</label>
+                    <label className="block text-sm font-medium text-slate-300 mb-2">Email</label>
                     <Input
                       type="email"
                       placeholder="you@example.com"
                       value={email}
                       onChange={(e) => setEmail(e.target.value)}
-                      className="bg-[#1a1a24] border-[#2a2a38] text-white placeholder:text-gray-600 focus:border-indigo-500 h-12 rounded-xl"
+                      className="bg-slate-800 border-slate-700 text-white placeholder:text-slate-600 focus:border-slate-500 h-12 rounded-xl"
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-gray-300 mb-2">Password</label>
+                    <label className="block text-sm font-medium text-slate-300 mb-2">Password</label>
                     <Input
                       type="password"
                       placeholder="At least 8 characters"
                       value={password}
                       onChange={(e) => setPassword(e.target.value)}
-                      className="bg-[#1a1a24] border-[#2a2a38] text-white placeholder:text-gray-600 focus:border-indigo-500 h-12 rounded-xl"
+                      className="bg-slate-800 border-slate-700 text-white placeholder:text-slate-600 focus:border-slate-500 h-12 rounded-xl"
                     />
                   </div>
                   <Button
                     type="submit"
-                    className="w-full h-12 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold rounded-xl mt-2"
+                    className="w-full h-12 bg-slate-700 hover:bg-slate-600 text-white font-semibold rounded-xl mt-2"
                     disabled={signupMutation.isPending}
                   >
                     {signupMutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
