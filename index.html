@@ -1547,6 +1547,8 @@ function renderContactItem(otherUid, name, list) {
   var item = document.createElement('div');
   item.className = 'contact-item' + (currentChatUid === otherUid && currentChatType === 'dm' ? ' active' : '');
   item.id = 'contact-' + otherUid;
+  item.setAttribute('data-uid', otherUid);
+  item.setAttribute('data-name', name);
   
   var status = lastMessageStatus[otherUid] || 'No messages';
   
@@ -1557,9 +1559,6 @@ function renderContactItem(otherUid, name, list) {
       '<div class="contact-status">' + status + '</div>' +
     '</div>' +
     '<div class="status-dot" id="dot-' + otherUid + '"></div>';
-  item.onclick = (function(oUid, oName) {
-    return function() { openDM(oUid, oName); };
-  })(otherUid, name);
   list.appendChild(item);
 }
 
@@ -1644,6 +1643,8 @@ function loadGroups() {
           list.appendChild(item);
         }
         item.className = 'group-item' + (currentChat === groupId && currentChatType === 'group' ? ' active' : '');
+        item.setAttribute('data-group-id', groupId);
+        item.setAttribute('data-group-name', g.name || 'Group');
         var gname = g.name || 'Group';
         var memberCount = g.memberCount || 0;
         var status = lastMessageStatus[groupId] || 'No messages';
@@ -1653,9 +1654,6 @@ function loadGroups() {
             '<div class="contact-name">' + escapeHtml(gname) + '</div>' +
             '<div class="contact-status">' + status + '</div>' +
           '</div>';
-        item.onclick = (function(gId, gName) {
-          return function() { openGroup(gId, gName); };
-        })(groupId, gname);
       });
     });
   });
@@ -2259,6 +2257,25 @@ document.querySelectorAll('.modal-overlay').forEach(function(el) {
   el.addEventListener('click', function(e) {
     if (e.target === el) el.classList.remove('open');
   });
+});
+
+// Event delegation for contact and group clicks
+document.addEventListener('click', function(e) {
+  var contactItem = e.target.closest('.contact-item');
+  if (contactItem && contactItem.getAttribute('data-uid')) {
+    var contactUid = contactItem.getAttribute('data-uid');
+    var contactName = contactItem.getAttribute('data-name');
+    openDM(contactUid, contactName);
+    return;
+  }
+  
+  var groupItem = e.target.closest('.group-item');
+  if (groupItem && groupItem.getAttribute('data-group-id')) {
+    var groupId = groupItem.getAttribute('data-group-id');
+    var groupName = groupItem.getAttribute('data-group-name');
+    openGroup(groupId, groupName);
+    return;
+  }
 });
 
 // Mobile menu toggle
