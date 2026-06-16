@@ -1988,41 +1988,46 @@ function sendImage(event) {
   if (!file || !currentChat) return;
   event.target.value = '';
 
-  if (file.size > 5 * 1024 * 1024) {
-    showToast('Image too large (max 5MB)');
+  // Realtime Database has a 10MB limit per string, but Base64 adds ~33% overhead.
+  // We'll cap it at 1MB to keep the database responsive and avoid performance issues.
+  if (file.size > 1 * 1024 * 1024) {
+    showToast('Image too large for database (max 1MB)');
     return;
   }
 
   var progress = document.getElementById('uploadProgress');
+  progress.textContent = 'Processing image...';
   progress.style.display = 'block';
 
-  var ext = file.name.split('.').pop() || 'jpg';
-  var storageRef = storage.ref('chat-images/' + Date.now() + '-' + uid + '.' + ext);
-  storageRef.put(file).then(function() {
-    return storageRef.getDownloadURL();
-  }).then(function(url) {
+  var reader = new FileReader();
+  reader.onload = function(e) {
+    var base64Data = e.target.result;
     var path = currentChatType === 'group' ? 'groupMessages/' + currentChat : 'messages/' + currentChat;
     var msgRef = db.ref(path).push();
-    return msgRef.set({
+    
+    msgRef.set({
       type: 'image',
       sender: uid,
       senderName: myUsername || '?',
-      url: url,
+      url: base64Data, // Store Base64 string directly in the database
       time: firebase.database.ServerValue.TIMESTAMP,
-      delivered: false,
+      delivered: true,
       seen: false,
       opened: false
     }).then(function() {
-      msgRef.update({ delivered: true });
+      showToast('Image sent!');
+      progress.style.display = 'none';
       sendNotification('Photo sent', { body: 'Image' });
+    }).catch(function(err) {
+      showToast('Failed to send: ' + err.message);
+      progress.style.display = 'none';
     });
-  }).then(function() {
-    showToast('Image sent!');
+  };
+  reader.onerror = function() {
+    showToast('Failed to read file');
     progress.style.display = 'none';
-  }).catch(function(e) {
-    showToast('Upload failed: ' + e.message);
-    progress.style.display = 'none';
-  });
+  };
+  reader.readAsDataURL(file);
 }
 
 function deleteMsg(key) {
