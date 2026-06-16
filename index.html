@@ -1531,8 +1531,10 @@ function loadContacts() {
         '<div class="avatar">' + escapeHtml(name[0].toUpperCase()) + '</div>' +
         '<div class="contact-info">' +
           '<div class="contact-name">@' + escapeHtml(name) + '</div>' +
+          '<div class="contact-code" id="unread-' + otherUid + '"></div>' +
         '</div>' +
         '<div class="status-dot" id="dot-' + otherUid + '"></div>';
+      watchUnread('messages/' + chatId(uid, otherUid), 'unread-' + otherUid);
       item.onclick = (function(oUid, oName) {
         return function() { openDM(oUid, oName); };
       })(otherUid, name);
@@ -1546,6 +1548,38 @@ function watchPresence(id) {
   db.ref('presence/' + id).on('value', function(snap) {
     var dot = document.getElementById('dot-' + id);
     if (dot) dot.className = 'status-dot' + (snap.exists() ? ' online' : '');
+  });
+}
+
+function watchUnread(path, elementId) {
+  db.ref(path).on('value', function(snap) {
+    var count = 0;
+    snap.forEach(function(child) {
+      var msg = child.val();
+      if (msg.sender !== uid && !msg.seen) count++;
+    });
+    var el = document.getElementById(elementId);
+    if (el) {
+      if (count > 0) {
+        el.textContent = count + ' new message' + (count > 1 ? 's' : '');
+        el.style.color = 'var(--primary-light)';
+        el.style.fontWeight = 'bold';
+      } else {
+        // Reset to default or member count if it's a group
+        if (elementId.startsWith('unread-group-')) {
+          db.ref('groups/' + elementId.replace('unread-group-', '')).once('value').then(function(gSnap) {
+            if (gSnap.exists()) {
+              var mc = gSnap.val().memberCount || 0;
+              el.textContent = mc + ' member' + (mc !== 1 ? 's' : '');
+              el.style.color = 'var(--text-muted-dark)';
+              el.style.fontWeight = 'normal';
+            }
+          });
+        } else {
+          el.textContent = '';
+        }
+      }
+    }
   });
 }
 
@@ -1625,12 +1659,13 @@ function loadGroups() {
           '<div class="avatar">' + escapeHtml(gname[0].toUpperCase()) + '</div>' +
           '<div class="contact-info">' +
             '<div class="contact-name">' + escapeHtml(gname) + '</div>' +
-            '<div class="contact-code">' + memberCount + ' member' + (memberCount !== 1 ? 's' : '') + '</div>' +
+            '<div class="contact-code" id="unread-group-' + groupId + '">' + memberCount + ' member' + (memberCount !== 1 ? 's' : '') + '</div>' +
           '</div>';
         item.onclick = (function(gId, gName) {
           return function() { openGroup(gId, gName); };
         })(groupId, gname);
         list.appendChild(item);
+        watchUnread('groupMessages/' + groupId, 'unread-group-' + groupId);
       });
     });
   });
@@ -2011,15 +2046,19 @@ function deleteChat() {
 }
 
 function markMessagesAsSeen(path) {
-  db.ref(path).once('value').then(function(snap) {
-    snap.forEach(function(child) {
-      var msg = child.val();
-      if (msg.sender !== uid && !msg.seen) {
-        db.ref(path + '/' + child.key).update({ seen: true, opened: true });
-        sendNotification('Message seen', { body: 'Marked as seen' });
-      }
-    });
+  // Use .on instead of .once to keep marking new messages as seen while the chat is open
+  var ref = db.ref(path);
+  var listener = ref.on('value', function(snap) {
+    if (currentChat && (path.includes(currentChat))) {
+      snap.forEach(function(child) {
+        var msg = child.val();
+        if (msg.sender !== uid && !msg.seen) {
+          db.ref(path + '/' + child.key).update({ seen: true, opened: true });
+        }
+      });
+    }
   });
+  messageListeners.push({ ref: ref, listener: listener, event: 'value' });
 }
 
 // ──────────────────────────────────────────────────────────────────────────────
