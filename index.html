@@ -1901,6 +1901,11 @@ function showChatArea(name) {
 function loadMessages(path, isGroup) {
   var ref = db.ref(path);
   var listener = ref.on('value', function(snap) {
+    // Only update if the message path matches the current chat
+    var pathParts = path.split('/');
+    var chatIdFromPath = pathParts[pathParts.length - 1];
+    if (currentChat !== chatIdFromPath) return;
+
     var box = document.getElementById('messages');
     box.innerHTML = '';
     snap.forEach(function(child) {
@@ -2054,7 +2059,11 @@ function markMessagesAsSeen(path) {
   // Use .on instead of .once to keep marking new messages as seen while the chat is open
   var ref = db.ref(path);
   var listener = ref.on('value', function(snap) {
-    if (currentChat && (path.includes(currentChat))) {
+    // Extract the chat ID from the path to compare with currentChat
+    var pathParts = path.split('/');
+    var chatIdFromPath = pathParts[pathParts.length - 1];
+    
+    if (currentChat && currentChat === chatIdFromPath) {
       snap.forEach(function(child) {
         var msg = child.val();
         if (msg.sender !== uid && !msg.seen) {
