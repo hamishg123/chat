@@ -1227,7 +1227,7 @@ body {
         <textarea id="msgInput" rows="1" placeholder="Type a message..."
           onkeydown="handleMsgKey(event)" oninput="handleTyping(); autoResize(this)"></textarea>
         <button id="imgBtn" onclick="document.getElementById('imgUpload').click()" title="Upload image">🖼️</button>
-        <button id="cameraBtn" onclick="document.getElementById('cameraUpload').click()" title="Take photo">📷</button>
+        <button id="cameraBtn" onclick="openCamera()" title="Take photo">📷</button>
         <input type="file" id="imgUpload" accept="image/*" onchange="sendImage(event)" style="display:none">
         <input type="file" id="cameraUpload" accept="image/*" capture="environment" onchange="sendImage(event)" style="display:none">
         <button id="sendBtn" onclick="sendMessage()">➤</button>
@@ -2042,6 +2042,8 @@ function sendMessage() {
 function sendImage(event) {
   var file = event.target.files[0];
   if (!file || !currentChat) return;
+  
+  // Clear the input so the same file can be selected again if needed
   event.target.value = '';
 
   // Realtime Database has a 10MB limit per string, but Base64 adds ~33% overhead.
@@ -2208,6 +2210,13 @@ function toggleTheme() {
 function openLightbox(url) {
   document.getElementById('lightboxImg').src = url;
   document.getElementById('lightbox').classList.add('open');
+}
+
+function openCamera() {
+  // On mobile, the capture="environment" input works best.
+  // On desktop, we'll try to use the same input, but it will just act as a file picker.
+  // This is the most compatible way across all devices.
+  document.getElementById('cameraUpload').click();
 }
 
 function clearMessageListeners() {
