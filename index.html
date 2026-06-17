@@ -500,19 +500,29 @@ body {
 
 #backBtn {
   display: none;
-  background: var(--surface-light);
-  border: 1px solid var(--border);
-  color: var(--text);
-  width: 36px;
-  height: 36px;
+  background: none;
+  border: none;
+  color: var(--primary);
+  width: 40px;
+  height: 40px;
   border-radius: 8px;
   cursor: pointer;
-  font-size: 18px;
+  font-size: 24px;
   transition: all 0.2s;
+  padding: 0;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  font-weight: 600;
 }
 
 #backBtn:hover {
-  background: var(--surface-lighter);
+  background: var(--surface-light);
+  color: var(--primary-light);
+}
+
+#backBtn:active {
+  transform: scale(0.95);
 }
 
 #chatHeaderAvatar {
@@ -1113,6 +1123,8 @@ body {
 
   #backBtn {
     display: flex;
+    align-items: center;
+    justify-content: center;
   }
 
   .message {
@@ -1341,7 +1353,7 @@ body {
 
     <div id="chatMain" style="display:none; flex-direction:column; flex:1; overflow:hidden;">
       <div id="chatHeader">
-        <button id="backBtn" onclick="hideSidebar()">←</button>
+        <button id="backBtn" onclick="goBackToContacts()" title="Back to contacts">←</button>
         <div id="chatHeaderAvatar">?</div>
         <div id="chatHeaderInfo">
           <div id="chatName">Chat</div>
@@ -2360,6 +2372,29 @@ function toggleSidebar() {
   if (sidebar.classList.contains('visible')) {
     hideSidebar();
   } else {
+    showSidebar();
+  }
+}
+
+function goBackToContacts() {
+  // Close the chat and return to the contact list
+  clearMessageListeners();
+  currentChatUid = null;
+  currentChat = null;
+  currentChatType = null;
+  currentGroupId = null;
+  
+  // Hide chat area and show empty state
+  document.getElementById('chatMain').style.display = 'none';
+  document.getElementById('emptyState').style.display = 'flex';
+  
+  // Remove active state from all contacts and groups
+  document.querySelectorAll('.contact-item, .group-item').forEach(function(el) {
+    el.classList.remove('active');
+  });
+  
+  // On mobile, show the sidebar with contacts
+  if (window.innerWidth <= 768) {
     showSidebar();
   }
 }
