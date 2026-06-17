@@ -775,6 +775,59 @@ body {
   padding: 0 16px 8px;
 }
 
+/* Camera Modal Styles */
+#cameraModal .modal {
+  width: 500px;
+  max-width: 95vw;
+}
+
+#cameraPreviewContainer {
+  width: 100%;
+  aspect-ratio: 4/3;
+  background: #000;
+  border-radius: 12px;
+  overflow: hidden;
+  position: relative;
+  margin-bottom: 16px;
+}
+
+#cameraVideo {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transform: scaleX(-1); /* Mirror view */
+}
+
+#cameraCanvas {
+  display: none;
+}
+
+.camera-controls {
+  display: flex;
+  justify-content: center;
+  gap: 16px;
+  margin-top: 16px;
+}
+
+.capture-btn {
+  width: 60px;
+  height: 60px;
+  border-radius: 50%;
+  background: white;
+  border: 5px solid var(--primary);
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.capture-btn:hover {
+  transform: scale(1.1);
+  background: var(--primary-light);
+}
+
+.capture-btn:active {
+  transform: scale(0.9);
+}
+
 /* ──────────────────────────────────────────────────────────────────────────────
    MODALS
    ────────────────────────────────────────────────────────────────────────────── */
@@ -1237,6 +1290,22 @@ body {
 
 </div>
 
+<!-- Camera Modal -->
+<div class="modal-overlay" id="cameraModal">
+  <div class="modal">
+    <h3>Take Photo</h3>
+    <p>Smile for the camera!</p>
+    <div id="cameraPreviewContainer">
+      <video id="cameraVideo" autoplay playsinline></video>
+      <canvas id="cameraCanvas"></canvas>
+    </div>
+    <div class="modal-actions">
+      <button class="btn-secondary" onclick="closeCameraModal()">Cancel</button>
+      <button class="btn-primary" onclick="capturePhoto()">📸 Capture & Send</button>
+    </div>
+  </div>
+</div>
+
 <!-- Add Contact Modal -->
 <div class="modal-overlay" id="addContactModal">
   <div class="modal">
@@ -1331,6 +1400,7 @@ var currentGroupId = null;
 var messageListeners = [];
 var typingTimeout = null;
 var isSending = false;
+var cameraStream = null;
 var memberColors = {};
 var colorPalette = ['#FF6B6B', '#4ECDC4', '#45B7D1', '#FFA07A', '#98D8C8', '#F7DC6F', '#BB8FCE', '#85C1E2'];
 
@@ -2213,10 +2283,97 @@ function openLightbox(url) {
 }
 
 function openCamera() {
-  // On mobile, the capture="environment" input works best.
-  // On desktop, we'll try to use the same input, but it will just act as a file picker.
-  // This is the most compatible way across all devices.
-  document.getElementById('cameraUpload').click();
+  // Check if we're on a mobile device
+  var isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+  
+  if (isMobile) {
+    // On mobile, use the standard capture="environment" input
+    document.getElementById('cameraUpload').click();
+  } else {
+    // On desktop, open the camera modal with WebRTC
+    openCameraModal();
+  }
+}
+
+function openCameraModal() {
+  var video = document.getElementById('cameraVideo');
+  openModal('cameraModal');
+  
+  if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+    navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user' } })
+      .then(function(stream) {
+        cameraStream = stream;
+        video.srcObject = stream;
+        video.play();
+      })
+      .catch(function(err) {
+        showToast('Error accessing camera: ' + err.message);
+        closeCameraModal();
+      });
+  } else {
+    showToast('Camera not supported on this browser');
+    closeCameraModal();
+  }
+}
+
+function closeCameraModal() {
+  if (cameraStream) {
+    cameraStream.getTracks().forEach(track => track.stop());
+    cameraStream = null;
+  }
+  closeModal('cameraModal');
+}
+
+function capturePhoto() {
+  var video = document.getElementById('cameraVideo');
+  var canvas = document.getElementById('cameraCanvas');
+  var context = canvas.getContext('2d');
+  
+  // Set canvas dimensions to match video
+  canvas.width = video.videoWidth;
+  canvas.height = video.videoHeight;
+  
+  // Draw video frame to canvas
+  context.save();
+  context.scale(-1, 1); // Mirror back for the actual photo
+  context.drawImage(video, -canvas.width, 0, canvas.width, canvas.height);
+  context.restore();
+  
+  // Convert to base64
+  var base64Data = canvas.toDataURL('image/jpeg', 0.8);
+  
+  // Send as image
+  sendCapturedImage(base64Data);
+  closeCameraModal();
+}
+
+function sendCapturedImage(base64Data) {
+  if (!currentChat) return;
+
+  var progress = document.getElementById('uploadProgress');
+  progress.textContent = 'Processing image...';
+  progress.style.display = 'block';
+
+  var path = currentChatType === 'group' ? 'groupMessages/' + currentChat : 'messages/' + currentChat;
+  var msgRef = db.ref(path).push();
+  
+  msgRef.set({
+    type: 'image',
+    sender: uid,
+    senderName: myUsername || '?',
+    url: base64Data,
+    time: firebase.database.ServerValue.TIMESTAMP,
+    delivered: true,
+    seen: false,
+    opened: false
+  }).then(function() {
+    showToast('Image sent!');
+    progress.style.display = 'none';
+    sendNotification('Photo sent', { body: 'Image' });
+  }).catch(function(err) {
+    showToast('Failed to send: ' + err.message);
+    progress.style.display = 'none';
+  });
 }
 
 function clearMessageListeners() {
