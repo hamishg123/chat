@@ -1861,7 +1861,6 @@ function openDM(otherUid, name) {
   loadMessages('messages/' + currentChat, false);
   listenTyping('typing/' + currentChat);
   hideSidebarOnMobile();
-  markMessagesAsSeen('messages/' + currentChat);
 }
 
 function openGroup(groupId, name) {
@@ -1885,7 +1884,6 @@ function openGroup(groupId, name) {
   loadMessages('groupMessages/' + groupId, true);
   listenTyping('groupTyping/' + groupId);
   hideSidebarOnMobile();
-  markMessagesAsSeen('groupMessages/' + groupId);
 }
 
 function showChatArea(name) {
@@ -1911,6 +1909,12 @@ function loadMessages(path, isGroup) {
     snap.forEach(function(child) {
       var m = child.val();
       m._key = child.key;
+      
+      // Mark as seen immediately if it's from someone else and not seen yet
+      if (m.sender !== uid && !m.seen) {
+        db.ref(path + '/' + child.key).update({ seen: true, opened: true });
+      }
+      
       renderMessage(m, isGroup, box);
     });
     box.scrollTop = box.scrollHeight;
@@ -2056,23 +2060,7 @@ function deleteChat() {
 }
 
 function markMessagesAsSeen(path) {
-  // Use .on instead of .once to keep marking new messages as seen while the chat is open
-  var ref = db.ref(path);
-  var listener = ref.on('value', function(snap) {
-    // Extract the chat ID from the path to compare with currentChat
-    var pathParts = path.split('/');
-    var chatIdFromPath = pathParts[pathParts.length - 1];
-    
-    if (currentChat && currentChat === chatIdFromPath) {
-      snap.forEach(function(child) {
-        var msg = child.val();
-        if (msg.sender !== uid && !msg.seen) {
-          db.ref(path + '/' + child.key).update({ seen: true, opened: true });
-        }
-      });
-    }
-  });
-  messageListeners.push({ ref: ref, listener: listener, event: 'value' });
+  // Logic consolidated into loadMessages for better reliability
 }
 
 // ──────────────────────────────────────────────────────────────────────────────
