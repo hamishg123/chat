@@ -53,7 +53,7 @@ body.light {
 }
 
 * { box-sizing: border-box; margin: 0; padding: 0; }
-html, body { width: 100%; height: 100%; }
+html, body { width: 100%; height: 100%; height: 100dvh; }
 
 body {
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Helvetica Neue', sans-serif;
@@ -62,6 +62,9 @@ body {
   display: flex;
   overflow: hidden;
   transition: background 0.3s, color 0.3s;
+  /* Prevent iOS bounce scroll from breaking layout */
+  position: fixed;
+  width: 100%;
 }
 
 /* ──────────────────────────────────────────────────────────────────────────────
@@ -203,6 +206,7 @@ body {
   display: none;
   width: 100%;
   height: 100%;
+  height: 100dvh;
   flex-direction: row;
 }
 
@@ -217,7 +221,8 @@ body {
   display: flex;
   flex-direction: column;
   overflow: hidden;
-  transition: transform 0.3s;
+  transition: transform 0.3s ease;
+  flex-shrink: 0;
 }
 
 #chatArea {
@@ -697,6 +702,7 @@ body {
 
 #inputArea {
   padding: 16px;
+  padding-bottom: max(16px, env(safe-area-inset-bottom));
   border-top: 1px solid var(--border);
   display: flex;
   gap: 8px;
@@ -1035,8 +1041,10 @@ body {
 
 #toast {
   position: fixed;
-  bottom: 20px;
+  bottom: calc(20px + env(safe-area-inset-bottom));
   left: 20px;
+  right: 20px;
+  max-width: 320px;
   background: var(--surface-light);
   color: var(--text);
   padding: 12px 16px;
@@ -1073,13 +1081,30 @@ body {
     left: 0;
     top: 0;
     height: 100%;
+    height: 100dvh;
     z-index: 50;
-    width: 100%;
+    width: 85%;
+    max-width: 320px;
     transform: translateX(-100%);
+    /* Ensure sidebar sits above chat area */
+    box-shadow: 4px 0 20px rgba(0, 0, 0, 0.3);
   }
 
   #sidebar.visible {
     transform: translateX(0);
+  }
+
+  /* Backdrop overlay when sidebar is open */
+  #sidebarBackdrop {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.5);
+    z-index: 49;
+  }
+
+  #sidebarBackdrop.visible {
+    display: block;
   }
 
   #menuBtn {
@@ -1095,12 +1120,19 @@ body {
   }
 
   #chatHeaderActions {
-    flex-wrap: wrap;
+    flex-wrap: nowrap;
+    gap: 4px;
   }
 
   .hdr-btn {
-    padding: 6px 10px;
+    padding: 6px 8px;
     font-size: 12px;
+    gap: 4px;
+  }
+
+  /* Hide button text labels on very small screens, keep icons */
+  .hdr-btn span.btn-label {
+    display: none;
   }
 
   #sidebarActions {
@@ -1122,6 +1154,11 @@ body {
 
   .modal {
     padding: 20px;
+    max-height: 90vh;
+    overflow-y: auto;
+    margin: 16px;
+    width: calc(100% - 32px);
+    max-width: none;
   }
 
   .modal h3 {
@@ -1134,6 +1171,25 @@ body {
 
   #chatSubtitle {
     font-size: 11px;
+  }
+
+  /* Ensure chat area fills full width on mobile */
+  #chatArea {
+    width: 100%;
+    min-width: 0;
+  }
+
+  /* Prevent input zoom on iOS (font-size must be >= 16px) */
+  #msgInput {
+    font-size: 16px;
+  }
+
+  .auth-form input {
+    font-size: 16px;
+  }
+
+  .modal input, .modal select {
+    font-size: 16px;
   }
 }
 
@@ -1151,8 +1207,9 @@ body {
     padding: 10px;
   }
 
+  /* Keep font-size at 16px on mobile to prevent iOS auto-zoom */
   #msgInput {
-    font-size: 13px;
+    font-size: 16px;
   }
 
   #messages {
@@ -1162,11 +1219,11 @@ body {
   .message {
     max-width: 90%;
     padding: 8px 12px;
-    font-size: 13px;
+    font-size: 14px;
   }
 
   #chatHeader {
-    padding: 12px;
+    padding: 10px 12px;
     gap: 8px;
   }
 
@@ -1184,6 +1241,25 @@ body {
     width: 36px;
     height: 36px;
     font-size: 14px;
+  }
+
+  /* Compact input area buttons on very small screens */
+  #imgBtn, #cameraBtn {
+    width: 36px;
+    height: 36px;
+    font-size: 16px;
+  }
+
+  #sendBtn {
+    width: 36px;
+    height: 36px;
+    font-size: 18px;
+  }
+
+  #inputArea {
+    padding: 10px 12px;
+    padding-bottom: max(10px, env(safe-area-inset-bottom));
+    gap: 6px;
   }
 }
 </style>
@@ -1221,13 +1297,16 @@ body {
 </div>
 
 <!-- Main App -->
-<div id="mainContainer">
+  <!-- Sidebar backdrop for mobile -->
+  <div id="sidebarBackdrop" onclick="hideSidebar()"></div>
+
+  <div id="mainContainer">
   <!-- Sidebar -->
   <div id="sidebar">
     <div id="sidebarHeader">
       <h2>Chat</h2>
       <div class="header-actions">
-        <button id="menuBtn" onclick="hideSidebar()" title="Close menu">✕</button>
+        <button id="menuBtn" onclick="toggleSidebar()" title="Toggle menu">☰</button>
         <button id="themeBtn" onclick="toggleTheme()" title="Toggle theme">🌙</button>
         <button id="logoutBtn" onclick="doLogout()" title="Sign out">↪️</button>
       </div>
@@ -1969,7 +2048,7 @@ function openDM(otherUid, name) {
 
   loadMessages('messages/' + currentChat, false);
   listenTyping('typing/' + currentChat);
-  hideSidebarOnMobile();
+  if (window.innerWidth <= 768) hideSidebar();
 }
 
 function openGroup(groupId, name) {
@@ -1992,7 +2071,7 @@ function openGroup(groupId, name) {
 
   loadMessages('groupMessages/' + groupId, true);
   listenTyping('groupTyping/' + groupId);
-  hideSidebarOnMobile();
+  if (window.innerWidth <= 768) hideSidebar();
 }
 
 function showChatArea(name) {
@@ -2266,10 +2345,23 @@ function switchTab(tab) {
 
 function hideSidebar() {
   document.getElementById('sidebar').classList.remove('visible');
+  var backdrop = document.getElementById('sidebarBackdrop');
+  if (backdrop) backdrop.classList.remove('visible');
 }
 
 function showSidebar() {
   document.getElementById('sidebar').classList.add('visible');
+  var backdrop = document.getElementById('sidebarBackdrop');
+  if (backdrop) backdrop.classList.add('visible');
+}
+
+function toggleSidebar() {
+  var sidebar = document.getElementById('sidebar');
+  if (sidebar.classList.contains('visible')) {
+    hideSidebar();
+  } else {
+    showSidebar();
+  }
 }
 
 function toggleTheme() {
@@ -2395,13 +2487,10 @@ document.querySelectorAll('.modal-overlay').forEach(function(el) {
   });
 });
 
-// Mobile menu toggle
-document.addEventListener('click', function(e) {
-  var sidebar = document.getElementById('sidebar');
-  if (window.innerWidth <= 768 && !sidebar.contains(e.target) && e.target.id !== 'menuBtn') {
-    sidebar.classList.remove('visible');
-  }
-});
+// Mobile: show sidebar by default on load (so contacts are visible)
+if (window.innerWidth <= 768) {
+  showSidebar();
+}
 </script>
 </body>
 </html>
