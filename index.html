@@ -2511,7 +2511,10 @@ function openGroup(groupId, name) {
 }
 
 function showChatArea(name) {
+  // Hide settings page and empty state
+  document.getElementById('settingsPage').style.display = 'none';
   document.getElementById('emptyState').style.display = 'none';
+  // Show chat
   document.getElementById('chatMain').style.display = 'flex';
   document.getElementById('chatName').textContent = name;
 }
@@ -2964,6 +2967,18 @@ var userSettings = {
 };
 
 function openSettings() {
+  // Clear any active chats to prevent overlapping
+  clearMessageListeners();
+  currentChatUid = null;
+  currentChat = null;
+  currentChatType = null;
+  currentGroupId = null;
+  
+  // Remove active state from all contacts and groups
+  document.querySelectorAll('.contact-item, .group-item').forEach(function(el) {
+    el.classList.remove('active');
+  });
+  
   // Show settings page (both mobile and desktop)
   document.getElementById('chatMain').style.display = 'none';
   document.getElementById('emptyState').style.display = 'none';
