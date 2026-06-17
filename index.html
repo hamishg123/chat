@@ -1910,8 +1910,8 @@ function loadMessages(path, isGroup) {
       var m = child.val();
       m._key = child.key;
       
-      // Mark as seen immediately if it's from someone else and not seen yet
-      if (m.sender !== uid && !m.seen) {
+      // Mark as seen and opened immediately if it's from someone else and not opened yet
+      if (m.sender !== uid && !m.opened) {
         db.ref(path + '/' + child.key).update({ seen: true, opened: true });
       }
       
@@ -1955,10 +1955,10 @@ function renderMessage(m, isGroup, box) {
   var deleteBtn = isMe ? '<button class="msg-delete" onclick="deleteMsg(\'' + m._key + '\')">×</button>' : '';
   var status = '';
   if (isMe) {
-    if (m.opened) status = '👁';
-    else if (m.seen) status = '✓✓';
-    else if (m.delivered) status = '✓';
-    else status = '✓';
+    if (m.opened) status = '<span title="Opened">👁</span>';
+    else if (m.seen) status = '<span title="Seen">✓✓</span>';
+    else if (m.delivered) status = '<span title="Delivered">✓</span>';
+    else status = '<span title="Sent">✓</span>';
   }
 
   div.innerHTML = senderLabel +
@@ -1980,11 +1980,10 @@ function sendMessage() {
     senderName: myUsername || '?',
     text: text,
     time: firebase.database.ServerValue.TIMESTAMP,
-    delivered: false,
+    delivered: true, // Mark as delivered once it hits the database
     seen: false,
     opened: false
   }).then(function() {
-    msgRef.update({ delivered: true });
     sendNotification('Message sent', { body: text.substring(0, 50) });
   });
   input.value = '';
