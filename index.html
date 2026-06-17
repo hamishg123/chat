@@ -2003,9 +2003,6 @@ function renderMessage(m, isGroup, box) {
     '<div class="message">' + content + deleteBtn + '</div>' +
     '<div class="msg-time">' + time + (status ? ' <span class="msg-status">' + status + '</span>' : '') + '</div>';
   box.appendChild(div);
-  var clone = div.cloneNode(true);
-  clone.setAttribute('data-duplicate', 'true');
-  box.appendChild(clone);
 }
 
 function sendMessage() {
