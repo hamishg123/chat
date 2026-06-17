@@ -1471,14 +1471,12 @@ input:checked + .toggle-slider:before {
   <div id="mainContainer">
   <!-- Sidebar -->
   <div id="sidebar">
-    <div id="sidebarHeader">
-      <h2>Chat</h2>
-      <div class="header-actions">
-        <button id="menuBtn" onclick="openSettings()" title="Settings">⚙️</button>
-        <button id="themeBtn" onclick="toggleTheme()" title="Toggle theme">🌙</button>
-        <button id="logoutBtn" onclick="doLogout()" title="Sign out">↪️</button>
+      <div id="sidebarHeader">
+        <h2>Chat</h2>
+        <div class="header-actions">
+          <button id="menuBtn" onclick="openSettings()" title="Settings">⚙️</button>
+        </div>
       </div>
-    </div>
 
     <div id="usernameSection">
       <div id="usernameDisplay">@loading</div>
@@ -1611,6 +1609,18 @@ input:checked + .toggle-slider:before {
         </div>
       </div>
 
+      <!-- Account Section -->
+      <div class="settings-section">
+        <div class="settings-section-title">👤 Account</div>
+        <div class="settings-item">
+          <div>
+            <div class="settings-label">Sign Out</div>
+            <div class="settings-description">Log out of your account</div>
+          </div>
+          <button class="settings-btn-danger" onclick="doLogout()">Sign Out</button>
+        </div>
+      </div>
+
       <!-- About Section -->
       <div class="settings-section" style="margin-bottom:40px;">
         <div class="settings-section-title">ℹ️ About</div>
@@ -1731,14 +1741,140 @@ input:checked + .toggle-slider:before {
   </div>
 </div>
 
-<!-- Settings Modal (for mobile) -->
+<!-- Settings Modal (for desktop) -->
 <div class="modal-overlay" id="settingsModal">
-  <div class="modal" style="max-height:90vh; overflow-y:auto; width:90%; max-width:500px;">
-    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px;">
-      <h3>Settings</h3>
+  <div class="modal" style="max-height:90vh; overflow-y:auto; width:90%; max-width:600px; padding:0;">
+    <div style="display:flex; justify-content:space-between; align-items:center; padding:20px; border-bottom:1px solid var(--border);">
+      <h3 style="margin:0;">Settings</h3>
       <button onclick="closeModal('settingsModal')" style="background:none; border:none; font-size:24px; cursor:pointer; color:var(--text);">✕</button>
     </div>
-    <div id="settingsModalContent"></div>
+    <div style="padding:24px; overflow-y:auto; max-height:calc(90vh - 70px);">
+      <!-- Theme Section -->
+      <div class="settings-section">
+        <div class="settings-section-title">🎨 Appearance</div>
+        <div class="settings-item">
+          <div>
+            <div class="settings-label">Theme</div>
+            <div class="settings-description">Choose light or dark mode</div>
+          </div>
+          <button class="settings-toggle" onclick="toggleTheme()">Toggle</button>
+        </div>
+      </div>
+
+      <!-- Message Bubbles Section -->
+      <div class="settings-section">
+        <div class="settings-section-title">💬 Message Bubbles</div>
+        <div class="settings-item">
+          <div>
+            <div class="settings-label">Bubble Style</div>
+            <div class="settings-description">Change how messages look</div>
+          </div>
+          <select id="bubbleStyleSelectModal" onchange="changeBubbleStyle(this.value)" style="padding:8px 12px; border-radius:6px; border:1px solid var(--border); background:var(--surface-light); color:var(--text); cursor:pointer; font-size:13px;">
+            <option value="rounded">Rounded</option>
+            <option value="square">Square</option>
+            <option value="pill">Pill</option>
+          </select>
+        </div>
+        <div class="settings-item">
+          <div>
+            <div class="settings-label">Bubble Color</div>
+            <div class="settings-description">Customize your message color</div>
+          </div>
+          <input type="color" id="bubbleColorInputModal" onchange="changeBubbleColor(this.value)" style="width:50px; height:40px; border:1px solid var(--border); border-radius:6px; cursor:pointer;">
+        </div>
+      </div>
+
+      <!-- Privacy Section -->
+      <div class="settings-section">
+        <div class="settings-section-title">🔒 Privacy & Safety</div>
+        <div class="settings-item">
+          <div>
+            <div class="settings-label">Ghost Mode</div>
+            <div class="settings-description">Hide your online status</div>
+          </div>
+          <label class="toggle-switch">
+            <input type="checkbox" id="ghostModeToggleModal" onchange="toggleGhostMode()">
+            <span class="toggle-slider"></span>
+          </label>
+        </div>
+        <div class="settings-item">
+          <div>
+            <div class="settings-label">Read Receipts</div>
+            <div class="settings-description">Let people know when you've read messages</div>
+          </div>
+          <label class="toggle-switch">
+            <input type="checkbox" id="readReceiptsToggleModal" checked onchange="toggleReadReceipts()">
+            <span class="toggle-slider"></span>
+          </label>
+        </div>
+      </div>
+
+      <!-- Notifications Section -->
+      <div class="settings-section">
+        <div class="settings-section-title">🔔 Notifications</div>
+        <div class="settings-item">
+          <div>
+            <div class="settings-label">Message Notifications</div>
+            <div class="settings-description">Receive alerts for new messages</div>
+          </div>
+          <label class="toggle-switch">
+            <input type="checkbox" id="notificationsToggleModal" checked onchange="toggleNotifications()">
+            <span class="toggle-slider"></span>
+          </label>
+        </div>
+        <div class="settings-item">
+          <div>
+            <div class="settings-label">Sound</div>
+            <div class="settings-description">Play sound on new message</div>
+          </div>
+          <label class="toggle-switch">
+            <input type="checkbox" id="soundToggleModal" checked onchange="toggleSound()">
+            <span class="toggle-slider"></span>
+          </label>
+        </div>
+      </div>
+
+      <!-- Data Section -->
+      <div class="settings-section">
+        <div class="settings-section-title">📊 Data & Storage</div>
+        <div class="settings-item">
+          <div>
+            <div class="settings-label">Clear Cache</div>
+            <div class="settings-description">Remove locally stored data</div>
+          </div>
+          <button class="settings-btn-danger" onclick="clearCache()">Clear</button>
+        </div>
+      </div>
+
+      <!-- Account Section -->
+      <div class="settings-section">
+        <div class="settings-section-title">👤 Account</div>
+        <div class="settings-item">
+          <div>
+            <div class="settings-label">Sign Out</div>
+            <div class="settings-description">Log out of your account</div>
+          </div>
+          <button class="settings-btn-danger" onclick="doLogout()">Sign Out</button>
+        </div>
+      </div>
+
+      <!-- About Section -->
+      <div class="settings-section" style="margin-bottom:0;">
+        <div class="settings-section-title">ℹ️ About</div>
+        <div class="settings-item">
+          <div>
+            <div class="settings-label">SecureChat</div>
+            <div class="settings-description">Version 1.0.0</div>
+          </div>
+        </div>
+        <div class="settings-item">
+          <div>
+            <div class="settings-label">Status</div>
+            <div class="settings-description" id="accountStatusModal">Connected</div>
+          </div>
+        </div>
+      </div>
+    </div>
   </div>
 </div>
 
@@ -2926,7 +3062,7 @@ function clearCache() {
 }
 
 function loadSettingsUI() {
-  // Load saved settings into UI
+  // Load saved settings into UI (mobile)
   var bubbleSelect = document.getElementById('bubbleStyleSelect');
   var bubbleColor = document.getElementById('bubbleColorInput');
   var ghostToggle = document.getElementById('ghostModeToggle');
@@ -2940,6 +3076,21 @@ function loadSettingsUI() {
   if (readToggle) readToggle.checked = userSettings.readReceipts;
   if (notifToggle) notifToggle.checked = userSettings.notifications;
   if (soundToggle) soundToggle.checked = userSettings.sound;
+  
+  // Load saved settings into UI (desktop modal)
+  var bubbleSelectModal = document.getElementById('bubbleStyleSelectModal');
+  var bubbleColorModal = document.getElementById('bubbleColorInputModal');
+  var ghostToggleModal = document.getElementById('ghostModeToggleModal');
+  var readToggleModal = document.getElementById('readReceiptsToggleModal');
+  var notifToggleModal = document.getElementById('notificationsToggleModal');
+  var soundToggleModal = document.getElementById('soundToggleModal');
+  
+  if (bubbleSelectModal) bubbleSelectModal.value = userSettings.bubbleStyle;
+  if (bubbleColorModal) bubbleColorModal.value = userSettings.bubbleColor;
+  if (ghostToggleModal) ghostToggleModal.checked = userSettings.ghostMode;
+  if (readToggleModal) readToggleModal.checked = userSettings.readReceipts;
+  if (notifToggleModal) notifToggleModal.checked = userSettings.notifications;
+  if (soundToggleModal) soundToggleModal.checked = userSettings.sound;
   
   // Apply bubble customizations
   applyBubbleStyle();
