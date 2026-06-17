@@ -2524,6 +2524,10 @@ function showChatArea(name) {
 // ──────────────────────────────────────────────────────────────────────────────
 
 function loadMessages(path, isGroup) {
+  // Clear the messages box before attaching the listener
+  var box = document.getElementById('messages');
+  box.innerHTML = '';
+  
   var ref = db.ref(path);
   var listener = ref.on('value', function(snap) {
     // Only update if the message path matches the current chat
@@ -2531,7 +2535,7 @@ function loadMessages(path, isGroup) {
     var chatIdFromPath = pathParts[pathParts.length - 1];
     if (currentChat !== chatIdFromPath) return;
 
-    var box = document.getElementById('messages');
+    // Clear and re-render all messages
     box.innerHTML = '';
     snap.forEach(function(child) {
       var m = child.val();
