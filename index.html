@@ -728,7 +728,7 @@ body {
   color: var(--text-muted);
 }
 
-#imgBtn, #sendBtn {
+#imgBtn, #cameraBtn, #sendBtn {
   background: var(--surface-light);
   border: 1.5px solid var(--border);
   color: var(--text-muted-dark);
@@ -744,7 +744,7 @@ body {
   transition: all 0.2s;
 }
 
-#imgBtn:hover, #sendBtn:hover {
+#imgBtn:hover, #cameraBtn:hover, #sendBtn:hover {
   border-color: var(--primary);
   color: var(--primary);
   background: var(--surface);
@@ -1226,8 +1226,10 @@ body {
       <div id="inputArea">
         <textarea id="msgInput" rows="1" placeholder="Type a message..."
           onkeydown="handleMsgKey(event)" oninput="handleTyping(); autoResize(this)"></textarea>
-        <button id="imgBtn" onclick="document.getElementById('imgUpload').click()" title="Send image">📷</button>
-        <input type="file" id="imgUpload" accept="image/*" onchange="sendImage(event)">
+        <button id="imgBtn" onclick="document.getElementById('imgUpload').click()" title="Upload image">🖼️</button>
+        <button id="cameraBtn" onclick="document.getElementById('cameraUpload').click()" title="Take photo">📷</button>
+        <input type="file" id="imgUpload" accept="image/*" onchange="sendImage(event)" style="display:none">
+        <input type="file" id="cameraUpload" accept="image/*" capture="environment" onchange="sendImage(event)" style="display:none">
         <button id="sendBtn" onclick="sendMessage()">➤</button>
       </div>
     </div>
