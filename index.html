@@ -1330,6 +1330,7 @@ var currentChatType = null;
 var currentGroupId = null;
 var messageListeners = [];
 var typingTimeout = null;
+var isSending = false;
 var memberColors = {};
 var colorPalette = ['#FF6B6B', '#4ECDC4', '#45B7D1', '#FFA07A', '#98D8C8', '#F7DC6F', '#BB8FCE', '#85C1E2'];
 
@@ -2006,12 +2007,16 @@ function renderMessage(m, isGroup, box) {
 }
 
 function sendMessage() {
+  if (isSending) return;
+  
   var input = document.getElementById('msgInput');
   var text = input.value.trim();
   if (!text || !currentChat) return;
 
+  isSending = true;
   var path = currentChatType === 'group' ? 'groupMessages/' + currentChat : 'messages/' + currentChat;
   var msgRef = db.ref(path).push();
+  
   msgRef.set({
     type: 'text',
     sender: uid,
@@ -2022,8 +2027,13 @@ function sendMessage() {
     seen: false,
     opened: false
   }).then(function() {
+    isSending = false;
     sendNotification('Message sent', { body: text.substring(0, 50) });
+  }).catch(function(err) {
+    isSending = false;
+    console.error("Error sending message:", err);
   });
+  
   input.value = '';
   input.style.height = 'auto';
   clearTyping();
