@@ -1082,6 +1082,134 @@ body {
 }
 
 /* ──────────────────────────────────────────────────────────────────────────────
+   SETTINGS PAGE
+   ────────────────────────────────────────────────────────────────────────────── */
+
+.settings-section {
+  margin-bottom: 24px;
+  padding-bottom: 20px;
+  border-bottom: 1px solid var(--border);
+}
+
+.settings-section:last-child {
+  border-bottom: none;
+}
+
+.settings-section-title {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-bottom: 12px;
+}
+
+.settings-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 0;
+  gap: 12px;
+}
+
+.settings-label {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.settings-description {
+  font-size: 12px;
+  color: var(--text-muted-dark);
+  margin-top: 4px;
+}
+
+.settings-toggle {
+  background: var(--primary);
+  border: none;
+  color: white;
+  padding: 8px 16px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 600;
+  transition: all 0.2s;
+  flex-shrink: 0;
+}
+
+.settings-toggle:hover {
+  background: var(--primary-light);
+  transform: translateY(-2px);
+}
+
+.settings-btn-danger {
+  background: var(--danger);
+  border: none;
+  color: white;
+  padding: 8px 16px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 600;
+  transition: all 0.2s;
+  flex-shrink: 0;
+}
+
+.settings-btn-danger:hover {
+  background: var(--danger-light);
+  transform: translateY(-2px);
+}
+
+/* Toggle Switch */
+.toggle-switch {
+  position: relative;
+  display: inline-block;
+  width: 50px;
+  height: 28px;
+  flex-shrink: 0;
+}
+
+.toggle-switch input {
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+
+.toggle-slider {
+  position: absolute;
+  cursor: pointer;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: var(--surface-light);
+  transition: 0.3s;
+  border-radius: 28px;
+  border: 1px solid var(--border);
+}
+
+.toggle-slider:before {
+  position: absolute;
+  content: "";
+  height: 22px;
+  width: 22px;
+  left: 2px;
+  bottom: 2px;
+  background-color: white;
+  transition: 0.3s;
+  border-radius: 50%;
+}
+
+input:checked + .toggle-slider {
+  background-color: var(--primary);
+  border-color: var(--primary);
+}
+
+input:checked + .toggle-slider:before {
+  transform: translateX(22px);
+}
+
+/* ──────────────────────────────────────────────────────────────────────────────
    RESPONSIVE / MOBILE
    ────────────────────────────────────────────────────────────────────────────── */
 
@@ -1203,6 +1331,14 @@ body {
   .modal input, .modal select {
     font-size: 16px;
   }
+
+  #settingsPage {
+    padding: 16px !important;
+  }
+
+  .settings-item {
+    flex-wrap: wrap;
+  }
 }
 
 @media (max-width: 480px) {
@@ -1273,6 +1409,26 @@ body {
     padding-bottom: max(10px, env(safe-area-inset-bottom));
     gap: 6px;
   }
+
+  #settingsPage {
+    padding: 12px !important;
+  }
+
+  .settings-item {
+    padding: 10px 0;
+  }
+
+  .settings-section-title {
+    font-size: 11px;
+  }
+
+  .settings-label {
+    font-size: 13px;
+  }
+
+  .settings-description {
+    font-size: 11px;
+  }
 }
 </style>
 </head>
@@ -1318,7 +1474,7 @@ body {
     <div id="sidebarHeader">
       <h2>Chat</h2>
       <div class="header-actions">
-        <button id="menuBtn" onclick="toggleSidebar()" title="Toggle menu">☰</button>
+        <button id="menuBtn" onclick="openSettings()" title="Settings">⚙️</button>
         <button id="themeBtn" onclick="toggleTheme()" title="Toggle theme">🌙</button>
         <button id="logoutBtn" onclick="doLogout()" title="Sign out">↪️</button>
       </div>
@@ -1349,6 +1505,128 @@ body {
       <div class="icon">💬</div>
       <p>Select a chat to start messaging</p>
       <p>Add contacts by their username</p>
+    </div>
+
+    <!-- Settings Page -->
+    <div id="settingsPage" style="display:none; flex-direction:column; flex:1; overflow-y:auto; padding:24px;">
+      <div style="margin-bottom:24px;">
+        <h2 style="font-size:28px; font-weight:700; margin-bottom:8px;">Settings</h2>
+        <p style="color:var(--text-muted); font-size:14px;">Customize your chat experience</p>
+      </div>
+
+      <!-- Theme Section -->
+      <div class="settings-section">
+        <div class="settings-section-title">🎨 Appearance</div>
+        <div class="settings-item">
+          <div>
+            <div class="settings-label">Theme</div>
+            <div class="settings-description">Choose light or dark mode</div>
+          </div>
+          <button class="settings-toggle" onclick="toggleTheme()">Toggle</button>
+        </div>
+      </div>
+
+      <!-- Message Bubbles Section -->
+      <div class="settings-section">
+        <div class="settings-section-title">💬 Message Bubbles</div>
+        <div class="settings-item">
+          <div>
+            <div class="settings-label">Bubble Style</div>
+            <div class="settings-description">Change how messages look</div>
+          </div>
+          <select id="bubbleStyleSelect" onchange="changeBubbleStyle(this.value)" style="padding:8px 12px; border-radius:6px; border:1px solid var(--border); background:var(--surface-light); color:var(--text); cursor:pointer; font-size:13px;">
+            <option value="rounded">Rounded</option>
+            <option value="square">Square</option>
+            <option value="pill">Pill</option>
+          </select>
+        </div>
+        <div class="settings-item">
+          <div>
+            <div class="settings-label">Bubble Color</div>
+            <div class="settings-description">Customize your message color</div>
+          </div>
+          <input type="color" id="bubbleColorInput" onchange="changeBubbleColor(this.value)" style="width:50px; height:40px; border:1px solid var(--border); border-radius:6px; cursor:pointer;">
+        </div>
+      </div>
+
+      <!-- Privacy Section -->
+      <div class="settings-section">
+        <div class="settings-section-title">🔒 Privacy & Safety</div>
+        <div class="settings-item">
+          <div>
+            <div class="settings-label">Ghost Mode</div>
+            <div class="settings-description">Hide your online status</div>
+          </div>
+          <label class="toggle-switch">
+            <input type="checkbox" id="ghostModeToggle" onchange="toggleGhostMode()">
+            <span class="toggle-slider"></span>
+          </label>
+        </div>
+        <div class="settings-item">
+          <div>
+            <div class="settings-label">Read Receipts</div>
+            <div class="settings-description">Let people know when you've read messages</div>
+          </div>
+          <label class="toggle-switch">
+            <input type="checkbox" id="readReceiptsToggle" checked onchange="toggleReadReceipts()">
+            <span class="toggle-slider"></span>
+          </label>
+        </div>
+      </div>
+
+      <!-- Notifications Section -->
+      <div class="settings-section">
+        <div class="settings-section-title">🔔 Notifications</div>
+        <div class="settings-item">
+          <div>
+            <div class="settings-label">Message Notifications</div>
+            <div class="settings-description">Receive alerts for new messages</div>
+          </div>
+          <label class="toggle-switch">
+            <input type="checkbox" id="notificationsToggle" checked onchange="toggleNotifications()">
+            <span class="toggle-slider"></span>
+          </label>
+        </div>
+        <div class="settings-item">
+          <div>
+            <div class="settings-label">Sound</div>
+            <div class="settings-description">Play sound on new message</div>
+          </div>
+          <label class="toggle-switch">
+            <input type="checkbox" id="soundToggle" checked onchange="toggleSound()">
+            <span class="toggle-slider"></span>
+          </label>
+        </div>
+      </div>
+
+      <!-- Data Section -->
+      <div class="settings-section">
+        <div class="settings-section-title">📊 Data & Storage</div>
+        <div class="settings-item">
+          <div>
+            <div class="settings-label">Clear Cache</div>
+            <div class="settings-description">Remove locally stored data</div>
+          </div>
+          <button class="settings-btn-danger" onclick="clearCache()">Clear</button>
+        </div>
+      </div>
+
+      <!-- About Section -->
+      <div class="settings-section" style="margin-bottom:40px;">
+        <div class="settings-section-title">ℹ️ About</div>
+        <div class="settings-item">
+          <div>
+            <div class="settings-label">SecureChat</div>
+            <div class="settings-description">Version 1.0.0</div>
+          </div>
+        </div>
+        <div class="settings-item">
+          <div>
+            <div class="settings-label">Status</div>
+            <div class="settings-description" id="accountStatus">Connected</div>
+          </div>
+        </div>
+      </div>
     </div>
 
     <div id="chatMain" style="display:none; flex-direction:column; flex:1; overflow:hidden;">
@@ -1450,6 +1728,17 @@ body {
       <button class="btn-primary" onclick="addGroupMember()">+ Add Member</button>
       <button class="btn-primary" onclick="updateGroupName()" style="background:var(--success)">💾 Save</button>
     </div>
+  </div>
+</div>
+
+<!-- Settings Modal (for mobile) -->
+<div class="modal-overlay" id="settingsModal">
+  <div class="modal" style="max-height:90vh; overflow-y:auto; width:90%; max-width:500px;">
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px;">
+      <h3>Settings</h3>
+      <button onclick="closeModal('settingsModal')" style="background:none; border:none; font-size:24px; cursor:pointer; color:var(--text);">✕</button>
+    </div>
+    <div id="settingsModalContent"></div>
   </div>
 </div>
 
@@ -2529,3 +2818,153 @@ if (window.innerWidth <= 768) {
 </script>
 </body>
 </html>
+
+// ──────────────────────────────────────────────────────────────────────────────
+// SETTINGS
+// ──────────────────────────────────────────────────────────────────────────────
+
+var userSettings = {
+  bubbleStyle: localStorage.getItem('bubbleStyle') || 'rounded',
+  bubbleColor: localStorage.getItem('bubbleColor') || '#3b82f6',
+  ghostMode: localStorage.getItem('ghostMode') === 'true',
+  readReceipts: localStorage.getItem('readReceipts') !== 'false',
+  notifications: localStorage.getItem('notifications') !== 'false',
+  sound: localStorage.getItem('sound') !== 'false'
+};
+
+function openSettings() {
+  // On mobile, show settings page in chat area
+  if (window.innerWidth <= 768) {
+    document.getElementById('chatMain').style.display = 'none';
+    document.getElementById('emptyState').style.display = 'none';
+    document.getElementById('settingsPage').style.display = 'flex';
+    hideSidebar();
+    loadSettingsUI();
+  } else {
+    // On desktop, show settings modal
+    loadSettingsUI();
+    openModal('settingsModal');
+  }
+}
+
+function closeSettings() {
+  document.getElementById('settingsPage').style.display = 'none';
+  document.getElementById('emptyState').style.display = 'flex';
+}
+
+function changeBubbleStyle(style) {
+  userSettings.bubbleStyle = style;
+  localStorage.setItem('bubbleStyle', style);
+  applyBubbleStyle();
+  showToast('Bubble style changed to ' + style);
+}
+
+function changeBubbleColor(color) {
+  userSettings.bubbleColor = color;
+  localStorage.setItem('bubbleColor', color);
+  applyBubbleColor();
+  showToast('Bubble color updated');
+}
+
+function applyBubbleStyle() {
+  var style = userSettings.bubbleStyle;
+  var messages = document.querySelectorAll('.message');
+  messages.forEach(function(msg) {
+    if (style === 'rounded') {
+      msg.style.borderRadius = '18px';
+    } else if (style === 'square') {
+      msg.style.borderRadius = '4px';
+    } else if (style === 'pill') {
+      msg.style.borderRadius = '24px';
+    }
+  });
+}
+
+function applyBubbleColor() {
+  var color = userSettings.bubbleColor;
+  var style = document.getElementById('customBubbleStyle');
+  if (!style) {
+    style = document.createElement('style');
+    style.id = 'customBubbleStyle';
+    document.head.appendChild(style);
+  }
+  style.textContent = '.msg-container.me .message { background: ' + color + ' !important; }';
+}
+
+function toggleGhostMode() {
+  userSettings.ghostMode = document.getElementById('ghostModeToggle').checked;
+  localStorage.setItem('ghostMode', userSettings.ghostMode);
+  if (userSettings.ghostMode) {
+    db.ref('presence/' + uid).remove();
+    showToast('Ghost Mode enabled - your status is hidden');
+  } else {
+    db.ref('presence/' + uid).set(true);
+    showToast('Ghost Mode disabled');
+  }
+}
+
+function toggleReadReceipts() {
+  userSettings.readReceipts = document.getElementById('readReceiptsToggle').checked;
+  localStorage.setItem('readReceipts', userSettings.readReceipts);
+  showToast('Read receipts ' + (userSettings.readReceipts ? 'enabled' : 'disabled'));
+}
+
+function toggleNotifications() {
+  userSettings.notifications = document.getElementById('notificationsToggle').checked;
+  localStorage.setItem('notifications', userSettings.notifications);
+  showToast('Notifications ' + (userSettings.notifications ? 'enabled' : 'disabled'));
+}
+
+function toggleSound() {
+  userSettings.sound = document.getElementById('soundToggle').checked;
+  localStorage.setItem('sound', userSettings.sound);
+  showToast('Sound ' + (userSettings.sound ? 'enabled' : 'disabled'));
+}
+
+function clearCache() {
+  if (confirm('Clear all cached data? This will remove locally stored settings.')) {
+    localStorage.clear();
+    showToast('Cache cleared');
+    location.reload();
+  }
+}
+
+function loadSettingsUI() {
+  // Load saved settings into UI
+  var bubbleSelect = document.getElementById('bubbleStyleSelect');
+  var bubbleColor = document.getElementById('bubbleColorInput');
+  var ghostToggle = document.getElementById('ghostModeToggle');
+  var readToggle = document.getElementById('readReceiptsToggle');
+  var notifToggle = document.getElementById('notificationsToggle');
+  var soundToggle = document.getElementById('soundToggle');
+  
+  if (bubbleSelect) bubbleSelect.value = userSettings.bubbleStyle;
+  if (bubbleColor) bubbleColor.value = userSettings.bubbleColor;
+  if (ghostToggle) ghostToggle.checked = userSettings.ghostMode;
+  if (readToggle) readToggle.checked = userSettings.readReceipts;
+  if (notifToggle) notifToggle.checked = userSettings.notifications;
+  if (soundToggle) soundToggle.checked = userSettings.sound;
+  
+  // Apply bubble customizations
+  applyBubbleStyle();
+  applyBubbleColor();
+}
+
+// Add back button to Settings page on mobile
+setTimeout(function() {
+  var settingsPage = document.getElementById('settingsPage');
+  if (settingsPage && window.innerWidth <= 768) {
+    var backBtn = document.createElement('button');
+    backBtn.textContent = '← Back';
+    backBtn.style.cssText = 'position:absolute; top:16px; left:16px; background:none; border:none; color:var(--primary); font-size:16px; font-weight:600; cursor:pointer; padding:8px; z-index:10;';
+    backBtn.onclick = function() {
+      document.getElementById('settingsPage').style.display = 'none';
+      document.getElementById('emptyState').style.display = 'flex';
+      showSidebar();
+    };
+    if (!settingsPage.querySelector('button[style*="position:absolute"]')) {
+      settingsPage.style.position = 'relative';
+      settingsPage.insertBefore(backBtn, settingsPage.firstChild);
+    }
+  }
+}, 100);
