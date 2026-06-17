@@ -10,6 +10,8 @@
 <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
 <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-storage.js"></script>
 <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-messaging.js"></script>
+<!-- CryptoJS for AES-256 Encryption -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/crypto-js/4.1.1/crypto-js.min.js"></script>
 <style>
 :root {
   --primary: #3b82f6;
@@ -1919,6 +1921,28 @@ var cameraStream = null;
 var memberColors = {};
 var colorPalette = ['#FF6B6B', '#4ECDC4', '#45B7D1', '#FFA07A', '#98D8C8', '#F7DC6F', '#BB8FCE', '#85C1E2'];
 
+// Encryption key for AES-256
+var encryptionKey = 'SecureChat2024!';
+
+function encryptMessage(text) {
+  try {
+    return CryptoJS.AES.encrypt(text, encryptionKey).toString();
+  } catch (e) {
+    console.error('Encryption error:', e);
+    return text;
+  }
+}
+
+function decryptMessage(encryptedText) {
+  try {
+    var bytes = CryptoJS.AES.decrypt(encryptedText, encryptionKey);
+    return bytes.toString(CryptoJS.enc.Utf8);
+  } catch (e) {
+    console.error('Decryption error:', e);
+    return encryptedText;
+  }
+}
+
 // ──────────────────────────────────────────────────────────────────────────────
 // AUTH
 // ──────────────────────────────────────────────────────────────────────────────
@@ -2576,10 +2600,12 @@ function renderMessage(m, isGroup, box) {
 
   var content = '';
   if (m.type === 'image' && m.url) {
-    var safeUrl = m.url.replace(/"/g, '&quot;');
+    var decryptedUrl = decryptMessage(m.url);
+    var safeUrl = decryptedUrl.replace(/"/g, '&quot;');
     content = '<img src="' + safeUrl + '" onclick="openLightbox(\'' + safeUrl + '\')" alt="Image">';
   } else {
-    content = escapeHtml(m.text || '');
+    var decryptedText = decryptMessage(m.text || '');
+    content = escapeHtml(decryptedText);
   }
 
   var time = m.time ? formatTime(m.time) : '';
@@ -2613,9 +2639,9 @@ function sendMessage() {
     type: 'text',
     sender: uid,
     senderName: myUsername || '?',
-    text: text,
+    text: encryptMessage(text),
     time: firebase.database.ServerValue.TIMESTAMP,
-    delivered: true, // Mark as delivered once it hits the database
+    delivered: true,
     seen: false,
     opened: false
   }).then(function() {
@@ -2659,7 +2685,7 @@ function sendImage(event) {
       type: 'image',
       sender: uid,
       senderName: myUsername || '?',
-      url: base64Data, // Store Base64 string directly in the database
+      url: encryptMessage(base64Data),
       time: firebase.database.ServerValue.TIMESTAMP,
       delivered: true,
       seen: false,
