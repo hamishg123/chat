@@ -1822,6 +1822,13 @@ input:checked + .toggle-slider:before {
           </div>
           <input type="color" id="bubbleColorInput" onchange="changeBubbleColor(this.value)" style="width:50px; height:40px; border:1px solid var(--border); border-radius:6px; cursor:pointer;">
         </div>
+        <div class="settings-item">
+          <div>
+            <div class="settings-label">Reset Appearance</div>
+            <div class="settings-description">Back to default bubble style and color</div>
+          </div>
+          <button class="settings-btn" onclick="resetAppearance()" style="padding:8px 16px; border-radius:8px; background:var(--surface-light); border:1px solid var(--border); color:var(--text); cursor:pointer; font-weight:600; font-size:13px;">Reset</button>
+        </div>
       </div>
 
       <!-- Privacy Section -->
@@ -3087,10 +3094,48 @@ function renderMessage(m, isGroup, box) {
   }
 
   div.innerHTML = senderLabel +
-    '<div class="message" onclick="handleMessageTap(this)">' + actionsOverlay + replyHtml + content + deleteBtn + '</div>' +
+    '<div class="message" onclick="handleMessageTap(this)" id="msg-' + m._key + '">' + actionsOverlay + replyHtml + content + deleteBtn + '</div>' +
     reactionsHtml +
     '<div class="msg-time">' + time + (status ? ' <span class="msg-status">' + status + '</span>' : '') + '</div>';
   box.appendChild(div);
+
+  // --- SHARED APPEARANCE SYNC ---
+  db.ref('users/' + m.sender + '/appearance').once('value').then(function(snap) {
+    if (!snap.exists()) return;
+    var app = snap.val();
+    var msgEl = document.getElementById('msg-' + m._key);
+    if (!msgEl) return;
+
+    if (app.bubbleColor) {
+      msgEl.style.background = app.bubbleColor;
+      msgEl.style.color = getContrastColor(app.bubbleColor);
+      // Ensure icons/buttons inside also inherit color
+      msgEl.querySelectorAll('button, span').forEach(el => {
+        if (!el.classList.contains('reaction-btn')) el.style.color = 'inherit';
+      });
+    }
+    if (app.bubbleStyle) {
+      if (app.bubbleStyle === 'rounded') msgEl.style.borderRadius = '18px';
+      else if (app.bubbleStyle === 'square') msgEl.style.borderRadius = '4px';
+      else if (app.bubbleStyle === 'pill') msgEl.style.borderRadius = '24px';
+      
+      // Keep the tail for the correct side
+      if (isMe) msgEl.style.borderBottomRightRadius = '4px';
+      else msgEl.style.borderBottomLeftRadius = '4px';
+    }
+  });
+}
+
+function getContrastColor(hexcolor) {
+  // If a gradient or non-hex, default to white
+  if (!hexcolor || hexcolor.startsWith('linear-gradient')) return 'white';
+  
+  hexcolor = hexcolor.replace("#", "");
+  var r = parseInt(hexcolor.substr(0,2),16);
+  var g = parseInt(hexcolor.substr(2,2),16);
+  var b = parseInt(hexcolor.substr(4,2),16);
+  var yiq = ((r*299)+(g*587)+(b*114))/1000;
+  return (yiq >= 128) ? 'black' : 'white';
 }
 
 function playVoice(btn, url) {
@@ -3695,6 +3740,7 @@ function closeSettings() {
 function changeBubbleStyle(style) {
   userSettings.bubbleStyle = style;
   localStorage.setItem('bubbleStyle', style);
+  if (uid) db.ref('users/' + uid + '/appearance/bubbleStyle').set(style);
   applyBubbleStyle();
   showToast('Bubble style changed to ' + style);
 }
@@ -3702,8 +3748,36 @@ function changeBubbleStyle(style) {
 function changeBubbleColor(color) {
   userSettings.bubbleColor = color;
   localStorage.setItem('bubbleColor', color);
+  if (uid) db.ref('users/' + uid + '/appearance/bubbleColor').set(color);
   applyBubbleColor();
   showToast('Bubble color updated');
+}
+
+function resetAppearance() {
+  if (!confirm('Reset your message appearance to default?')) return;
+  
+  userSettings.bubbleStyle = 'rounded';
+  userSettings.bubbleColor = '#3b82f6'; // Default primary
+  
+  localStorage.removeItem('bubbleStyle');
+  localStorage.removeItem('bubbleColor');
+  
+  if (uid) {
+    db.ref('users/' + uid + '/appearance').remove();
+  }
+  
+  // Update UI
+  var styleSelect = document.getElementById('bubbleStyleSelect');
+  var colorInput = document.getElementById('bubbleColorInput');
+  if (styleSelect) styleSelect.value = 'rounded';
+  if (colorInput) colorInput.value = '#3b82f6';
+  
+  // Remove custom styles
+  var customStyle = document.getElementById('customBubbleStyle');
+  if (customStyle) customStyle.remove();
+  
+  applyBubbleStyle();
+  showToast('Appearance reset to default');
 }
 
 function applyBubbleStyle() {
@@ -3728,7 +3802,7 @@ function applyBubbleColor() {
     style.id = 'customBubbleStyle';
     document.head.appendChild(style);
   }
-  style.textContent = '.msg-container.me .message { background: ' + color + ' !important; }';
+  style.textContent = '.msg-container.me .message { background: ' + color + ' !important; color: ' + getContrastColor(color) + ' !important; }';
 }
 
 function toggleGhostMode() {
