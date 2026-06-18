@@ -2591,8 +2591,9 @@ function loadMessages(path, isGroup) {
       m._key = child.key;
       var msgId = chatIdFromPath + '_' + child.key;
       
-      // Send notification for new incoming messages
-      if (m.sender !== uid && !seenMessageIds.has(msgId) && userSettings.notifications) {
+      // Only notify for NEW, UNREAD, INCOMING messages
+      // Check: not from sender, not already opened, not seen before, and notifications enabled
+      if (m.sender !== uid && !m.opened && !seenMessageIds.has(msgId) && userSettings.notifications) {
         var txt = m.type === 'text' ? decryptMessage(m.text || '') : '[Image]';
         var sender = m.senderName || 'Someone';
         sendNotification('New message from ' + sender, {
