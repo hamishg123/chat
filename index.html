@@ -2168,32 +2168,71 @@ function updateUsernameDisplay() {
 // CONTACTS
 // ──────────────────────────────────────────────────────────────────────────────
 
+
 function loadContacts() {
   db.ref('contacts/' + uid).on('value', function(snap) {
     var list = document.getElementById('contactList');
-    list.innerHTML = '';
-    if (!snap.exists()) return;
+    if (!snap.exists()) {
+      list.innerHTML = '';
+      return;
+    }
+    
+    var contacts = [];
+    var processedCount = 0;
+    var totalContacts = snap.numChildren();
+
     snap.forEach(function(child) {
       var otherUid = child.key;
       var data = child.val();
-      var item = document.createElement('div');
-      item.className = 'contact-item' + (currentChatUid === otherUid && currentChatType === 'dm' ? ' active' : '');
-      item.id = 'contact-' + otherUid;
-      var name = data.name || '?';
-      item.innerHTML =
-        '<div class="avatar">' + escapeHtml(name[0].toUpperCase()) + '</div>' +
-        '<div class="contact-info">' +
-          '<div class="contact-name">@' + escapeHtml(name) + '</div>' +
-          '<div class="contact-code" id="unread-' + otherUid + '"></div>' +
-        '</div>' +
-        '<div class="status-dot" id="dot-' + otherUid + '"></div>';
-      watchUnread('messages/' + chatId(uid, otherUid), 'unread-' + otherUid);
-      item.onclick = (function(oUid, oName) {
-        return function() { openDM(oUid, oName); };
-      })(otherUid, name);
-      list.appendChild(item);
-      watchPresence(otherUid);
+      var cId = chatId(uid, otherUid);
+      
+      // Get last message to sort by time
+      db.ref('messages/' + cId).limitToLast(1).once('value').then(function(mSnap) {
+        var lastTime = 0;
+        if (mSnap.exists()) {
+          mSnap.forEach(function(m) { lastTime = m.val().time || 0; });
+        }
+        
+        contacts.push({
+          uid: otherUid,
+          name: data.name || '?',
+          lastTime: lastTime
+        });
+        
+        processedCount++;
+        if (processedCount === totalContacts) {
+          renderSortedContacts(contacts);
+        }
+      });
     });
+  });
+}
+
+function renderSortedContacts(contacts) {
+  // Sort by lastTime descending
+  contacts.sort(function(a, b) { return b.lastTime - a.lastTime; });
+  
+  var list = document.getElementById('contactList');
+  list.innerHTML = '';
+  
+  contacts.forEach(function(data) {
+    var otherUid = data.uid;
+    var name = data.name;
+    var item = document.createElement('div');
+    item.className = 'contact-item' + (currentChatUid === otherUid && currentChatType === 'dm' ? ' active' : '');
+    item.id = 'contact-' + otherUid;
+    item.innerHTML =
+      '<div class="avatar">' + escapeHtml(name[0].toUpperCase()) + '</div>' +
+      '<div class="contact-info">' +
+        '<div class="contact-name">@' + escapeHtml(name) + '</div>' +
+        '<div class="contact-code" id="unread-' + otherUid + '"></div>' +
+      '</div>' +
+      '<div class="status-dot" id="dot-' + otherUid + '"></div>';
+    
+    watchUnread('messages/' + chatId(uid, otherUid), 'unread-' + otherUid);
+    item.onclick = function() { openDM(otherUid, name); };
+    list.appendChild(item);
+    watchPresence(otherUid);
   });
 }
 
@@ -2310,37 +2349,79 @@ function addContact() {
 // GROUPS
 // ──────────────────────────────────────────────────────────────────────────────
 
+
 function loadGroups() {
   db.ref('groupMembers/' + uid).on('value', function(snap) {
     var list = document.getElementById('groupList');
-    list.innerHTML = '';
     if (!snap.exists()) {
       list.innerHTML = '<div style="padding:16px;text-align:center;color:var(--text-muted-dark);font-size:13px">No groups yet. Create one!</div>';
       return;
     }
+    
+    var groups = [];
+    var processedCount = 0;
+    var totalGroups = snap.numChildren();
+
     snap.forEach(function(child) {
       var groupId = child.key;
       db.ref('groups/' + groupId).once('value').then(function(gSnap) {
-        if (!gSnap.exists()) return;
+        if (!gSnap.exists()) {
+          processedCount++;
+          if (processedCount === totalGroups) renderSortedGroups(groups);
+          return;
+        }
         var g = gSnap.val();
-        var item = document.createElement('div');
-        item.className = 'group-item' + (currentChat === groupId && currentChatType === 'group' ? ' active' : '');
-        item.id = 'group-' + groupId;
-        var gname = g.name || 'Group';
-        var memberCount = g.memberCount || 0;
-        item.innerHTML =
-          '<div class="avatar">' + escapeHtml(gname[0].toUpperCase()) + '</div>' +
-          '<div class="contact-info">' +
-            '<div class="contact-name">' + escapeHtml(gname) + '</div>' +
-            '<div class="contact-code" id="unread-group-' + groupId + '">' + memberCount + ' member' + (memberCount !== 1 ? 's' : '') + '</div>' +
-          '</div>';
-        item.onclick = (function(gId, gName) {
-          return function() { openGroup(gId, gName); };
-        })(groupId, gname);
-        list.appendChild(item);
-        watchUnread('groupMessages/' + groupId, 'unread-group-' + groupId);
+        
+        // Get last message time for group
+        db.ref('groupMessages/' + groupId).limitToLast(1).once('value').then(function(mSnap) {
+          var lastTime = g.createdAt || 0;
+          if (mSnap.exists()) {
+            mSnap.forEach(function(m) { lastTime = m.val().time || 0; });
+          }
+          
+          groups.push({
+            id: groupId,
+            name: g.name || 'Group',
+            memberCount: g.memberCount || 0,
+            lastTime: lastTime
+          });
+          
+          processedCount++;
+          if (processedCount === totalGroups) {
+            renderSortedGroups(groups);
+          }
+        });
       });
     });
+  });
+}
+
+function renderSortedGroups(groups) {
+  // Sort by lastTime descending
+  groups.sort(function(a, b) { return b.lastTime - a.lastTime; });
+  
+  var list = document.getElementById('groupList');
+  list.innerHTML = '';
+  
+  if (groups.length === 0) {
+    list.innerHTML = '<div style="padding:16px;text-align:center;color:var(--text-muted-dark);font-size:13px">No groups yet. Create one!</div>';
+    return;
+  }
+
+  groups.forEach(function(g) {
+    var item = document.createElement('div');
+    item.className = 'group-item' + (currentChat === g.id && currentChatType === 'group' ? ' active' : '');
+    item.id = 'group-' + g.id;
+    item.innerHTML =
+      '<div class="avatar">' + escapeHtml(g.name[0].toUpperCase()) + '</div>' +
+      '<div class="contact-info">' +
+        '<div class="contact-name">' + escapeHtml(g.name) + '</div>' +
+        '<div class="contact-code" id="unread-group-' + g.id + '">' + g.memberCount + ' member' + (g.memberCount !== 1 ? 's' : '') + '</div>' +
+      '</div>';
+    
+    item.onclick = function() { openGroup(g.id, g.name); };
+    list.appendChild(item);
+    watchUnread('groupMessages/' + g.id, 'unread-group-' + g.id);
   });
 }
 
