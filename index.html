@@ -232,6 +232,7 @@ body {
   display: flex;
   flex-direction: column;
   overflow: hidden;
+  position: relative;
 }
 
 #emptyState {
@@ -593,7 +594,9 @@ body {
 #messages {
   flex: 1;
   overflow-y: auto;
+  overflow-x: visible;
   padding: 16px;
+  padding-top: 40px; /* extra top padding so overlay at top of list isn't clipped */
   display: flex;
   flex-direction: column;
   gap: 8px;
@@ -617,6 +620,7 @@ body {
   flex-direction: column;
   gap: 2px;
   margin-bottom: 8px;
+  position: relative;
 }
 
 .msg-container.me {
@@ -861,7 +865,7 @@ body {
 
 .msg-actions-overlay {
   position: absolute;
-  top: -30px;
+  top: -38px;
   right: 0;
   background: var(--surface);
   border: 1px solid var(--border);
@@ -871,9 +875,18 @@ body {
   gap: 8px;
   z-index: 10;
   box-shadow: var(--shadow);
+  /* Extend the hover-sensitive area downward so moving mouse up to the overlay
+     doesn't leave the .msg-container hover zone */
+  padding-bottom: 12px;
+  margin-bottom: -8px;
 }
 
-.msg-container:hover .msg-actions-overlay { display: flex; }
+.msg-container:hover .msg-actions-overlay,
+.msg-actions-overlay:hover { display: flex; }
+
+/* Ensure the overlay is never clipped by parent overflow */
+.msg-container.me .msg-actions-overlay { right: 0; left: auto; }
+.msg-container.other .msg-actions-overlay { left: 0; right: auto; }
 
 .reaction-btn {
   cursor: pointer;
@@ -1866,7 +1879,7 @@ input:checked + .toggle-slider:before {
       </div>
     </div>
 
-    <div id="chatMain" style="display:none; flex-direction:column; flex:1; overflow:hidden;">
+    <div id="chatMain" style="display:none; flex-direction:column; flex:1; overflow:visible; min-width:0;">
       <div id="chatHeader">
         <button id="backBtn" onclick="goBackToContacts()" title="Back to contacts">←</button>
         <div id="chatHeaderAvatar">?</div>
@@ -3036,8 +3049,8 @@ function renderMessage(m, isGroup, box) {
     else status = '<span title="Sent">✓</span>';
   }
 
-  div.innerHTML = senderLabel + actionsOverlay +
-    '<div class="message">' + replyHtml + content + deleteBtn + '</div>' +
+  div.innerHTML = senderLabel +
+    '<div class="message">' + actionsOverlay + replyHtml + content + deleteBtn + '</div>' +
     reactionsHtml +
     '<div class="msg-time">' + time + (status ? ' <span class="msg-status">' + status + '</span>' : '') + '</div>';
   box.appendChild(div);
@@ -3101,11 +3114,14 @@ function openReactionPicker(msgKey) {
   // Find the message container and add picker to it
   var msgContainer = document.querySelector('[data-key="' + msgKey + '"]');
   if (msgContainer) {
-    var overlay = msgContainer.querySelector('.msg-actions-overlay');
-    if (overlay) {
-      var picker = document.createElement('div');
-      picker.innerHTML = pickerHtml;
-      overlay.appendChild(picker.firstChild);
+    var picker = document.createElement('div');
+    picker.innerHTML = pickerHtml;
+    // Append picker to the .message div so it is positioned correctly
+    var msgDiv = msgContainer.querySelector('.message');
+    if (msgDiv) {
+      msgDiv.appendChild(picker.firstChild);
+    } else {
+      msgContainer.appendChild(picker.firstChild);
     }
   }
 }
