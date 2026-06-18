@@ -793,6 +793,147 @@ body {
   padding: 0 16px 8px;
 }
 
+/* --- REPLIES --- */
+.reply-preview {
+  background: var(--surface-light);
+  border-left: 4px solid var(--primary);
+  padding: 8px 12px;
+  margin-bottom: 8px;
+  border-radius: 8px;
+  display: none;
+  position: relative;
+}
+
+.reply-preview.active { display: block; }
+
+.reply-preview-content {
+  font-size: 12px;
+  color: var(--text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.reply-preview-close {
+  position: absolute;
+  top: 4px;
+  right: 8px;
+  cursor: pointer;
+  font-size: 16px;
+}
+
+.msg-reply-container {
+  background: rgba(255, 255, 255, 0.05);
+  border-left: 3px solid var(--primary);
+  padding: 4px 8px;
+  margin-bottom: 4px;
+  border-radius: 4px;
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+/* --- REACTIONS --- */
+.reactions-container {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 4px;
+}
+
+.reaction-pill {
+  background: var(--surface-lighter);
+  border: 1px solid var(--border);
+  padding: 2px 6px;
+  border-radius: 12px;
+  font-size: 11px;
+  cursor: pointer;
+  transition: all 0.2s;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.reaction-pill.active {
+  background: var(--primary);
+  border-color: var(--primary);
+  color: white;
+}
+
+.msg-actions-overlay {
+  position: absolute;
+  top: -30px;
+  right: 0;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  padding: 4px 8px;
+  display: none;
+  gap: 8px;
+  z-index: 10;
+  box-shadow: var(--shadow);
+}
+
+.msg-container:hover .msg-actions-overlay { display: flex; }
+
+.reaction-btn {
+  cursor: pointer;
+  font-size: 16px;
+  transition: transform 0.2s;
+}
+
+.reaction-btn:hover { transform: scale(1.3); }
+
+/* --- VOICE MESSAGES --- */
+.voice-msg {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 150px;
+}
+
+.voice-play-btn {
+  background: var(--primary);
+  color: white;
+  border: none;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.voice-wave {
+  flex: 1;
+  height: 20px;
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 10px;
+  position: relative;
+  overflow: hidden;
+}
+
+.voice-progress {
+  position: absolute;
+  top: 0;
+  left: 0;
+  height: 100%;
+  background: var(--primary-light);
+  width: 0%;
+}
+
+#voiceBtn.recording {
+  background: var(--danger);
+  color: white;
+  animation: pulse 1.5s infinite;
+}
+
+@keyframes pulse {
+  0% { transform: scale(1); }
+  50% { transform: scale(1.1); }
+  100% { transform: scale(1); }
+}
+
 /* Camera Modal Styles */
 #cameraModal .modal {
   width: 500px;
@@ -818,6 +959,61 @@ body {
 
 #cameraCanvas {
   display: none;
+}
+
+/* --- VOICE MESSAGES --- */
+.voice-msg {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 150px;
+  padding: 8px 0;
+}
+
+.voice-play-btn {
+  background: var(--primary);
+  color: white;
+  border: none;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+}
+
+.voice-wave-container {
+  flex: 1;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.voice-bar {
+  flex: 1;
+  background: var(--primary-light);
+  opacity: 0.3;
+  border-radius: 1px;
+  height: 60%;
+}
+
+.voice-bar.active {
+  opacity: 1;
+}
+
+#voiceBtn.recording {
+  background: var(--danger);
+  color: white !important;
+  animation: pulse 1.5s infinite;
+}
+
+@keyframes pulse {
+  0% { transform: scale(1); }
+  50% { transform: scale(1.1); }
+  100% { transform: scale(1); }
 }
 
 .camera-controls {
@@ -1656,14 +1852,21 @@ input:checked + .toggle-slider:before {
       <div id="messages"></div>
       <div id="typingIndicator"></div>
       <div id="uploadProgress">Uploading image...</div>
-      <div id="inputArea">
-        <textarea id="msgInput" rows="1" placeholder="Type a message..."
-          onkeydown="handleMsgKey(event)" oninput="handleTyping(); autoResize(this)"></textarea>
-        <button id="imgBtn" onclick="document.getElementById('imgUpload').click()" title="Upload image">🖼️</button>
-        <button id="cameraBtn" onclick="openCamera()" title="Take photo">📷</button>
-        <input type="file" id="imgUpload" accept="image/*" onchange="sendImage(event)" style="display:none">
-        <input type="file" id="cameraUpload" accept="image/*" capture="environment" onchange="sendImage(event)" style="display:none">
-        <button id="sendBtn" onclick="sendMessage()">➤</button>
+      <div id="inputAreaContainer" style="padding: 10px 16px; border-top: 1px solid var(--border);">
+        <div class="reply-preview" id="replyPreview">
+          <div class="reply-preview-close" onclick="cancelReply()">×</div>
+          <div class="reply-preview-content" id="replyPreviewContent">Replying to...</div>
+        </div>
+        <div id="inputArea" style="border:none; padding:0;">
+          <textarea id="msgInput" rows="1" placeholder="Type a message..."
+            onkeydown="handleMsgKey(event)" oninput="handleTyping(); autoResize(this)"></textarea>
+          <button id="voiceBtn" onclick="toggleVoiceRecording()" title="Voice Message">🎤</button>
+          <button id="imgBtn" onclick="document.getElementById('imgUpload').click()" title="Upload image">🖼️</button>
+          <button id="cameraBtn" onclick="openCamera()" title="Take photo">📷</button>
+          <input type="file" id="imgUpload" accept="image/*" onchange="sendImage(event)" style="display:none">
+          <input type="file" id="cameraUpload" accept="image/*" capture="environment" onchange="sendImage(event)" style="display:none">
+          <button id="sendBtn" onclick="sendMessage()">➤</button>
+        </div>
       </div>
     </div>
   </div>
@@ -1920,6 +2123,10 @@ var isSending = false;
 var cameraStream = null;
 var memberColors = {};
 var lastRenderId = 0;
+var mediaRecorder = null;
+var audioChunks = [];
+var isRecording = false;
+var replyingTo = null;
 var colorPalette = ['#FF6B6B', '#4ECDC4', '#45B7D1', '#FFA07A', '#98D8C8', '#F7DC6F', '#BB8FCE', '#85C1E2'];
 
 // Encryption key for AES-256
@@ -2725,6 +2932,7 @@ function renderMessage(m, isGroup, box) {
   var isMe = m.sender === uid;
   var div = document.createElement('div');
   div.className = 'msg-container' + (isMe ? ' me' : ' other');
+  div.setAttribute('data-key', m._key);
 
   var senderLabel = '';
   if (isGroup && !isMe) {
@@ -2734,15 +2942,55 @@ function renderMessage(m, isGroup, box) {
     senderLabel = '<div class="msg-sender-label">@' + escapeHtml(m.senderName || m.sender || '') + '</div>';
   }
 
+  // --- REPLY RENDERING ---
+  var replyHtml = '';
+  if (m.replyTo) {
+    replyHtml = '<div class="msg-reply-container">' +
+      '<b>@' + escapeHtml(m.replyTo.senderName) + '</b>: ' +
+      escapeHtml(m.replyTo.text.substring(0, 50)) + (m.replyTo.text.length > 50 ? '...' : '') +
+      '</div>';
+  }
+
+  // --- CONTENT RENDERING ---
   var content = '';
   if (m.type === 'image' && m.url) {
     var decryptedUrl = decryptMessage(m.url);
     var safeUrl = decryptedUrl.replace(/"/g, '&quot;');
     content = '<img src="' + safeUrl + '" onclick="openLightbox(\'' + safeUrl + '\')" alt="Image">';
+  } else if (m.type === 'voice' && m.url) {
+    var audioUrl = decryptMessage(m.url);
+    content = '<div class="voice-msg">' +
+      '<button class="voice-play-btn" onclick="playVoice(this, \'' + audioUrl + '\')">▶</button>' +
+      '<div class="voice-wave-container">' +
+      Array(12).fill('<div class="voice-bar"></div>').join('') +
+      '</div>' +
+      '</div>';
   } else {
     var decryptedText = decryptMessage(m.text || '');
     content = escapeHtml(decryptedText);
   }
+
+  // --- REACTIONS RENDERING ---
+  var reactionsHtml = '<div class="reactions-container" id="reactions-' + m._key + '">';
+  if (m.reactions) {
+    Object.keys(m.reactions).forEach(function(emoji) {
+      var reactors = m.reactions[emoji];
+      var count = Object.keys(reactors).length;
+      var hasReacted = reactors[uid] ? 'active' : '';
+      reactionsHtml += '<div class="reaction-pill ' + hasReacted + '" onclick="toggleReaction(\'' + m._key + '\', \'' + emoji + '\')">' +
+        emoji + ' <span>' + count + '</span>' +
+        '</div>';
+    });
+  }
+  reactionsHtml += '</div>';
+
+  // --- ACTIONS OVERLAY ---
+  var actionsOverlay = '<div class="msg-actions-overlay">' +
+    '<span class="reaction-btn" onclick="toggleReaction(\'' + m._key + '\', \'❤️\')">❤️</span>' +
+    '<span class="reaction-btn" onclick="toggleReaction(\'' + m._key + '\', \'😂\')">😂</span>' +
+    '<span class="reaction-btn" onclick="toggleReaction(\'' + m._key + '\', \'👍\')">👍</span>' +
+    '<span class="reaction-btn" onclick="setReply(\'' + m._key + '\', \'' + (m.senderName || 'Someone') + '\', \'' + (m.type === 'text' ? decryptMessage(m.text || '') : '[' + m.type + ']') + '\')">↩️</span>' +
+    '</div>';
 
   var time = m.time ? formatTime(m.time) : '';
   var deleteBtn = isMe ? '<button class="msg-delete" onclick="deleteMsg(\'' + m._key + '\')">×</button>' : '';
@@ -2754,10 +3002,59 @@ function renderMessage(m, isGroup, box) {
     else status = '<span title="Sent">✓</span>';
   }
 
-  div.innerHTML = senderLabel +
-    '<div class="message">' + content + deleteBtn + '</div>' +
+  div.innerHTML = senderLabel + actionsOverlay +
+    '<div class="message">' + replyHtml + content + deleteBtn + '</div>' +
+    reactionsHtml +
     '<div class="msg-time">' + time + (status ? ' <span class="msg-status">' + status + '</span>' : '') + '</div>';
   box.appendChild(div);
+}
+
+function playVoice(btn, url) {
+  var audio = new Audio(url);
+  var bars = btn.parentElement.querySelectorAll('.voice-bar');
+  btn.textContent = '⏸';
+  
+  audio.play();
+  
+  var interval = setInterval(function() {
+    var progress = audio.currentTime / audio.duration;
+    var activeCount = Math.floor(progress * bars.length);
+    bars.forEach((bar, i) => {
+      if (i <= activeCount) bar.classList.add('active');
+      else bar.classList.remove('active');
+    });
+  }, 100);
+  
+  audio.onended = function() {
+    btn.textContent = '▶';
+    clearInterval(interval);
+    bars.forEach(bar => bar.classList.remove('active'));
+  };
+}
+
+function toggleReaction(msgKey, emoji) {
+  if (!currentChat) return;
+  var path = (currentChatType === 'group' ? 'groupMessages/' : 'messages/') + currentChat + '/' + msgKey + '/reactions/' + emoji + '/' + uid;
+  var ref = db.ref(path);
+  
+  ref.once('value').then(function(snap) {
+    if (snap.exists()) ref.remove();
+    else ref.set(true);
+  });
+}
+
+function setReply(msgKey, senderName, text) {
+  replyingTo = { key: msgKey, senderName: senderName, text: text };
+  var preview = document.getElementById('replyPreview');
+  var content = document.getElementById('replyPreviewContent');
+  content.textContent = 'Replying to @' + senderName + ': ' + text;
+  preview.classList.add('active');
+  document.getElementById('msgInput').focus();
+}
+
+function cancelReply() {
+  replyingTo = null;
+  document.getElementById('replyPreview').classList.remove('active');
 }
 
 function sendMessage() {
@@ -2771,7 +3068,7 @@ function sendMessage() {
   var path = currentChatType === 'group' ? 'groupMessages/' + currentChat : 'messages/' + currentChat;
   var msgRef = db.ref(path).push();
   
-  msgRef.set({
+  var msgData = {
     type: 'text',
     sender: uid,
     senderName: myUsername || '?',
@@ -2780,7 +3077,14 @@ function sendMessage() {
     delivered: true,
     seen: false,
     opened: false
-  }).then(function() {
+  };
+
+  if (replyingTo) {
+    msgData.replyTo = replyingTo;
+    cancelReply();
+  }
+  
+  msgRef.set(msgData).then(function() {
     isSending = false;
     sendNotification('Message sent', { body: text.substring(0, 50) });
   }).catch(function(err) {
@@ -3065,6 +3369,84 @@ function capturePhoto() {
   // Send as image
   sendCapturedImage(base64Data);
   closeCameraModal();
+}
+
+function toggleVoiceRecording() {
+  if (!isRecording) {
+    startRecording();
+  } else {
+    stopRecording();
+  }
+}
+
+function startRecording() {
+  if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+    showToast('Voice recording not supported');
+    return;
+  }
+
+  navigator.mediaDevices.getUserMedia({ audio: true })
+    .then(function(stream) {
+      mediaRecorder = new MediaRecorder(stream);
+      audioChunks = [];
+      
+      mediaRecorder.ondataavailable = function(e) {
+        audioChunks.push(e.data);
+      };
+      
+      mediaRecorder.onstop = function() {
+        var audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
+        var reader = new FileReader();
+        reader.onload = function(e) {
+          sendVoiceMessage(e.target.result);
+        };
+        reader.readAsDataURL(audioBlob);
+        stream.getTracks().forEach(track => track.stop());
+      };
+      
+      mediaRecorder.start();
+      isRecording = true;
+      document.getElementById('voiceBtn').classList.add('recording');
+      showToast('Recording...');
+    })
+    .catch(function(err) {
+      showToast('Error accessing microphone: ' + err.message);
+    });
+}
+
+function stopRecording() {
+  if (mediaRecorder && isRecording) {
+    mediaRecorder.stop();
+    isRecording = false;
+    document.getElementById('voiceBtn').classList.remove('recording');
+    showToast('Processing voice message...');
+  }
+}
+
+function sendVoiceMessage(base64Data) {
+  if (!currentChat) return;
+  var path = currentChatType === 'group' ? 'groupMessages/' + currentChat : 'messages/' + currentChat;
+  var msgRef = db.ref(path).push();
+  
+  var msgData = {
+    type: 'voice',
+    sender: uid,
+    senderName: myUsername || '?',
+    url: encryptMessage(base64Data),
+    time: firebase.database.ServerValue.TIMESTAMP,
+    delivered: true,
+    seen: false,
+    opened: false
+  };
+  
+  if (replyingTo) {
+    msgData.replyTo = replyingTo;
+    cancelReply();
+  }
+  
+  msgRef.set(msgData).then(function() {
+    showToast('Voice message sent!');
+  });
 }
 
 function sendCapturedImage(base64Data) {
