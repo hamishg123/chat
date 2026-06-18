@@ -1919,6 +1919,7 @@ var typingTimeout = null;
 var isSending = false;
 var cameraStream = null;
 var memberColors = {};
+var lastRenderId = 0;
 var colorPalette = ['#FF6B6B', '#4ECDC4', '#45B7D1', '#FFA07A', '#98D8C8', '#F7DC6F', '#BB8FCE', '#85C1E2'];
 
 // Encryption key for AES-256
@@ -2654,45 +2655,60 @@ function showChatArea(name) {
 // ──────────────────────────────────────────────────────────────────────────────
 
 function loadMessages(path, isGroup) {
-  // Clear the messages box before attaching the listener
   var box = document.getElementById('messages');
   box.innerHTML = '';
   
   var ref = db.ref(path);
   var listener = ref.on('value', function(snap) {
-    // Only update if the message path matches the current chat
     var pathParts = path.split('/');
     var chatIdFromPath = pathParts[pathParts.length - 1];
     if (currentChat !== chatIdFromPath) return;
 
-    // Clear and re-render all messages
+    // Use a render ID to prevent overlapping render cycles
+    var currentRenderId = ++lastRenderId;
+    
+    // Clear and re-render
     box.innerHTML = '';
+    
+    var updates = {};
+    var messagesToRender = [];
+    
     snap.forEach(function(child) {
       var m = child.val();
       m._key = child.key;
+      messagesToRender.push(m);
+      
       var msgId = chatIdFromPath + '_' + child.key;
       
-      // Only notify for NEW, UNREAD, INCOMING messages
-      // Check: not from sender, not already opened, not seen before, and notifications enabled
+      // Notification logic
       if (m.sender !== uid && !m.opened && !seenMessageIds.has(msgId) && userSettings.notifications) {
         var txt = m.type === 'text' ? decryptMessage(m.text || '') : '[Image]';
         var sender = m.senderName || 'Someone';
-        sendNotification('New message from ' + sender, {
-          body: txt.substring(0, 100),
-          icon: '💬'
-        });
+        sendNotification('New message from ' + sender, { body: txt.substring(0, 100), icon: '💬' });
         if (userSettings.sound) playNotificationSound();
       }
       seenMessageIds.add(msgId);
       
-      // Mark as seen and opened immediately if it's from someone else and not opened yet
+      // Collect updates to mark as opened
       if (m.sender !== uid && !m.opened) {
-        db.ref(path + '/' + child.key).update({ seen: true, opened: true });
+        updates[child.key + '/seen'] = true;
+        updates[child.key + '/opened'] = true;
       }
-      
-      renderMessage(m, isGroup, box);
     });
+
+    // Render messages
+    for (var i = 0; i < messagesToRender.length; i++) {
+      // If a newer render has started, stop this one
+      if (currentRenderId !== lastRenderId) return;
+      renderMessage(messagesToRender[i], isGroup, box);
+    }
+    
     box.scrollTop = box.scrollHeight;
+
+    // Perform database updates after rendering to avoid immediate re-render feedback loop
+    if (Object.keys(updates).length > 0) {
+      db.ref(path).update(updates);
+    }
   });
   messageListeners.push({ ref: ref, listener: listener, event: 'value' });
 }
