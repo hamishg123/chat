@@ -594,9 +594,9 @@ body {
 #messages {
   flex: 1;
   overflow-y: auto;
-  overflow-x: visible;
+  overflow-x: clip; /* clip horizontal to prevent layout break, but keep vertical scroll */
   padding: 16px;
-  padding-top: 40px; /* extra top padding so overlay at top of list isn't clipped */
+  padding-top: 40px;
   display: flex;
   flex-direction: column;
   gap: 8px;
@@ -865,7 +865,7 @@ body {
 
 .msg-actions-overlay {
   position: absolute;
-  top: -38px;
+  top: -32px;
   right: 0;
   background: var(--surface);
   border: 1px solid var(--border);
@@ -873,20 +873,27 @@ body {
   padding: 4px 8px;
   display: none;
   gap: 8px;
-  z-index: 10;
+  z-index: 100;
   box-shadow: var(--shadow);
-  /* Extend the hover-sensitive area downward so moving mouse up to the overlay
-     doesn't leave the .msg-container hover zone */
-  padding-bottom: 12px;
-  margin-bottom: -8px;
+  /* Use a pseudo-element to bridge the gap between message and overlay */
 }
 
-.msg-container:hover .msg-actions-overlay,
+.msg-actions-overlay::after {
+  content: '';
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  height: 10px;
+  background: transparent;
+}
+
+.message:hover .msg-actions-overlay,
 .msg-actions-overlay:hover { display: flex; }
 
 /* Ensure the overlay is never clipped by parent overflow */
-.msg-container.me .msg-actions-overlay { right: 0; left: auto; }
-.msg-container.other .msg-actions-overlay { left: 0; right: auto; }
+.msg-container.me .msg-actions-overlay { right: 0; left: auto; top: -32px; }
+.msg-container.other .msg-actions-overlay { left: 0; right: auto; top: -32px; }
 
 .reaction-btn {
   cursor: pointer;
@@ -907,9 +914,14 @@ body {
   display: grid;
   grid-template-columns: repeat(6, 1fr);
   gap: 4px;
-  z-index: 20;
+  z-index: 200;
   box-shadow: var(--shadow);
   max-width: 280px;
+}
+
+.msg-container.other .reaction-picker {
+  left: 0;
+  right: auto;
 }
 
 .reaction-picker-emoji {
@@ -1879,7 +1891,7 @@ input:checked + .toggle-slider:before {
       </div>
     </div>
 
-    <div id="chatMain" style="display:none; flex-direction:column; flex:1; overflow:visible; min-width:0;">
+    <div id="chatMain" style="display:none; flex-direction:column; flex:1; overflow:hidden;">
       <div id="chatHeader">
         <button id="backBtn" onclick="goBackToContacts()" title="Back to contacts">←</button>
         <div id="chatHeaderAvatar">?</div>
