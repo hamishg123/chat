@@ -916,7 +916,9 @@ body {
   gap: 4px;
   z-index: 200;
   box-shadow: var(--shadow);
-  max-width: 280px;
+  width: 280px;
+  max-width: 85vw;
+  box-sizing: border-box;
 }
 
 .msg-container.other .reaction-picker {
@@ -1622,6 +1624,29 @@ input:checked + .toggle-slider:before {
   #chatHeader {
     padding: 10px 12px;
     gap: 8px;
+  }
+
+  /* Mobile Reaction Optimizations */
+  .msg-actions-overlay {
+    top: -44px; /* More space on mobile */
+    padding: 6px 10px;
+  }
+
+  .reaction-btn {
+    font-size: 20px; /* Larger tap targets */
+    padding: 4px;
+  }
+
+  .message.mobile-active .msg-actions-overlay {
+    display: flex !important;
+  }
+
+  .reaction-picker {
+    top: auto;
+    bottom: 100%;
+    margin-bottom: 10px;
+    width: 260px;
+    grid-template-columns: repeat(5, 1fr);
   }
 
   #chatHeaderAvatar {
@@ -3062,7 +3087,7 @@ function renderMessage(m, isGroup, box) {
   }
 
   div.innerHTML = senderLabel +
-    '<div class="message">' + actionsOverlay + replyHtml + content + deleteBtn + '</div>' +
+    '<div class="message" onclick="handleMessageTap(this)">' + actionsOverlay + replyHtml + content + deleteBtn + '</div>' +
     reactionsHtml +
     '<div class="msg-time">' + time + (status ? ' <span class="msg-status">' + status + '</span>' : '') + '</div>';
   box.appendChild(div);
@@ -3151,6 +3176,27 @@ function cancelReply() {
   replyingTo = null;
   document.getElementById('replyPreview').classList.remove('active');
 }
+
+function handleMessageTap(el) {
+  if (window.innerWidth > 768) return; // Only for mobile
+  
+  // Toggle the reaction overlay on tap for mobile
+  var wasActive = el.classList.contains('mobile-active');
+  
+  // Close all other overlays first
+  document.querySelectorAll('.message.mobile-active').forEach(m => m.classList.remove('mobile-active'));
+  
+  if (!wasActive) {
+    el.classList.add('mobile-active');
+  }
+}
+
+// Close mobile reaction overlays when clicking elsewhere
+document.addEventListener('click', function(e) {
+  if (!e.target.closest('.message')) {
+    document.querySelectorAll('.message.mobile-active').forEach(m => m.classList.remove('mobile-active'));
+  }
+}, true);
 
 function sendMessage() {
   if (isSending) return;
