@@ -2169,52 +2169,68 @@ function updateUsernameDisplay() {
 // ──────────────────────────────────────────────────────────────────────────────
 
 
+
+var contactsData = {};
+var groupsData = {};
+
 function loadContacts() {
   db.ref('contacts/' + uid).on('value', function(snap) {
-    var list = document.getElementById('contactList');
     if (!snap.exists()) {
-      list.innerHTML = '';
+      contactsData = {};
+      renderSortedContacts();
       return;
     }
     
-    var contacts = [];
-    var processedCount = 0;
-    var totalContacts = snap.numChildren();
-
+    var currentContactUids = [];
     snap.forEach(function(child) {
       var otherUid = child.key;
       var data = child.val();
-      var cId = chatId(uid, otherUid);
+      currentContactUids.push(otherUid);
       
-      // Get last message to sort by time
-      db.ref('messages/' + cId).limitToLast(1).once('value').then(function(mSnap) {
-        var lastTime = 0;
-        if (mSnap.exists()) {
-          mSnap.forEach(function(m) { lastTime = m.val().time || 0; });
-        }
-        
-        contacts.push({
+      if (!contactsData[otherUid]) {
+        contactsData[otherUid] = {
           uid: otherUid,
           name: data.name || '?',
-          lastTime: lastTime
-        });
+          lastTime: 0
+        };
         
-        processedCount++;
-        if (processedCount === totalContacts) {
-          renderSortedContacts(contacts);
-        }
-      });
+        // Listen for last message time changes
+        var cId = chatId(uid, otherUid);
+        db.ref('messages/' + cId).limitToLast(1).on('value', function(mSnap) {
+          var lastTime = 0;
+          if (mSnap.exists()) {
+            mSnap.forEach(function(m) { lastTime = m.val().time || 0; });
+          }
+          if (contactsData[otherUid]) {
+            contactsData[otherUid].lastTime = lastTime;
+            renderSortedContacts();
+          }
+        });
+        watchPresence(otherUid);
+      } else {
+        contactsData[otherUid].name = data.name || '?';
+      }
     });
+
+    // Remove contacts that are no longer in the list
+    Object.keys(contactsData).forEach(function(ouid) {
+      if (!currentContactUids.includes(ouid)) {
+        delete contactsData[ouid];
+      }
+    });
+    
+    renderSortedContacts();
   });
 }
 
-function renderSortedContacts(contacts) {
-  // Sort by lastTime descending
+function renderSortedContacts() {
+  var list = document.getElementById('contactList');
+  if (!list) return;
+  
+  var contacts = Object.values(contactsData);
   contacts.sort(function(a, b) { return b.lastTime - a.lastTime; });
   
-  var list = document.getElementById('contactList');
   list.innerHTML = '';
-  
   contacts.forEach(function(data) {
     var otherUid = data.uid;
     var name = data.name;
@@ -2232,177 +2248,80 @@ function renderSortedContacts(contacts) {
     watchUnread('messages/' + chatId(uid, otherUid), 'unread-' + otherUid);
     item.onclick = function() { openDM(otherUid, name); };
     list.appendChild(item);
-    watchPresence(otherUid);
-  });
-}
-
-function watchPresence(id) {
-  db.ref('presence/' + id).on('value', function(snap) {
-    var dot = document.getElementById('dot-' + id);
-    if (dot) dot.className = 'status-dot' + (snap.exists() ? ' online' : '');
-  });
-}
-
-function watchUnread(path, elementId) {
-  db.ref(path).limitToLast(1).on('value', function(snap) {
-    var lastMsg = null;
-    var unreadCount = 0;
     
-    // We need to check all messages for unread count, but limitToLast(1) only gives the last one.
-    // So we'll use a separate listener for the count if needed, or just fetch all for now since it's simple.
-    db.ref(path).once('value').then(function(fullSnap) {
-      fullSnap.forEach(function(child) {
-        var msg = child.val();
-        if (msg.sender !== uid && !msg.seen) unreadCount++;
-        lastMsg = msg;
-      });
-
-      var el = document.getElementById(elementId);
-      if (!el) return;
-
-      if (unreadCount > 0) {
-        el.textContent = unreadCount + ' new message' + (unreadCount > 1 ? 's' : '');
-        el.style.color = 'var(--primary-light)';
-        el.style.fontWeight = 'bold';
-      } else if (lastMsg && lastMsg.sender === uid) {
-        if (lastMsg.opened) {
-          el.textContent = 'Opened 👁';
-          el.style.color = 'var(--text-muted-dark)';
-        } else if (lastMsg.delivered) {
-          el.textContent = 'Delivered ✓';
-          el.style.color = 'var(--text-muted-dark)';
-        } else {
-          el.textContent = 'Sent ✓';
-          el.style.color = 'var(--text-muted-dark)';
-        }
-        el.style.fontWeight = 'normal';
-      } else {
-        // Reset to default or member count if it's a group
-        if (elementId.startsWith('unread-group-')) {
-          db.ref('groups/' + elementId.replace('unread-group-', '')).once('value').then(function(gSnap) {
-            if (gSnap.exists()) {
-              var mc = gSnap.val().memberCount || 0;
-              el.textContent = mc + ' member' + (mc !== 1 ? 's' : '');
-              el.style.color = 'var(--text-muted-dark)';
-              el.style.fontWeight = 'normal';
-            }
-          });
-        } else {
-          el.textContent = '';
-        }
-      }
+    // Update presence dot immediately if already known
+    db.ref('presence/' + otherUid).once('value').then(function(pSnap) {
+      var dot = document.getElementById('dot-' + otherUid);
+      if (dot) dot.className = 'status-dot' + (pSnap.exists() ? ' online' : '');
     });
   });
 }
-
-function openAddContactModal() {
-  document.getElementById('addUsernameInput').value = '';
-  document.getElementById('addContactError').style.display = 'none';
-  openModal('addContactModal');
-}
-
-function addContact() {
-  var username = document.getElementById('addUsernameInput').value.trim().toLowerCase();
-  var errEl = document.getElementById('addContactError');
-  errEl.style.display = 'none';
-
-  if (!username) {
-    errEl.textContent = 'Please enter a username';
-    errEl.style.display = 'block';
-    return;
-  }
-
-  if (username.startsWith('@')) username = username.substring(1);
-
-  if (username === myUsername.toLowerCase()) {
-    errEl.textContent = "That's your own username!";
-    errEl.style.display = 'block';
-    return;
-  }
-
-  db.ref('usernames/' + username).once('value').then(function(snap) {
-    if (!snap.exists()) {
-      errEl.textContent = 'User not found';
-      errEl.style.display = 'block';
-      return;
-    }
-    var otherUid = snap.val().uid;
-    db.ref('contacts/' + uid + '/' + otherUid).once('value').then(function(existing) {
-      if (existing.exists()) {
-        errEl.textContent = 'Already a contact';
-        errEl.style.display = 'block';
-        return;
-      }
-      db.ref('users/' + otherUid).once('value').then(function(userSnap) {
-        var userData = userSnap.val() || {};
-        var name = userData.username || username;
-        db.ref('contacts/' + uid + '/' + otherUid).set({ name: name });
-        db.ref('contacts/' + otherUid + '/' + uid).set({ name: myUsername });
-        closeModal('addContactModal');
-        showToast('Contact added!');
-      });
-    });
-  });
-}
-
-// ──────────────────────────────────────────────────────────────────────────────
-// GROUPS
-// ──────────────────────────────────────────────────────────────────────────────
-
 
 function loadGroups() {
   db.ref('groupMembers/' + uid).on('value', function(snap) {
-    var list = document.getElementById('groupList');
     if (!snap.exists()) {
-      list.innerHTML = '<div style="padding:16px;text-align:center;color:var(--text-muted-dark);font-size:13px">No groups yet. Create one!</div>';
+      groupsData = {};
+      renderSortedGroups();
       return;
     }
     
-    var groups = [];
-    var processedCount = 0;
-    var totalGroups = snap.numChildren();
-
+    var currentGroupIds = [];
     snap.forEach(function(child) {
       var groupId = child.key;
-      db.ref('groups/' + groupId).once('value').then(function(gSnap) {
-        if (!gSnap.exists()) {
-          processedCount++;
-          if (processedCount === totalGroups) renderSortedGroups(groups);
-          return;
-        }
-        var g = gSnap.val();
+      currentGroupIds.push(groupId);
+      
+      if (!groupsData[groupId]) {
+        groupsData[groupId] = {
+          id: groupId,
+          name: 'Group',
+          memberCount: 0,
+          lastTime: 0
+        };
         
-        // Get last message time for group
-        db.ref('groupMessages/' + groupId).limitToLast(1).once('value').then(function(mSnap) {
-          var lastTime = g.createdAt || 0;
+        // Fetch group details and listen for last message
+        db.ref('groups/' + groupId).on('value', function(gSnap) {
+          if (!gSnap.exists()) return;
+          var g = gSnap.val();
+          if (groupsData[groupId]) {
+            groupsData[groupId].name = g.name || 'Group';
+            groupsData[groupId].memberCount = g.memberCount || 0;
+            if (groupsData[groupId].lastTime === 0) groupsData[groupId].lastTime = g.createdAt || 0;
+            renderSortedGroups();
+          }
+        });
+        
+        db.ref('groupMessages/' + groupId).limitToLast(1).on('value', function(mSnap) {
+          var lastTime = 0;
           if (mSnap.exists()) {
             mSnap.forEach(function(m) { lastTime = m.val().time || 0; });
           }
-          
-          groups.push({
-            id: groupId,
-            name: g.name || 'Group',
-            memberCount: g.memberCount || 0,
-            lastTime: lastTime
-          });
-          
-          processedCount++;
-          if (processedCount === totalGroups) {
-            renderSortedGroups(groups);
+          if (groupsData[groupId] && lastTime > 0) {
+            groupsData[groupId].lastTime = lastTime;
+            renderSortedGroups();
           }
         });
-      });
+      }
     });
+
+    // Remove groups no longer member of
+    Object.keys(groupsData).forEach(function(gid) {
+      if (!currentGroupIds.includes(gid)) {
+        delete groupsData[gid];
+      }
+    });
+    
+    renderSortedGroups();
   });
 }
 
-function renderSortedGroups(groups) {
-  // Sort by lastTime descending
+function renderSortedGroups() {
+  var list = document.getElementById('groupList');
+  if (!list) return;
+  
+  var groups = Object.values(groupsData);
   groups.sort(function(a, b) { return b.lastTime - a.lastTime; });
   
-  var list = document.getElementById('groupList');
   list.innerHTML = '';
-  
   if (groups.length === 0) {
     list.innerHTML = '<div style="padding:16px;text-align:center;color:var(--text-muted-dark);font-size:13px">No groups yet. Create one!</div>';
     return;
