@@ -1924,6 +1924,9 @@ var colorPalette = ['#FF6B6B', '#4ECDC4', '#45B7D1', '#FFA07A', '#98D8C8', '#F7D
 // Encryption key for AES-256
 var encryptionKey = 'SecureChat2024!';
 
+// Track message IDs to avoid duplicate notifications
+var seenMessageIds = new Set();
+
 function encryptMessage(text) {
   try {
     return CryptoJS.AES.encrypt(text, encryptionKey).toString();
@@ -2123,6 +2126,28 @@ function requestNotificationPermission() {
 function sendNotification(title, options) {
   if ('Notification' in window && Notification.permission === 'granted') {
     new Notification(title, options);
+  }
+}
+
+function playNotificationSound() {
+  try {
+    var audioContext = new (window.AudioContext || window.webkitAudioContext)();
+    var oscillator = audioContext.createOscillator();
+    var gainNode = audioContext.createGain();
+    
+    oscillator.connect(gainNode);
+    gainNode.connect(audioContext.destination);
+    
+    oscillator.frequency.value = 800;
+    oscillator.type = 'sine';
+    
+    gainNode.gain.setValueAtTime(0.3, audioContext.currentTime);
+    gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.1);
+    
+    oscillator.start(audioContext.currentTime);
+    oscillator.stop(audioContext.currentTime + 0.1);
+  } catch (e) {
+    console.log('Could not play notification sound:', e);
   }
 }
 
@@ -2564,6 +2589,19 @@ function loadMessages(path, isGroup) {
     snap.forEach(function(child) {
       var m = child.val();
       m._key = child.key;
+      var msgId = chatIdFromPath + '_' + child.key;
+      
+      // Send notification for new incoming messages
+      if (m.sender !== uid && !seenMessageIds.has(msgId) && userSettings.notifications) {
+        var txt = m.type === 'text' ? decryptMessage(m.text || '') : '[Image]';
+        var sender = m.senderName || 'Someone';
+        sendNotification('New message from ' + sender, {
+          body: txt.substring(0, 100),
+          icon: '💬'
+        });
+        if (userSettings.sound) playNotificationSound();
+      }
+      seenMessageIds.add(msgId);
       
       // Mark as seen and opened immediately if it's from someone else and not opened yet
       if (m.sender !== uid && !m.opened) {
@@ -3091,14 +3129,24 @@ function toggleReadReceipts() {
 }
 
 function toggleNotifications() {
-  userSettings.notifications = document.getElementById('notificationsToggle').checked;
+  var mobile = document.getElementById('notificationsToggle');
+  var desktop = document.getElementById('notificationsToggleModal');
+  var checked = mobile ? mobile.checked : (desktop ? desktop.checked : true);
+  userSettings.notifications = checked;
   localStorage.setItem('notifications', userSettings.notifications);
+  if (mobile) mobile.checked = checked;
+  if (desktop) desktop.checked = checked;
   showToast('Notifications ' + (userSettings.notifications ? 'enabled' : 'disabled'));
 }
 
 function toggleSound() {
-  userSettings.sound = document.getElementById('soundToggle').checked;
+  var mobile = document.getElementById('soundToggle');
+  var desktop = document.getElementById('soundToggleModal');
+  var checked = mobile ? mobile.checked : (desktop ? desktop.checked : true);
+  userSettings.sound = checked;
   localStorage.setItem('sound', userSettings.sound);
+  if (mobile) mobile.checked = checked;
+  if (desktop) desktop.checked = checked;
   showToast('Sound ' + (userSettings.sound ? 'enabled' : 'disabled'));
 }
 
