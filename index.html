@@ -2170,8 +2170,11 @@ function updateUsernameDisplay() {
 
 
 
+
 var contactsData = {};
 var groupsData = {};
+var contactListeners = {};
+var groupListeners = {};
 
 function loadContacts() {
   db.ref('contacts/' + uid).on('value', function(snap) {
@@ -2191,18 +2194,42 @@ function loadContacts() {
         contactsData[otherUid] = {
           uid: otherUid,
           name: data.name || '?',
-          lastTime: 0
+          lastTime: 0,
+          unreadText: '',
+          unreadColor: 'var(--text-muted-dark)',
+          unreadWeight: 'normal'
         };
         
-        // Listen for last message time changes
         var cId = chatId(uid, otherUid);
-        db.ref('messages/' + cId).limitToLast(1).on('value', function(mSnap) {
+        var msgRef = db.ref('messages/' + cId);
+        
+        contactListeners[otherUid] = msgRef.on('value', function(mSnap) {
+          var lastMsg = null;
+          var unreadCount = 0;
           var lastTime = 0;
-          if (mSnap.exists()) {
-            mSnap.forEach(function(m) { lastTime = m.val().time || 0; });
-          }
+          
+          mSnap.forEach(function(mChild) {
+            var m = mChild.val();
+            if (m.sender !== uid && !m.seen) unreadCount++;
+            lastMsg = m;
+            lastTime = m.time || 0;
+          });
+          
           if (contactsData[otherUid]) {
             contactsData[otherUid].lastTime = lastTime;
+            if (unreadCount > 0) {
+              contactsData[otherUid].unreadText = unreadCount + ' new message' + (unreadCount > 1 ? 's' : '');
+              contactsData[otherUid].unreadColor = 'var(--primary-light)';
+              contactsData[otherUid].unreadWeight = 'bold';
+            } else if (lastMsg && lastMsg.sender === uid) {
+              if (lastMsg.opened) contactsData[otherUid].unreadText = 'Opened 👁';
+              else if (lastMsg.delivered) contactsData[otherUid].unreadText = 'Delivered ✓';
+              else contactsData[otherUid].unreadText = 'Sent ✓';
+              contactsData[otherUid].unreadColor = 'var(--text-muted-dark)';
+              contactsData[otherUid].unreadWeight = 'normal';
+            } else {
+              contactsData[otherUid].unreadText = '';
+            }
             renderSortedContacts();
           }
         });
@@ -2212,9 +2239,13 @@ function loadContacts() {
       }
     });
 
-    // Remove contacts that are no longer in the list
     Object.keys(contactsData).forEach(function(ouid) {
       if (!currentContactUids.includes(ouid)) {
+        if (contactListeners[ouid]) {
+          var cId = chatId(uid, ouid);
+          db.ref('messages/' + cId).off('value', contactListeners[ouid]);
+          delete contactListeners[ouid];
+        }
         delete contactsData[ouid];
       }
     });
@@ -2241,15 +2272,13 @@ function renderSortedContacts() {
       '<div class="avatar">' + escapeHtml(name[0].toUpperCase()) + '</div>' +
       '<div class="contact-info">' +
         '<div class="contact-name">@' + escapeHtml(name) + '</div>' +
-        '<div class="contact-code" id="unread-' + otherUid + '"></div>' +
+        '<div class="contact-code" id="unread-' + otherUid + '" style="color:' + data.unreadColor + '; font-weight:' + data.unreadWeight + '">' + escapeHtml(data.unreadText) + '</div>' +
       '</div>' +
       '<div class="status-dot" id="dot-' + otherUid + '"></div>';
     
-    watchUnread('messages/' + chatId(uid, otherUid), 'unread-' + otherUid);
     item.onclick = function() { openDM(otherUid, name); };
     list.appendChild(item);
     
-    // Update presence dot immediately if already known
     db.ref('presence/' + otherUid).once('value').then(function(pSnap) {
       var dot = document.getElementById('dot-' + otherUid);
       if (dot) dot.className = 'status-dot' + (pSnap.exists() ? ' online' : '');
@@ -2275,10 +2304,12 @@ function loadGroups() {
           id: groupId,
           name: 'Group',
           memberCount: 0,
-          lastTime: 0
+          lastTime: 0,
+          unreadText: '',
+          unreadColor: 'var(--text-muted-dark)',
+          unreadWeight: 'normal'
         };
         
-        // Fetch group details and listen for last message
         db.ref('groups/' + groupId).on('value', function(gSnap) {
           if (!gSnap.exists()) return;
           var g = gSnap.val();
@@ -2290,22 +2321,41 @@ function loadGroups() {
           }
         });
         
-        db.ref('groupMessages/' + groupId).limitToLast(1).on('value', function(mSnap) {
+        var gMsgRef = db.ref('groupMessages/' + groupId);
+        groupListeners[groupId] = gMsgRef.on('value', function(mSnap) {
+          var unreadCount = 0;
           var lastTime = 0;
-          if (mSnap.exists()) {
-            mSnap.forEach(function(m) { lastTime = m.val().time || 0; });
-          }
-          if (groupsData[groupId] && lastTime > 0) {
+          
+          mSnap.forEach(function(mChild) {
+            var m = mChild.val();
+            if (m.sender !== uid && !m.seen) unreadCount++;
+            lastTime = m.time || 0;
+          });
+          
+          if (groupsData[groupId]) {
             groupsData[groupId].lastTime = lastTime;
+            if (unreadCount > 0) {
+              groupsData[groupId].unreadText = unreadCount + ' new message' + (unreadCount > 1 ? 's' : '');
+              groupsData[groupId].unreadColor = 'var(--primary-light)';
+              groupsData[groupId].unreadWeight = 'bold';
+            } else {
+              var mc = groupsData[groupId].memberCount || 0;
+              groupsData[groupId].unreadText = mc + ' member' + (mc !== 1 ? 's' : '');
+              groupsData[groupId].unreadColor = 'var(--text-muted-dark)';
+              groupsData[groupId].unreadWeight = 'normal';
+            }
             renderSortedGroups();
           }
         });
       }
     });
 
-    // Remove groups no longer member of
     Object.keys(groupsData).forEach(function(gid) {
       if (!currentGroupIds.includes(gid)) {
+        if (groupListeners[gid]) {
+          db.ref('groupMessages/' + gid).off('value', groupListeners[gid]);
+          delete groupListeners[gid];
+        }
         delete groupsData[gid];
       }
     });
@@ -2335,12 +2385,11 @@ function renderSortedGroups() {
       '<div class="avatar">' + escapeHtml(g.name[0].toUpperCase()) + '</div>' +
       '<div class="contact-info">' +
         '<div class="contact-name">' + escapeHtml(g.name) + '</div>' +
-        '<div class="contact-code" id="unread-group-' + g.id + '">' + g.memberCount + ' member' + (g.memberCount !== 1 ? 's' : '') + '</div>' +
+        '<div class="contact-code" id="unread-group-' + g.id + '" style="color:' + g.unreadColor + '; font-weight:' + g.unreadWeight + '">' + escapeHtml(g.unreadText) + '</div>' +
       '</div>';
     
     item.onclick = function() { openGroup(g.id, g.name); };
     list.appendChild(item);
-    watchUnread('groupMessages/' + g.id, 'unread-group-' + g.id);
   });
 }
 
