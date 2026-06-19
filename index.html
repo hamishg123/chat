@@ -3337,50 +3337,91 @@ function sendMessage() {
 function sendImage(event) {
   var file = event.target.files[0];
   if (!file || !currentChat) return;
-  
-  // Clear the input so the same file can be selected again if needed
   event.target.value = '';
 
-  // Realtime Database has a 10MB limit per string, but Base64 adds ~33% overhead.
-  // We'll cap it at 1MB to keep the database responsive and avoid performance issues.
-  if (file.size > 1 * 1024 * 1024) {
-    showToast('Image too large for database (max 1MB)');
-    return;
-  }
-
   var progress = document.getElementById('uploadProgress');
-  progress.textContent = 'Processing image...';
   progress.style.display = 'block';
 
+  if (file.size > 1 * 1024 * 1024) {
+    progress.textContent = 'Compressing image...';
+    compressImage(file, 1024 * 1024, function(compressedBase64) {
+      uploadImageData(compressedBase64);
+    });
+  } else {
+    progress.textContent = 'Processing image...';
+    var reader = new FileReader();
+    reader.onload = function(e) {
+      uploadImageData(e.target.result);
+    };
+    reader.readAsDataURL(file);
+  }
+}
+
+function compressImage(file, maxSize, callback) {
   var reader = new FileReader();
   reader.onload = function(e) {
-    var base64Data = e.target.result;
-    var path = currentChatType === 'group' ? 'groupMessages/' + currentChat : 'messages/' + currentChat;
-    var msgRef = db.ref(path).push();
-    
-    msgRef.set({
-      type: 'image',
-      sender: uid,
-      senderName: myUsername || '?',
-      url: encryptMessage(base64Data),
-      time: firebase.database.ServerValue.TIMESTAMP,
-      delivered: true,
-      seen: false,
-      opened: false
-    }).then(function() {
-      showToast('Image sent!');
-      progress.style.display = 'none';
-      sendNotification('Photo sent', { body: 'Image' });
-    }).catch(function(err) {
-      showToast('Failed to send: ' + err.message);
-      progress.style.display = 'none';
-    });
-  };
-  reader.onerror = function() {
-    showToast('Failed to read file');
-    progress.style.display = 'none';
+    var img = new Image();
+    img.onload = function() {
+      var canvas = document.createElement('canvas');
+      var width = img.width;
+      var height = img.height;
+
+      // Initial scaling if image is huge
+      var maxDimension = 1200;
+      if (width > maxDimension || height > maxDimension) {
+        if (width > height) {
+          height *= maxDimension / width;
+          width = maxDimension;
+        } else {
+          width *= maxDimension / height;
+          height = maxDimension;
+        }
+      }
+
+      canvas.width = width;
+      canvas.height = height;
+      var ctx = canvas.getContext('2d');
+      ctx.drawImage(img, 0, 0, width, height);
+
+      // Iterative compression
+      var quality = 0.8;
+      var base64 = canvas.toDataURL('image/jpeg', quality);
+      
+      // If still too large, keep reducing quality
+      while (base64.length > maxSize * 1.3 && quality > 0.1) {
+        quality -= 0.1;
+        base64 = canvas.toDataURL('image/jpeg', quality);
+      }
+      
+      callback(base64);
+    };
+    img.src = e.target.result;
   };
   reader.readAsDataURL(file);
+}
+
+function uploadImageData(base64Data) {
+  var progress = document.getElementById('uploadProgress');
+  var path = currentChatType === 'group' ? 'groupMessages/' + currentChat : 'messages/' + currentChat;
+  var msgRef = db.ref(path).push();
+  
+  msgRef.set({
+    type: 'image',
+    sender: uid,
+    senderName: myUsername || '?',
+    url: encryptMessage(base64Data),
+    time: firebase.database.ServerValue.TIMESTAMP,
+    delivered: true,
+    seen: false,
+    opened: false
+  }).then(function() {
+    showToast('Image sent!');
+    progress.style.display = 'none';
+    sendNotification('Photo sent', { body: 'Image' });
+  }).catch(function(err) {
+    showToast('Failed to send: ' + err.message);
+    progress.style.display = 'none';
+  });
 }
 
 function deleteMsg(key) {
