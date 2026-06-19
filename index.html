@@ -3005,6 +3005,18 @@ function loadMessages(path, isGroup, append = false) {
       if (m.sender !== uid && !m.opened) {
         updates[child.key + '/seen'] = true;
         updates[child.key + '/opened'] = true;
+        updates[child.key + '/openedAt'] = firebase.database.ServerValue.TIMESTAMP;
+      }
+
+      // --- AUTO-DELETE EXPIRED MESSAGES ---
+      // Check if message was opened more than 24 hours ago
+      if (m.openedAt) {
+        var twentyFourHours = 24 * 60 * 60 * 1000;
+        var now = Date.now();
+        if (now - m.openedAt > twentyFourHours) {
+          db.ref(path + '/' + child.key).remove();
+          return; // Skip rendering this message
+        }
       }
     });
 
