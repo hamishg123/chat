@@ -2216,6 +2216,12 @@ var isRecording = false;
 var replyingTo = null;
 var colorPalette = ['#FF6B6B', '#4ECDC4', '#45B7D1', '#FFA07A', '#98D8C8', '#F7DC6F', '#BB8FCE', '#85C1E2'];
 
+// Pagination State
+var messageLimit = 20;
+var isLoadingMore = false;
+var hasMoreMessages = true;
+var firstMessageKey = null;
+
 // Encryption key for AES-256
 var encryptionKey = 'SecureChat2024!';
 
@@ -2948,33 +2954,46 @@ function showChatArea(name) {
 // MESSAGES
 // ──────────────────────────────────────────────────────────────────────────────
 
-function loadMessages(path, isGroup) {
+function loadMessages(path, isGroup, append = false) {
   var box = document.getElementById('messages');
-  box.innerHTML = '';
+  if (!append) {
+    box.innerHTML = '<div id="loadMoreSpinner" style="text-align:center; padding:10px; color:var(--text-muted); font-size:12px;">Loading messages...</div>';
+    messageLimit = 20;
+    hasMoreMessages = true;
+    firstMessageKey = null;
+  }
   
-  var ref = db.ref(path);
+  var ref = db.ref(path).limitToLast(messageLimit);
   var listener = ref.on('value', function(snap) {
     var pathParts = path.split('/');
     var chatIdFromPath = pathParts[pathParts.length - 1];
     if (currentChat !== chatIdFromPath) return;
 
-    // Use a render ID to prevent overlapping render cycles
     var currentRenderId = ++lastRenderId;
     
-    // Clear and re-render
+    // Remember scroll position
+    var oldScrollHeight = box.scrollHeight;
+    var oldScrollTop = box.scrollTop;
+    
     box.innerHTML = '';
     
     var updates = {};
     var messagesToRender = [];
+    var snapCount = 0;
     
     snap.forEach(function(child) {
+      snapCount++;
       var m = child.val();
       m._key = child.key;
       messagesToRender.push(m);
+      if (snapCount === 1) {
+        if (firstMessageKey === m._key) {
+           // No new messages at the top
+        }
+        firstMessageKey = m._key;
+      }
       
       var msgId = chatIdFromPath + '_' + child.key;
-      
-      // Notification logic
       if (m.sender !== uid && !m.opened && !seenMessageIds.has(msgId) && userSettings.notifications) {
         var txt = m.type === 'text' ? decryptMessage(m.text || '') : '[Image]';
         var sender = m.senderName || 'Someone';
@@ -2983,29 +3002,49 @@ function loadMessages(path, isGroup) {
       }
       seenMessageIds.add(msgId);
       
-      // Collect updates to mark as opened
       if (m.sender !== uid && !m.opened) {
         updates[child.key + '/seen'] = true;
         updates[child.key + '/opened'] = true;
       }
     });
 
-    // Render messages
+    // Check if we reached the end
+    if (snapCount < messageLimit) hasMoreMessages = false;
+
     for (var i = 0; i < messagesToRender.length; i++) {
-      // If a newer render has started, stop this one
       if (currentRenderId !== lastRenderId) return;
       renderMessage(messagesToRender[i], isGroup, box);
     }
     
-    box.scrollTop = box.scrollHeight;
+    // Handle scrolling
+    if (!isLoadingMore) {
+      box.scrollTop = box.scrollHeight;
+    } else {
+      // Restore scroll position after loading older messages
+      box.scrollTop = box.scrollTop + (box.scrollHeight - oldScrollHeight);
+      isLoadingMore = false;
+    }
 
-    // Perform database updates after rendering to avoid immediate re-render feedback loop
     if (Object.keys(updates).length > 0) {
       db.ref(path).update(updates);
     }
   });
   messageListeners.push({ ref: ref, listener: listener, event: 'value' });
 }
+
+// Add scroll listener for lazy loading
+document.getElementById('messages').addEventListener('scroll', function() {
+  var box = this;
+  if (box.scrollTop < 50 && !isLoadingMore && hasMoreMessages && currentChat) {
+    isLoadingMore = true;
+    messageLimit += 20;
+    var path = currentChatType === 'group' ? 'groupMessages/' + currentChat : 'messages/' + currentChat;
+    
+    // Re-run listener with new limit
+    clearMessageListeners();
+    loadMessages(path, currentChatType === 'group', true);
+  }
+});
 
 function getMemberColor(memberId) {
   if (!memberColors[memberId]) {
