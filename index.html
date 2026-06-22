@@ -1718,14 +1718,62 @@ input:checked + .toggle-slider:before {
   flex-direction: column;
 }
 
+.remote-mute-indicator {
+  position: absolute;
+  top: 20px;
+  left: 20px;
+  background: rgba(0,0,0,0.5);
+  color: white;
+  padding: 8px 16px;
+  border-radius: 20px;
+  display: none;
+  align-items: center;
+  gap: 8px;
+  z-index: 3002;
+  backdrop-filter: blur(10px);
+}
+
+.remote-mute-indicator.visible {
+  display: flex;
+}
+
 #videoCallOverlay.open {
   display: flex;
 }
 
-#remoteVideo {
+#videoGrid {
+  flex: 1;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 10px;
+  padding: 10px;
+  background: #000;
+  overflow-y: auto;
+}
+
+.remote-video-container {
+  position: relative;
+  background: #111;
+  border-radius: 12px;
+  overflow: hidden;
+  aspect-ratio: 16/9;
+}
+
+.remote-video {
   width: 100%;
   height: 100%;
   object-fit: cover;
+}
+
+.remote-name {
+  position: absolute;
+  bottom: 10px;
+  left: 10px;
+  background: rgba(0,0,0,0.5);
+  color: white;
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-size: 12px;
 }
 
 #localVideo {
@@ -2285,7 +2333,7 @@ input:checked + .toggle-slider:before {
 
 <!-- Video Call Overlay -->
 <div id="videoCallOverlay">
-  <video id="remoteVideo" autoplay playsinline></video>
+  <div id="videoGrid"></div>
   <video id="localVideo" autoplay playsinline muted></video>
   <div class="call-controls">
     <button class="call-btn" onclick="toggleMute()" id="muteBtn">🎤</button>
@@ -2353,10 +2401,11 @@ var firstMessageKey = null;
 var encryptionKey = 'SecureChat2024!';
 
 // WebRTC State
-var peerConnection = null;
+var peerConnections = {}; // Map of uid -> RTCPeerConnection
 var localStream = null;
 var callId = null;
 var isCallActive = false;
+var callType = 'dm'; // 'dm' or 'group'
 var rtcConfig = {
   iceServers: [
     { urls: 'stun:stun.l.google.com:19302' },
@@ -2547,137 +2596,288 @@ function initUser() {
 // ──────────────────────────────────────────────────────────────────────────────
 
 function listenForIncomingCalls() {
+  // DM Calls
   db.ref('calls').on('child_added', function(snap) {
     var call = snap.val();
     if (call.receiver === uid && call.status === 'pending') {
       callId = snap.key;
+      callType = 'dm';
       document.getElementById('callerName').textContent = (call.senderName || 'Someone') + ' is calling...';
       document.getElementById('incomingCallModal').classList.add('open');
-      
-      // Auto-reject after 30s
-      setTimeout(function() {
-        if (!isCallActive && callId === snap.key) rejectCall();
-      }, 30000);
+      setTimeout(() => { if (!isCallActive && callId === snap.key) rejectCall(); }, 30000);
     }
+  });
+
+  // Group Calls
+  db.ref('groupCalls').on('child_added', function(snap) {
+    var call = snap.val();
+    // Check if I am a member of this group
+    db.ref('groupMembers/' + uid + '/' + snap.key).once('value').then(mSnap => {
+      if (mSnap.exists() && call.status === 'active' && call.sender !== uid) {
+        callId = snap.key;
+        callType = 'group';
+        document.getElementById('callerName').textContent = 'Group call in ' + (call.groupName || 'Group');
+        document.getElementById('incomingCallModal').classList.add('open');
+      }
+    });
   });
 }
 
 async function startVideoCall() {
-  if (currentChatType === 'group') {
-    showToast('Video calls not supported in groups yet');
-    return;
+  if (isCallActive) {
+    if (!confirm('End current call and start a new one?')) return;
+    endCall();
   }
   
   callId = currentChat;
+  callType = currentChatType;
   isCallActive = true;
   document.getElementById('videoCallOverlay').classList.add('open');
+  document.getElementById('videoGrid').innerHTML = '';
   
   try {
     localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
     document.getElementById('localVideo').srcObject = localStream;
     
-    peerConnection = new RTCPeerConnection(rtcConfig);
-    localStream.getTracks().forEach(track => peerConnection.addTrack(track, localStream));
-    
-    peerConnection.onicecandidate = e => {
-      if (e.candidate) {
-        db.ref('calls/' + callId + '/candidates/' + uid).push(e.candidate.toJSON());
-      }
-    };
-    
-    peerConnection.ontrack = e => {
-      document.getElementById('remoteVideo').srcObject = e.streams[0];
-    };
-    
-    var offer = await peerConnection.createOffer();
-    await peerConnection.setLocalDescription(offer);
-    
-    await db.ref('calls/' + callId).set({
-      sender: uid,
-      senderName: myUsername,
-      receiver: currentChatUid,
-      status: 'pending',
-      offer: { type: offer.type, sdp: offer.sdp },
-      createdAt: firebase.database.ServerValue.TIMESTAMP
-    });
-    
-    // Listen for answer
-    db.ref('calls/' + callId + '/answer').on('value', async snap => {
-      if (snap.exists() && isCallActive) {
-        var answer = snap.val();
-        await peerConnection.setRemoteDescription(new RTCSessionDescription(answer));
-      }
-    });
-    
-    // Listen for remote ICE candidates
-    db.ref('calls/' + callId + '/candidates/' + currentChatUid).on('child_added', snap => {
-      if (isCallActive) {
-        peerConnection.addIceCandidate(new RTCIceCandidate(snap.val()));
-      }
-    });
-    
-    // Listen for hangup
-    db.ref('calls/' + callId + '/status').on('value', snap => {
-      if (snap.val() === 'ended' || snap.val() === 'rejected') endCall(false);
-    });
-    
+    if (callType === 'dm') {
+      setupPeerConnection(currentChatUid, currentChatName || 'User');
+      var pc = peerConnections[currentChatUid];
+      var offer = await pc.createOffer();
+      await pc.setLocalDescription(offer);
+      
+      await db.ref('calls/' + callId).set({
+        sender: uid,
+        senderName: myUsername,
+        receiver: currentChatUid,
+        status: 'pending',
+        offer: { type: offer.type, sdp: offer.sdp },
+        createdAt: firebase.database.ServerValue.TIMESTAMP,
+        muted: { [uid]: false }
+      });
+      
+      listenToCallSignals(callId, currentChatUid);
+    } else {
+      // Group call
+      await db.ref('groupCalls/' + callId).set({
+        sender: uid,
+        groupName: currentChatName,
+        status: 'active',
+        createdAt: firebase.database.ServerValue.TIMESTAMP
+      });
+      
+      // Notify group members via a special message
+      sendMessage('📞 Started a group video call', true);
+      
+      joinGroupCall();
+    }
   } catch (err) {
     showToast('Could not start call: ' + err.message);
     endCall();
   }
 }
 
+function setupPeerConnection(otherUid, otherName) {
+  if (peerConnections[otherUid]) return;
+
+  var pc = new RTCPeerConnection(rtcConfig);
+  peerConnections[otherUid] = pc;
+
+  localStream.getTracks().forEach(track => pc.addTrack(track, localStream));
+
+  pc.onicecandidate = e => {
+    if (e.candidate) {
+      var path = callType === 'dm' ? 'calls/' + callId : 'groupCalls/' + callId + '/signals/' + uid + '/' + otherUid;
+      db.ref(path + '/candidates/' + uid).push(e.candidate.toJSON());
+    }
+  };
+
+  pc.ontrack = e => {
+    addRemoteVideo(otherUid, otherName, e.streams[0]);
+  };
+
+  pc.onconnectionstatechange = () => {
+    if (pc.connectionState === 'disconnected' || pc.connectionState === 'failed') {
+      removeRemoteVideo(otherUid);
+    }
+  };
+}
+
+function addRemoteVideo(otherUid, name, stream) {
+  if (document.getElementById('video-' + otherUid)) return;
+  
+  var container = document.createElement('div');
+  container.id = 'video-' + otherUid;
+  container.className = 'remote-video-container';
+  
+  var video = document.createElement('video');
+  video.className = 'remote-video';
+  video.autoplay = true;
+  video.playsinline = true;
+  video.srcObject = stream;
+  
+  var nameTag = document.createElement('div');
+  nameTag.className = 'remote-name';
+  nameTag.innerHTML = name + ' <span class="mute-status" style="display:none">🔇</span>';
+  
+  container.appendChild(video);
+  container.appendChild(nameTag);
+  document.getElementById('videoGrid').appendChild(container);
+}
+
+function removeRemoteVideo(otherUid) {
+  var el = document.getElementById('video-' + otherUid);
+  if (el) el.remove();
+  if (peerConnections[otherUid]) {
+    peerConnections[otherUid].close();
+    delete peerConnections[otherUid];
+  }
+}
+
+function listenToCallSignals(cId, otherUid) {
+  var path = callType === 'dm' ? 'calls/' + cId : 'groupCalls/' + cId + '/signals/' + otherUid + '/' + uid;
+  
+  // Listen for answer
+  db.ref(path + '/answer').on('value', async snap => {
+    if (snap.exists() && isCallActive && peerConnections[otherUid]) {
+      await peerConnections[otherUid].setRemoteDescription(new RTCSessionDescription(snap.val()));
+    }
+  });
+
+  // Listen for ICE candidates
+  db.ref(path + '/candidates/' + otherUid).on('child_added', snap => {
+    if (isCallActive && peerConnections[otherUid]) {
+      peerConnections[otherUid].addIceCandidate(new RTCIceCandidate(snap.val()));
+    }
+  });
+
+  // Listen for hangup
+  db.ref('calls/' + cId + '/status').on('value', snap => {
+    if (snap.val() === 'ended' || snap.val() === 'rejected') endCall(false);
+  });
+
+  // Listen for mute
+  db.ref('calls/' + cId + '/muted/' + otherUid).on('value', snap => {
+    var isMuted = snap.val();
+    var el = document.querySelector('#video-' + otherUid + ' .mute-status');
+    if (el) el.style.display = isMuted ? 'inline' : 'none';
+  });
+}
+
 async function acceptCall() {
   document.getElementById('incomingCallModal').classList.remove('open');
+  if (isCallActive) endCall();
+  
   document.getElementById('videoCallOverlay').classList.add('open');
+  document.getElementById('videoGrid').innerHTML = '';
   isCallActive = true;
   
   try {
     localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
     document.getElementById('localVideo').srcObject = localStream;
     
-    peerConnection = new RTCPeerConnection(rtcConfig);
-    localStream.getTracks().forEach(track => peerConnection.addTrack(track, localStream));
-    
-    peerConnection.onicecandidate = e => {
-      if (e.candidate) {
-        db.ref('calls/' + callId + '/candidates/' + uid).push(e.candidate.toJSON());
-      }
-    };
-    
-    peerConnection.ontrack = e => {
-      document.getElementById('remoteVideo').srcObject = e.streams[0];
-    };
-    
-    var snap = await db.ref('calls/' + callId).once('value');
-    var call = snap.val();
-    var otherUid = call.sender;
-    
-    await peerConnection.setRemoteDescription(new RTCSessionDescription(call.offer));
-    var answer = await peerConnection.createAnswer();
-    await peerConnection.setLocalDescription(answer);
-    
-    await db.ref('calls/' + callId).update({
-      status: 'active',
-      answer: { type: answer.type, sdp: answer.sdp }
-    });
-    
-    // Listen for remote ICE candidates
-    db.ref('calls/' + callId + '/candidates/' + otherUid).on('child_added', snap => {
-      if (isCallActive) {
-        peerConnection.addIceCandidate(new RTCIceCandidate(snap.val()));
-      }
-    });
-    
-    // Listen for hangup
-    db.ref('calls/' + callId + '/status').on('value', snap => {
-      if (snap.val() === 'ended') endCall(false);
-    });
-    
+    if (callType === 'dm') {
+      var snap = await db.ref('calls/' + callId).once('value');
+      var call = snap.val();
+      var otherUid = call.sender;
+      
+      setupPeerConnection(otherUid, call.senderName || 'User');
+      var pc = peerConnections[otherUid];
+      
+      await pc.setRemoteDescription(new RTCSessionDescription(call.offer));
+      var answer = await pc.createAnswer();
+      await pc.setLocalDescription(answer);
+      
+      await db.ref('calls/' + callId).update({
+        status: 'active',
+        answer: { type: answer.type, sdp: answer.sdp },
+        [`muted/${uid}`]: false
+      });
+      
+      listenToCallSignals(callId, otherUid);
+    } else {
+      joinGroupCall();
+    }
   } catch (err) {
     showToast('Could not accept call: ' + err.message);
     endCall();
   }
+}
+
+async function joinGroupCall() {
+  // 1. Add myself to participants
+  db.ref('groupCalls/' + callId + '/participants/' + uid).set({
+    name: myUsername,
+    joinedAt: firebase.database.ServerValue.TIMESTAMP,
+    muted: false
+  });
+
+  // 2. Listen for other participants
+  db.ref('groupCalls/' + callId + '/participants').on('child_added', async snap => {
+    var otherUid = snap.key;
+    if (otherUid === uid) return;
+
+    // Create a connection to this participant
+    setupPeerConnection(otherUid, snap.val().name || 'User');
+    
+    // If I joined later, I send the offer
+    var pc = peerConnections[otherUid];
+    var offer = await pc.createOffer();
+    await pc.setLocalDescription(offer);
+    
+    db.ref('groupCalls/' + callId + '/signals/' + uid + '/' + otherUid + '/offer').set({
+      type: offer.type,
+      sdp: offer.sdp
+    });
+
+    // Listen for their answer and candidates
+    listenToGroupSignals(otherUid);
+  });
+
+  // 3. Listen for incoming offers from others
+  db.ref('groupCalls/' + callId + '/signals').on('child_added', snap => {
+    var senderUid = snap.key;
+    if (senderUid === uid) return;
+
+    db.ref('groupCalls/' + callId + '/signals/' + senderUid + '/' + uid + '/offer').on('value', async oSnap => {
+      if (!oSnap.exists()) return;
+      
+      var otherName = 'User';
+      var pSnap = await db.ref('groupCalls/' + callId + '/participants/' + senderUid).once('value');
+      if (pSnap.exists()) otherName = pSnap.val().name;
+
+      setupPeerConnection(senderUid, otherName);
+      var pc = peerConnections[senderUid];
+      
+      await pc.setRemoteDescription(new RTCSessionDescription(oSnap.val()));
+      var answer = await pc.createAnswer();
+      await pc.setLocalDescription(answer);
+      
+      db.ref('groupCalls/' + callId + '/signals/' + uid + '/' + senderUid + '/answer').set({
+        type: answer.type,
+        sdp: answer.sdp
+      });
+      
+      listenToGroupSignals(senderUid);
+    });
+  });
+}
+
+function listenToGroupSignals(otherUid) {
+  var pc = peerConnections[otherUid];
+  
+  // ICE Candidates from them to me
+  db.ref('groupCalls/' + callId + '/signals/' + otherUid + '/' + uid + '/candidates/' + otherUid).on('child_added', snap => {
+    if (isCallActive && peerConnections[otherUid]) {
+      peerConnections[otherUid].addIceCandidate(new RTCIceCandidate(snap.val()));
+    }
+  });
+
+  // Mute status
+  db.ref('groupCalls/' + callId + '/participants/' + otherUid + '/muted').on('value', snap => {
+    var isMuted = snap.val();
+    var el = document.querySelector('#video-' + otherUid + ' .mute-status');
+    if (el) el.style.display = isMuted ? 'inline' : 'none';
+  });
 }
 
 function rejectCall() {
@@ -2689,8 +2889,19 @@ function rejectCall() {
 
 function endCall(notify = true) {
   isCallActive = false;
-  if (notify && callId) {
-    db.ref('calls/' + callId).update({ status: 'ended' });
+  var cId = callId;
+  var cType = callType;
+
+  if (notify && cId) {
+    if (cType === 'dm') {
+      db.ref('calls/' + cId).update({ status: 'ended' });
+    } else {
+      db.ref('groupCalls/' + cId + '/participants/' + uid).remove();
+      // If last participant, remove the call
+      db.ref('groupCalls/' + cId + '/participants').once('value').then(snap => {
+        if (!snap.exists()) db.ref('groupCalls/' + cId).remove();
+      });
+    }
   }
   
   if (localStream) {
@@ -2698,28 +2909,29 @@ function endCall(notify = true) {
     localStream = null;
   }
   
-  if (peerConnection) {
-    peerConnection.close();
-    peerConnection = null;
+  for (var id in peerConnections) {
+    peerConnections[id].close();
   }
+  peerConnections = {};
   
   document.getElementById('videoCallOverlay').classList.remove('open');
-  document.getElementById('remoteVideo').srcObject = null;
+  document.getElementById('videoGrid').innerHTML = '';
   document.getElementById('localVideo').srcObject = null;
   
-  // Cleanup database after a short delay
-  if (callId) {
-    var cid = callId;
-    setTimeout(() => db.ref('calls/' + cid).remove(), 2000);
-    callId = null;
+  if (cType === 'dm' && cId) {
+    setTimeout(() => db.ref('calls/' + cId).remove(), 2000);
   }
+  callId = null;
 }
 
 function toggleMute() {
-  if (localStream) {
+  if (localStream && callId) {
     var audioTrack = localStream.getAudioTracks()[0];
     audioTrack.enabled = !audioTrack.enabled;
     document.getElementById('muteBtn').textContent = audioTrack.enabled ? '🎤' : '🔇';
+    
+    var path = callType === 'dm' ? 'calls/' + callId + '/muted/' + uid : 'groupCalls/' + callId + '/participants/' + uid + '/muted';
+    db.ref(path).set(!audioTrack.enabled);
   }
 }
 
