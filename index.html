@@ -2378,6 +2378,7 @@ var myUsername = '';
 var currentChatUid = null;
 var currentChat = null;
 var currentChatType = null;
+var currentChatName = '';
 var currentGroupId = null;
 var messageListeners = [];
 var typingTimeout = null;
@@ -3425,6 +3426,7 @@ function updateGroupName() {
       return;
     }
     db.ref('groups/' + currentGroupId + '/name').set(newName).then(function() {
+      currentChatName = newName;
       document.getElementById('chatName').textContent = newName;
       closeModal('groupSettingsModal');
       showToast('Group name updated!');
@@ -3450,6 +3452,7 @@ function openDM(otherUid, name) {
 
   document.getElementById('groupSettingsBtn').style.display = 'none';
 
+  currentChatName = name;
   showChatArea(name);
   document.getElementById('chatHeaderAvatar').textContent = name[0].toUpperCase();
   document.getElementById('chatHeaderAvatar').style.background = 'var(--gradient)';
@@ -3473,6 +3476,7 @@ function openGroup(groupId, name) {
 
   document.getElementById('groupSettingsBtn').style.display = 'flex';
 
+  currentChatName = name;
   showChatArea(name);
   document.getElementById('chatHeaderAvatar').textContent = name[0].toUpperCase();
   document.getElementById('chatHeaderAvatar').style.background = 'var(--gradient-alt)';
