@@ -2817,24 +2817,23 @@ async function joinGroupCall() {
     var otherUid = snap.key;
     if (otherUid === uid) return;
 
-    // Create a connection to this participant
-    setupPeerConnection(otherUid, snap.val().name || 'User');
-    
-    // If I joined later, I send the offer
-    var pc = peerConnections[otherUid];
-    var offer = await pc.createOffer();
-    await pc.setLocalDescription(offer);
-    
-    db.ref('groupCalls/' + callId + '/signals/' + uid + '/' + otherUid + '/offer').set({
-      type: offer.type,
-      sdp: offer.sdp
-    });
-
-    // Listen for their answer and candidates
-    listenToGroupSignals(otherUid);
+    // To avoid race conditions where both try to offer, 
+    // we use a simple rule: the user with the "smaller" UID sends the offer.
+    if (uid < otherUid) {
+      setupPeerConnection(otherUid, snap.val().name || 'User');
+      var pc = peerConnections[otherUid];
+      var offer = await pc.createOffer();
+      await pc.setLocalDescription(offer);
+      
+      db.ref('groupCalls/' + callId + '/signals/' + uid + '/' + otherUid + '/offer').set({
+        type: offer.type,
+        sdp: offer.sdp
+      });
+      listenToGroupSignals(otherUid);
+    }
   });
 
-  // 3. Listen for incoming offers from others
+  // 3. Listen for incoming offers (where I am the receiver)
   db.ref('groupCalls/' + callId + '/signals').on('child_added', snap => {
     var senderUid = snap.key;
     if (senderUid === uid) return;
@@ -2849,22 +2848,34 @@ async function joinGroupCall() {
       setupPeerConnection(senderUid, otherName);
       var pc = peerConnections[senderUid];
       
-      await pc.setRemoteDescription(new RTCSessionDescription(oSnap.val()));
-      var answer = await pc.createAnswer();
-      await pc.setLocalDescription(answer);
-      
-      db.ref('groupCalls/' + callId + '/signals/' + uid + '/' + senderUid + '/answer').set({
-        type: answer.type,
-        sdp: answer.sdp
-      });
-      
-      listenToGroupSignals(senderUid);
+      // Only set remote description if we haven't already (or if it's a new offer)
+      if (pc.signalingState !== 'stable' || oSnap.val().sdp !== (pc.remoteDescription && pc.remoteDescription.sdp)) {
+        await pc.setRemoteDescription(new RTCSessionDescription(oSnap.val()));
+        var answer = await pc.createAnswer();
+        await pc.setLocalDescription(answer);
+        
+        db.ref('groupCalls/' + callId + '/signals/' + uid + '/' + senderUid + '/answer').set({
+          type: answer.type,
+          sdp: answer.sdp
+        });
+        listenToGroupSignals(senderUid);
+      }
     });
   });
 }
 
 function listenToGroupSignals(otherUid) {
   var pc = peerConnections[otherUid];
+
+  // Listen for answer (if I was the one who sent the offer)
+  db.ref('groupCalls/' + callId + '/signals/' + otherUid + '/' + uid + '/answer').on('value', async snap => {
+    if (snap.exists() && isCallActive && peerConnections[otherUid]) {
+      var pc = peerConnections[otherUid];
+      if (pc.signalingState === 'have-local-offer') {
+        await pc.setRemoteDescription(new RTCSessionDescription(snap.val()));
+      }
+    }
+  });
   
   // ICE Candidates from them to me
   db.ref('groupCalls/' + callId + '/signals/' + otherUid + '/' + uid + '/candidates/' + otherUid).on('child_added', snap => {
