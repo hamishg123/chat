@@ -2862,6 +2862,16 @@ async function joinGroupCall() {
       }
     });
   });
+
+  // 4. Listen for participants leaving
+  db.ref('groupCalls/' + callId + '/participants').on('child_removed', snap => {
+    var leavingUid = snap.key;
+    if (peerConnections[leavingUid]) {
+      peerConnections[leavingUid].close();
+      delete peerConnections[leavingUid];
+      removeRemoteVideo(leavingUid);
+    }
+  });
 }
 
 function listenToGroupSignals(otherUid) {
@@ -2877,8 +2887,15 @@ function listenToGroupSignals(otherUid) {
     }
   });
   
-  // ICE Candidates from them to me
+  // ICE Candidates from them to me (the sender of candidates)
   db.ref('groupCalls/' + callId + '/signals/' + otherUid + '/' + uid + '/candidates/' + otherUid).on('child_added', snap => {
+    if (isCallActive && peerConnections[otherUid]) {
+      peerConnections[otherUid].addIceCandidate(new RTCIceCandidate(snap.val()));
+    }
+  });
+
+  // Also listen for candidates from them if they are the "receiver" in the signal path
+  db.ref('groupCalls/' + callId + '/signals/' + uid + '/' + otherUid + '/candidates/' + otherUid).on('child_added', snap => {
     if (isCallActive && peerConnections[otherUid]) {
       peerConnections[otherUid].addIceCandidate(new RTCIceCandidate(snap.val()));
     }
@@ -2904,11 +2921,23 @@ function endCall(notify = true) {
   var cId = callId;
   var cType = callType;
 
+  if (cId) {
+    db.ref('calls/' + cId).off();
+    db.ref('groupCalls/' + cId + '/participants').off();
+    db.ref('groupCalls/' + cId + '/signals').off();
+    for (var pid in peerConnections) {
+      db.ref('groupCalls/' + cId + '/signals/' + pid + '/' + uid + '/offer').off();
+      db.ref('groupCalls/' + cId + '/signals/' + pid + '/' + uid + '/answer').off();
+      db.ref('groupCalls/' + cId + '/signals/' + pid + '/' + uid + '/candidates/' + pid).off();
+    }
+  }
+
   if (notify && cId) {
     if (cType === 'dm') {
       db.ref('calls/' + cId).update({ status: 'ended' });
     } else {
       db.ref('groupCalls/' + cId + '/participants/' + uid).remove();
+      db.ref('groupCalls/' + cId + '/signals/' + uid).remove();
       // If last participant, remove the call
       db.ref('groupCalls/' + cId + '/participants').once('value').then(snap => {
         if (!snap.exists()) db.ref('groupCalls/' + cId).remove();
