@@ -1961,6 +1961,134 @@ input:checked + .toggle-slider:before {
   display: flex;
 }
 
+/* ──────────────────────────────────────────────────────────────────────────────
+   PROFILE PAGE
+   ────────────────────────────────────────────────────────────────────────────── */
+
+#profilePage {
+  display: none;
+  flex-direction: column;
+  flex: 1;
+  overflow-y: auto;
+  padding: 24px;
+}
+
+#profilePage.active {
+  display: flex;
+}
+
+.profile-header {
+  display: flex;
+  align-items: flex-start;
+  gap: 24px;
+  margin-bottom: 32px;
+}
+
+.profile-avatar-section {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+}
+
+.profile-avatar-large {
+  width: 120px;
+  height: 120px;
+  border-radius: 16px;
+  background: var(--gradient);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: white;
+  font-size: 48px;
+  font-weight: 600;
+  flex-shrink: 0;
+  border: 3px solid var(--border);
+  overflow: hidden;
+  object-fit: cover;
+}
+
+.profile-avatar-large img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.profile-upload-btn {
+  background: var(--primary);
+  color: white;
+  border: none;
+  padding: 8px 16px;
+  border-radius: 8px;
+  cursor: pointer;
+  font-weight: 600;
+  font-size: 13px;
+  transition: all 0.2s;
+}
+
+.profile-upload-btn:hover {
+  background: var(--primary-light);
+  transform: translateY(-2px);
+}
+
+.profile-info {
+  flex: 1;
+}
+
+.profile-username {
+  font-size: 24px;
+  font-weight: 700;
+  color: var(--text);
+  margin-bottom: 4px;
+}
+
+.profile-subtext {
+  font-size: 14px;
+  color: var(--text-muted);
+  margin-bottom: 16px;
+}
+
+.profile-back-btn {
+  background: var(--surface-light);
+  border: 1px solid var(--border);
+  color: var(--text);
+  padding: 8px 16px;
+  border-radius: 8px;
+  cursor: pointer;
+  font-weight: 600;
+  font-size: 13px;
+  transition: all 0.2s;
+  margin-bottom: 24px;
+}
+
+.profile-back-btn:hover {
+  background: var(--surface-lighter);
+  border-color: var(--primary);
+}
+
+.profile-section {
+  margin-bottom: 24px;
+  padding-bottom: 20px;
+  border-bottom: 1px solid var(--border);
+}
+
+.profile-section:last-child {
+  border-bottom: none;
+}
+
+.profile-section-title {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-bottom: 12px;
+}
+
+#profileUploadInput {
+  display: none;
+}
+
 @media (max-width: 768px) {
   #localVideo {
     width: 90px;
@@ -2025,7 +2153,7 @@ input:checked + .toggle-slider:before {
         </div>
       </div>
 
-    <div id="usernameSection">
+    <div id="usernameSection" style="cursor: pointer;" onclick="openProfile()" title="Click to view your profile">
       <div id="usernameDisplay">@loading</div>
       <div id="usernameSubtext">Your permanent username</div>
     </div>
@@ -2194,6 +2322,28 @@ input:checked + .toggle-slider:before {
           </div>
         </div>
       </div>
+    <!-- Profile Page -->
+    <div id="profilePage">
+      <button class="profile-back-btn" onclick="goBackToContacts()">← Back</button>
+      
+      <div class="profile-header">
+        <div class="profile-avatar-section">
+          <div class="profile-avatar-large" id="profileAvatarDisplay">U</div>
+          <button class="profile-upload-btn" id="profileUploadBtnVisible" onclick="document.getElementById('profileUploadInput').click()">📸 Upload Photo</button>
+          <input type="file" id="profileUploadInput" accept="image/*" onchange="uploadProfileImage(event)">
+        </div>
+        <div class="profile-info">
+          <div class="profile-username" id="profileUsername">@username</div>
+          <div class="profile-subtext">Your profile</div>
+        </div>
+      </div>
+
+      <div class="profile-section">
+        <div class="profile-section-title">📸 Profile Photo</div>
+        <p style="font-size: 14px; color: var(--text-muted); margin: 0;">Upload a profile picture to personalize your account. Simple and easy!</p>
+      </div>
+    </div>
+
     </div>
 
     <div id="chatMain" style="display:none; flex-direction:column; flex:1; overflow:hidden;">
@@ -4795,6 +4945,95 @@ setTimeout(function() {
 	    }
 	  }
 	}, 100);
+
+// ──────────────────────────────────────────────────────────────────────────────
+// PROFILE PAGE
+// ──────────────────────────────────────────────────────────────────────────────
+
+function openProfile() {
+  // Clear any active chats
+  clearMessageListeners();
+  currentChatUid = null;
+  currentChat = null;
+  currentChatType = null;
+  currentGroupId = null;
+  
+  // Remove active state from all contacts and groups
+  document.querySelectorAll('.contact-item, .group-item').forEach(function(el) {
+    el.classList.remove('active');
+  });
+  
+  // Hide other pages
+  document.getElementById('chatMain').style.display = 'none';
+  document.getElementById('emptyState').style.display = 'none';
+  document.getElementById('settingsPage').style.display = 'none';
+  
+  // Show profile page
+  document.getElementById('profilePage').classList.add('active');
+  
+  // Load profile data
+  loadProfileData();
+  
+  if (window.innerWidth <= 768) hideSidebar();
+}
+
+function loadProfileData() {
+  if (!uid) return;
+  
+  // Update username
+  document.getElementById('profileUsername').textContent = '@' + (myUsername || 'User');
+  document.getElementById('profileAvatarDisplay').textContent = (myUsername || 'U')[0].toUpperCase();
+  
+  // Load profile image from database
+  db.ref('users/' + uid + '/profileImage').once('value').then(function(snap) {
+    if (snap.exists()) {
+      var profileImage = snap.val();
+      var avatarEl = document.getElementById('profileAvatarDisplay');
+      
+      // Clear text content and show image
+      avatarEl.textContent = '';
+      avatarEl.innerHTML = '<img src="' + profileImage + '" alt="Profile">';
+    }
+  });
+}
+
+function uploadProfileImage(event) {
+  var file = event.target.files[0];
+  if (!file || !uid) return;
+  event.target.value = '';
+  
+  var progress = document.getElementById('uploadProgress');
+  progress.style.display = 'block';
+  progress.textContent = 'Uploading profile photo...';
+  
+  if (file.size > 2 * 1024 * 1024) {
+    progress.textContent = 'Compressing image...';
+    compressImage(file, 2 * 1024 * 1024, function(compressedBase64) {
+      saveProfileImage(compressedBase64);
+    });
+  } else {
+    progress.textContent = 'Processing image...';
+    var reader = new FileReader();
+    reader.onload = function(e) {
+      saveProfileImage(e.target.result);
+    };
+    reader.readAsDataURL(file);
+  }
+}
+
+function saveProfileImage(base64Data) {
+  var progress = document.getElementById('uploadProgress');
+  
+  db.ref('users/' + uid + '/profileImage').set(base64Data).then(function() {
+    showToast('Profile photo updated!');
+    progress.style.display = 'none';
+    loadProfileData();
+  }).catch(function(err) {
+    showToast('Failed to upload: ' + err.message);
+    progress.style.display = 'none';
+  });
+}
+
 	</script>
 	</body>
 	</html>
