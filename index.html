@@ -5,7 +5,82 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>SecureChat</title>
 <!-- Firebase v8 -->
-<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js">
+function updateProfilePic(event) {
+  var file = event.target.files[0];
+  if (!file) return;
+  
+  if (file.size > 500 * 1024) {
+    showToast('Image too large. Please use an image under 500KB.');
+    return;
+  }
+
+  var reader = new FileReader();
+  reader.onload = function(e) {
+    var base64 = e.target.result;
+    document.getElementById('settingsProfilePic').style.backgroundImage = 'url(' + base64 + ')';
+    document.getElementById('settingsProfilePic').style.backgroundSize = 'cover';
+    document.getElementById('settingsProfilePic').textContent = '';
+    // We'll save it when they click Save Profile
+  };
+  reader.readAsDataURL(file);
+}
+
+function saveProfile() {
+  var displayName = document.getElementById('displayNameInput').value.trim();
+  var bio = document.getElementById('bioInput').value.trim();
+  var picStyle = document.getElementById('settingsProfilePic').style.backgroundImage;
+  var base64 = '';
+  
+  if (picStyle && picStyle.startsWith('url("data:image')) {
+    base64 = picStyle.slice(5, -2);
+  }
+
+  var updates = {};
+  updates['users/' + uid + '/displayName'] = displayName;
+  updates['users/' + uid + '/bio'] = bio;
+  if (base64) updates['users/' + uid + '/profilePic'] = base64;
+
+  db.ref().update(updates).then(function() {
+    showToast('Profile updated!');
+    // Update local state if needed
+    initUser();
+  }).catch(function(err) {
+    showToast('Error saving profile: ' + err.message);
+  });
+}
+
+function viewUserProfile(otherUid) {
+  db.ref('users/' + otherUid).once('value').then(function(snap) {
+    if (!snap.exists()) return;
+    var data = snap.val();
+    
+    var picEl = document.getElementById('viewProfilePic');
+    if (data.profilePic) {
+      picEl.style.backgroundImage = 'url(' + data.profilePic + ')';
+      picEl.style.backgroundSize = 'cover';
+      picEl.textContent = '';
+    } else {
+      picEl.style.backgroundImage = 'none';
+      picEl.textContent = (data.displayName || data.username || '?')[0].toUpperCase();
+    }
+    
+    document.getElementById('viewProfileName').textContent = data.displayName || data.username || 'User';
+    document.getElementById('viewProfileUsername').textContent = '@' + (data.username || 'unknown');
+    document.getElementById('viewProfileBio').textContent = data.bio || 'No bio yet.';
+    
+    openModal('profileViewModal');
+  });
+}
+
+
+function viewCurrentChatProfile() {
+  if (currentChatType === 'dm' && currentChatUid) {
+    viewUserProfile(currentChatUid);
+  }
+}
+
+</script>
 <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js"></script>
 <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
 <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-storage.js"></script>
@@ -2062,7 +2137,30 @@ input:checked + .toggle-slider:before {
         </div>
       </div>
 
-      <!-- Theme Section -->
+      
+      <!-- Profile Section -->
+      <div class="settings-section">
+        <div class="settings-section-title">👤 Profile</div>
+        <div class="settings-item" style="flex-direction: column; align-items: flex-start; gap: 16px;">
+          <div style="display: flex; align-items: center; gap: 16px; width: 100%;">
+            <div id="settingsProfilePic" class="avatar" style="width: 80px; height: 80px; font-size: 32px; cursor: pointer; position: relative; overflow: hidden;" onclick="document.getElementById('profilePicUpload').click()">
+              ?
+              <div style="position: absolute; bottom: 0; left: 0; right: 0; background: rgba(0,0,0,0.5); color: white; font-size: 10px; padding: 2px 0; text-align: center;">Change</div>
+            </div>
+            <input type="file" id="profilePicUpload" accept="image/*" style="display: none;" onchange="updateProfilePic(event)">
+            <div style="flex: 1;">
+              <div class="settings-label">Display Name</div>
+              <input type="text" id="displayNameInput" placeholder="Your display name" style="margin-bottom: 0; margin-top: 8px;">
+            </div>
+          </div>
+          <div style="width: 100%;">
+            <div class="settings-label">Bio</div>
+            <textarea id="bioInput" placeholder="Tell us about yourself..." rows="3" style="width: 100%; background: var(--surface-light); border: 1.5px solid var(--border); color: var(--text); padding: 12px; border-radius: 10px; font-size: 14px; font-family: inherit; resize: none; margin-top: 8px;"></textarea>
+          </div>
+          <button class="action-btn" onclick="saveProfile()">Save Profile</button>
+        </div>
+      </div>
+<!-- Theme Section -->
       <div class="settings-section">
         <div class="settings-section-title">🎨 Appearance</div>
         <div class="settings-item">
@@ -2199,7 +2297,7 @@ input:checked + .toggle-slider:before {
     <div id="chatMain" style="display:none; flex-direction:column; flex:1; overflow:hidden;">
       <div id="chatHeader">
         <button id="backBtn" onclick="goBackToContacts()" title="Back to contacts">←</button>
-        <div id="chatHeaderAvatar">?</div>
+        <div id="chatHeaderAvatar" onclick="viewCurrentChatProfile()" style="cursor:pointer">?</div>
         <div id="chatHeaderInfo">
           <div id="chatName">Chat</div>
           <div id="chatSubtitle"></div>
@@ -2327,7 +2425,30 @@ input:checked + .toggle-slider:before {
       <button onclick="closeModal('settingsModal')" style="background:none; border:none; font-size:24px; cursor:pointer; color:var(--text);">✕</button>
     </div>
     <div style="padding:24px; overflow-y:auto; max-height:calc(90vh - 70px);">
-      <!-- Theme Section -->
+      
+      <!-- Profile Section -->
+      <div class="settings-section">
+        <div class="settings-section-title">👤 Profile</div>
+        <div class="settings-item" style="flex-direction: column; align-items: flex-start; gap: 16px;">
+          <div style="display: flex; align-items: center; gap: 16px; width: 100%;">
+            <div id="settingsProfilePic" class="avatar" style="width: 80px; height: 80px; font-size: 32px; cursor: pointer; position: relative; overflow: hidden;" onclick="document.getElementById('profilePicUpload').click()">
+              ?
+              <div style="position: absolute; bottom: 0; left: 0; right: 0; background: rgba(0,0,0,0.5); color: white; font-size: 10px; padding: 2px 0; text-align: center;">Change</div>
+            </div>
+            <input type="file" id="profilePicUpload" accept="image/*" style="display: none;" onchange="updateProfilePic(event)">
+            <div style="flex: 1;">
+              <div class="settings-label">Display Name</div>
+              <input type="text" id="displayNameInput" placeholder="Your display name" style="margin-bottom: 0; margin-top: 8px;">
+            </div>
+          </div>
+          <div style="width: 100%;">
+            <div class="settings-label">Bio</div>
+            <textarea id="bioInput" placeholder="Tell us about yourself..." rows="3" style="width: 100%; background: var(--surface-light); border: 1.5px solid var(--border); color: var(--text); padding: 12px; border-radius: 10px; font-size: 14px; font-family: inherit; resize: none; margin-top: 8px;"></textarea>
+          </div>
+          <button class="action-btn" onclick="saveProfile()">Save Profile</button>
+        </div>
+      </div>
+<!-- Theme Section -->
       <div class="settings-section">
         <div class="settings-section-title">🎨 Appearance</div>
         <div class="settings-item">
@@ -2717,6 +2838,13 @@ function initUser() {
     if (!snap.exists()) return;
     var data = snap.val();
     myUsername = data.username || '';
+    document.getElementById('displayNameInput').value = data.displayName || '';
+    document.getElementById('bioInput').value = data.bio || '';
+    if (data.profilePic) {
+      document.getElementById('settingsProfilePic').style.backgroundImage = 'url(' + data.profilePic + ')';
+      document.getElementById('settingsProfilePic').style.backgroundSize = 'cover';
+      document.getElementById('settingsProfilePic').textContent = '';
+    }
     updateUsernameDisplay();
     setupPresence();
     loadContacts();
@@ -3248,7 +3376,11 @@ function renderSortedContacts(contacts) {
     item.className = 'contact-item' + (currentChatUid === otherUid && currentChatType === 'dm' ? ' active' : '');
     item.id = 'contact-' + otherUid;
     item.innerHTML =
-      '<div class="avatar">' + escapeHtml(name[0].toUpperCase()) + '</div>' +
+      (function() {
+      // We need to fetch the profile pic for each contact. 
+      // Since this is called in a loop, we'll check if we have it in a cache or just use the default first.
+      return '<div class="avatar" id="avatar-' + otherUid + '">' + escapeHtml(name[0].toUpperCase()) + '</div>';
+    })() +
       '<div class="contact-info">' +
         '<div class="contact-name">@' + escapeHtml(name) + '</div>' +
         '<div class="contact-code" id="unread-' + otherUid + '"></div>' +
@@ -3258,7 +3390,24 @@ function renderSortedContacts(contacts) {
     watchUnread('messages/' + chatId(uid, otherUid), 'unread-' + otherUid);
     item.onclick = function() { openDM(otherUid, name); };
     list.appendChild(item);
-    watchPresence(otherUid);
+        watchPresence(otherUid);
+    // Fetch profile pic for contact
+    db.ref('users/' + otherUid + '/profilePic').once('value').then(function(pSnap) {
+      if (pSnap.exists()) {
+        var avEl = document.getElementById('avatar-' + otherUid);
+        if (avEl) {
+          avEl.style.backgroundImage = 'url(' + pSnap.val() + ')';
+          avEl.style.backgroundSize = 'cover';
+          avEl.textContent = '';
+        }
+      }
+    });
+    // Add click listener to avatar to view profile
+    var avEl = item.querySelector('.avatar');
+    avEl.onclick = function(e) {
+      e.stopPropagation();
+      viewUserProfile(otherUid);
+    };
   });
 }
 
@@ -3689,7 +3838,15 @@ function updateGroupName() {
 // OPEN CHAT
 // ──────────────────────────────────────────────────────────────────────────────
 
-function openDM(otherUid, name) {
+function openDM(otherUid, name) {\n    document.getElementById('chatHeaderAvatar').textContent = name[0].toUpperCase();
+    document.getElementById('chatHeaderAvatar').style.backgroundImage = 'none';
+    db.ref('users/' + otherUid + '/profilePic').once('value').then(function(pSnap) {
+      if (pSnap.exists()) {
+        document.getElementById('chatHeaderAvatar').style.backgroundImage = 'url(' + pSnap.val() + ')';
+        document.getElementById('chatHeaderAvatar').style.backgroundSize = 'cover';
+        document.getElementById('chatHeaderAvatar').textContent = '';
+      }
+    });
   clearMessageListeners();
   currentChatUid = otherUid;
   currentChat = chatId(uid, otherUid);
@@ -4796,5 +4953,22 @@ setTimeout(function() {
 	  }
 	}, 100);
 	</script>
-	</body>
+	
+<!-- Profile View Modal -->
+<div class="modal-overlay" id="profileViewModal">
+  <div class="modal" style="width: 400px; text-align: center;">
+    <div id="viewProfilePic" class="avatar" style="width: 120px; height: 120px; font-size: 48px; margin: 0 auto 20px;">?</div>
+    <h3 id="viewProfileName">Username</h3>
+    <p id="viewProfileUsername" style="color: var(--primary); font-weight: 600; margin-bottom: 16px;">@username</p>
+    <div style="background: var(--surface-light); padding: 16px; border-radius: 12px; margin-bottom: 24px; text-align: left;">
+      <div style="font-size: 11px; text-transform: uppercase; color: var(--text-muted-dark); margin-bottom: 8px; font-weight: 700;">Bio</div>
+      <div id="viewProfileBio" style="font-size: 14px; line-height: 1.5; color: var(--text);">No bio yet.</div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn-secondary" onclick="closeModal('profileViewModal')" style="width: 100%;">Close</button>
+    </div>
+  </div>
+</div>
+
+</body>
 	</html>
