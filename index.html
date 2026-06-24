@@ -1243,6 +1243,126 @@ body {
   gap: 8px;
 }
 
+/* Improved Add Contact Modal Styles */
+.suggestions-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin: 16px 0 8px;
+  font-size: 13px;
+  color: var(--text-muted);
+}
+
+.suggestions-list {
+  background: var(--surface-light);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  max-height: 300px;
+  overflow-y: auto;
+  margin-bottom: 16px;
+}
+
+.suggestion-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px;
+  border-bottom: 1px solid var(--border);
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.suggestion-item:last-child {
+  border-bottom: none;
+}
+
+.suggestion-item:hover {
+  background: var(--surface-lighter);
+}
+
+.suggestion-user {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.suggestion-avatar {
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  background: var(--gradient);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: white;
+  font-weight: 600;
+  font-size: 14px;
+  flex-shrink: 0;
+}
+
+.suggestion-info {
+  min-width: 0;
+}
+
+.suggestion-name {
+  font-weight: 600;
+  font-size: 14px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: var(--text);
+}
+
+.suggestion-mutual {
+  font-size: 11px;
+  color: var(--text-muted-dark);
+}
+
+.suggestion-add-btn {
+  background: var(--primary);
+  color: white;
+  border: none;
+  padding: 4px 10px;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.suggestion-add-btn:hover {
+  background: var(--primary-light);
+  transform: scale(1.05);
+}
+
+.search-container {
+  position: relative;
+  margin-bottom: 12px;
+}
+
+.search-container input {
+  padding-left: 36px !important;
+  margin-bottom: 0 !important;
+}
+
+.search-icon {
+  position: absolute;
+  left: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--text-muted-dark);
+  font-size: 14px;
+  pointer-events: none;
+}
+
+.loading-spinner {
+  padding: 20px;
+  text-align: center;
+  color: var(--text-muted-dark);
+  font-size: 13px;
+}
+
 .btn-primary, .btn-secondary {
   flex: 1;
   padding: 10px;
@@ -2132,15 +2252,28 @@ input:checked + .toggle-slider:before {
 
 <!-- Add Contact Modal -->
 <div class="modal-overlay" id="addContactModal">
-  <div class="modal">
+  <div class="modal" style="width: 450px;">
     <h3>Add Contact</h3>
-    <p>Search for friends by their username</p>
-    <input type="text" id="addUsernameInput" placeholder="e.g. @joe" autocomplete="off"
-      onkeydown="if(event.key==='Enter')addContact()">
+    <p>Find new friends and see who you have in common</p>
+    
+    <div class="search-container">
+      <span class="search-icon">🔍</span>
+      <input type="text" id="addUsernameInput" placeholder="Search by username..." autocomplete="off"
+        oninput="filterSuggestions()">
+    </div>
+
+    <div class="suggestions-header">
+      <span id="suggestionsCount">Loading people...</span>
+      <span>Mutual Friends</span>
+    </div>
+
+    <div class="suggestions-list" id="suggestionsList">
+      <div class="loading-spinner">Searching for accounts...</div>
+    </div>
+
     <div class="modal-error" id="addContactError"></div>
     <div class="modal-actions">
-      <button class="btn-secondary" onclick="closeModal('addContactModal')">Cancel</button>
-      <button class="btn-primary" onclick="addContact()">✓ Add</button>
+      <button class="btn-secondary" onclick="closeModal('addContactModal')" style="flex: none; width: 100px;">Close</button>
     </div>
   </div>
 </div>
@@ -3188,54 +3321,122 @@ function watchUnread(path, elementId) {
   });
 }
 
+var allPotentialContacts = [];
+
 function openAddContactModal() {
   document.getElementById('addUsernameInput').value = '';
   document.getElementById('addContactError').style.display = 'none';
+  document.getElementById('suggestionsList').innerHTML = '<div class="loading-spinner">Searching for accounts...</div>';
+  document.getElementById('suggestionsCount').textContent = 'Loading people...';
   openModal('addContactModal');
+  loadPotentialContacts();
 }
 
-function addContact() {
-  var username = document.getElementById('addUsernameInput').value.trim().toLowerCase();
-  var errEl = document.getElementById('addContactError');
-  errEl.style.display = 'none';
-
-  if (!username) {
-    errEl.textContent = 'Please enter a username';
-    errEl.style.display = 'block';
-    return;
-  }
-
-  if (username.startsWith('@')) username = username.substring(1);
-
-  if (username === myUsername.toLowerCase()) {
-    errEl.textContent = "That's your own username!";
-    errEl.style.display = 'block';
-    return;
-  }
-
-  db.ref('usernames/' + username).once('value').then(function(snap) {
-    if (!snap.exists()) {
-      errEl.textContent = 'User not found';
-      errEl.style.display = 'block';
-      return;
+async function loadPotentialContacts() {
+  try {
+    // Get my current contacts to exclude them
+    const myContactsSnap = await db.ref('contacts/' + uid).once('value');
+    const myContactIds = new Set();
+    if (myContactsSnap.exists()) {
+      myContactsSnap.forEach(child => { myContactIds.add(child.key); });
     }
-    var otherUid = snap.val().uid;
-    db.ref('contacts/' + uid + '/' + otherUid).once('value').then(function(existing) {
-      if (existing.exists()) {
-        errEl.textContent = 'Already a contact';
-        errEl.style.display = 'block';
-        return;
+
+    // Get all users
+    const usersSnap = await db.ref('users').once('value');
+    const suggestions = [];
+    
+    if (usersSnap.exists()) {
+      const usersData = usersSnap.val();
+      const userIds = Object.keys(usersData);
+      
+      for (const otherUid of userIds) {
+        if (otherUid === uid || myContactIds.has(otherUid)) continue;
+        
+        const otherUser = usersData[otherUid];
+        
+        // Calculate mutual friends
+        const otherContactsSnap = await db.ref('contacts/' + otherUid).once('value');
+        let mutualCount = 0;
+        if (otherContactsSnap.exists()) {
+          otherContactsSnap.forEach(child => {
+            if (myContactIds.has(child.key)) mutualCount++;
+          });
+        }
+        
+        suggestions.push({
+          uid: otherUid,
+          username: otherUser.username || 'Unknown',
+          mutualCount: mutualCount
+        });
       }
-      db.ref('users/' + otherUid).once('value').then(function(userSnap) {
-        var userData = userSnap.val() || {};
-        var name = userData.username || username;
-        db.ref('contacts/' + uid + '/' + otherUid).set({ name: name });
-        db.ref('contacts/' + otherUid + '/' + uid).set({ name: myUsername });
-        closeModal('addContactModal');
-        showToast('Contact added!');
-      });
-    });
+    }
+    
+    // Sort by mutual friends descending
+    suggestions.sort((a, b) => b.mutualCount - a.mutualCount);
+    allPotentialContacts = suggestions;
+    renderSuggestions(suggestions);
+    
+  } catch (error) {
+    console.error("Error loading suggestions:", error);
+    document.getElementById('suggestionsList').innerHTML = '<div class="loading-spinner" style="color:var(--danger)">Failed to load accounts</div>';
+  }
+}
+
+function renderSuggestions(suggestions) {
+  const list = document.getElementById('suggestionsList');
+  const countEl = document.getElementById('suggestionsCount');
+  list.innerHTML = '';
+  
+  if (suggestions.length === 0) {
+    list.innerHTML = '<div class="loading-spinner">No accounts found</div>';
+    countEl.textContent = '0 accounts';
+    return;
+  }
+  
+  countEl.textContent = suggestions.length + ' account' + (suggestions.length === 1 ? '' : 's');
+  
+  suggestions.forEach(person => {
+    const item = document.createElement('div');
+    item.className = 'suggestion-item';
+    item.innerHTML = `
+      <div class="suggestion-user">
+        <div class="suggestion-avatar">${escapeHtml(person.username[0].toUpperCase())}</div>
+        <div class="suggestion-info">
+          <div class="suggestion-name">@${escapeHtml(person.username)}</div>
+          <div class="suggestion-mutual">${person.mutualCount} mutual friend${person.mutualCount === 1 ? '' : 's'}</div>
+        </div>
+      </div>
+      <button class="suggestion-add-btn" onclick="addContactById('${person.uid}', '${escapeHtml(person.username)}')">Add</button>
+    `;
+    list.appendChild(item);
   });
+}
+
+function filterSuggestions() {
+  const query = document.getElementById('addUsernameInput').value.trim().toLowerCase();
+  if (!query) {
+    renderSuggestions(allPotentialContacts);
+    return;
+  }
+  
+  const filtered = allPotentialContacts.filter(p => 
+    p.username.toLowerCase().includes(query)
+  );
+  renderSuggestions(filtered);
+}
+
+function addContactById(otherUid, otherUsername) {
+  const errEl = document.getElementById('addContactError');
+  errEl.style.display = 'none';
+  
+  db.ref('contacts/' + uid + '/' + otherUid).set({ name: otherUsername });
+  db.ref('contacts/' + otherUid + '/' + uid).set({ name: myUsername });
+  
+  showToast('Contact added!');
+  
+  // Update local lists
+  allPotentialContacts = allPotentialContacts.filter(p => p.uid !== otherUid);
+  filterSuggestions(); // Re-render with current search query
 }
 
 // ──────────────────────────────────────────────────────────────────────────────
