@@ -2837,29 +2837,14 @@ async function joinGroupCall() {
   db.ref('groupCalls/' + callId + '/signals').on('child_added', snap => {
     var senderUid = snap.key;
     if (senderUid === uid) return;
+    handleIncomingGroupSignals(senderUid);
+  });
 
-    db.ref('groupCalls/' + callId + '/signals/' + senderUid + '/' + uid + '/offer').on('value', async oSnap => {
-      if (!oSnap.exists()) return;
-      
-      var otherName = 'User';
-      var pSnap = await db.ref('groupCalls/' + callId + '/participants/' + senderUid).once('value');
-      if (pSnap.exists()) otherName = pSnap.val().name;
-
-      setupPeerConnection(senderUid, otherName);
-      var pc = peerConnections[senderUid];
-      
-      // Only set remote description if we haven't already (or if it's a new offer)
-      if (pc.signalingState !== 'stable' || oSnap.val().sdp !== (pc.remoteDescription && pc.remoteDescription.sdp)) {
-        await pc.setRemoteDescription(new RTCSessionDescription(oSnap.val()));
-        var answer = await pc.createAnswer();
-        await pc.setLocalDescription(answer);
-        
-        db.ref('groupCalls/' + callId + '/signals/' + uid + '/' + senderUid + '/answer').set({
-          type: answer.type,
-          sdp: answer.sdp
-        });
-        listenToGroupSignals(senderUid);
-      }
+  // Also check existing signals in case they were added before we started listening
+  db.ref('groupCalls/' + callId + '/signals').once('value').then(snap => {
+    snap.forEach(child => {
+      var senderUid = child.key;
+      if (senderUid !== uid) handleIncomingGroupSignals(senderUid);
     });
   });
 
@@ -2870,6 +2855,31 @@ async function joinGroupCall() {
       peerConnections[leavingUid].close();
       delete peerConnections[leavingUid];
       removeRemoteVideo(leavingUid);
+    }
+  });
+}
+
+async function handleIncomingGroupSignals(senderUid) {
+  db.ref('groupCalls/' + callId + '/signals/' + senderUid + '/' + uid + '/offer').on('value', async oSnap => {
+    if (!oSnap.exists()) return;
+    
+    var otherName = 'User';
+    var pSnap = await db.ref('groupCalls/' + callId + '/participants/' + senderUid).once('value');
+    if (pSnap.exists()) otherName = pSnap.val().name;
+
+    setupPeerConnection(senderUid, otherName);
+    var pc = peerConnections[senderUid];
+    
+    if (pc.signalingState !== 'stable' || oSnap.val().sdp !== (pc.remoteDescription && pc.remoteDescription.sdp)) {
+      await pc.setRemoteDescription(new RTCSessionDescription(oSnap.val()));
+      var answer = await pc.createAnswer();
+      await pc.setLocalDescription(answer);
+      
+      db.ref('groupCalls/' + callId + '/signals/' + uid + '/' + senderUid + '/answer').set({
+        type: answer.type,
+        sdp: answer.sdp
+      });
+      listenToGroupSignals(senderUid);
     }
   });
 }
