@@ -1973,9 +1973,7 @@ input:checked + .toggle-slider:before {
   padding: 24px;
 }
 
-#profilePage.active {
-  display: flex;
-}
+
 
 .profile-header {
   display: flex;
@@ -2172,7 +2170,7 @@ input:checked + .toggle-slider:before {
     </div>
   </div>
 
-  <!-- Chat Area -->
+      <!-- Chat Area -->
   <div id="chatArea">
     <div id="emptyState">
       <div class="icon">💬</div>
@@ -2322,8 +2320,10 @@ input:checked + .toggle-slider:before {
           </div>
         </div>
       </div>
+    </div>
+
     <!-- Profile Page -->
-    <div id="profilePage">
+    <div id="profilePage" style="display:none; flex-direction:column; flex:1; overflow-y:auto; padding:24px;">
       <button class="profile-back-btn" onclick="goBackToContacts()">← Back</button>
       
       <div class="profile-header">
@@ -2342,8 +2342,6 @@ input:checked + .toggle-slider:before {
         <div class="profile-section-title">📸 Profile Photo</div>
         <p style="font-size: 14px; color: var(--text-muted); margin: 0;">Upload a profile picture to personalize your account. Simple and easy!</p>
       </div>
-    </div>
-
     </div>
 
     <div id="chatMain" style="display:none; flex-direction:column; flex:1; overflow:hidden;">
@@ -2383,7 +2381,6 @@ input:checked + .toggle-slider:before {
   </div>
 
 </div>
-
 <!-- Camera Modal -->
 <div class="modal-overlay" id="cameraModal">
   <div class="modal">
@@ -3890,6 +3887,7 @@ function openGroup(groupId, name) {
 function showChatArea(name) {
   // Hide settings page and empty state
   document.getElementById('settingsPage').style.display = 'none';
+  document.getElementById('profilePage').style.display = 'none';
   document.getElementById('emptyState').style.display = 'none';
   // Show chat
   document.getElementById('chatMain').style.display = 'flex';
@@ -4507,6 +4505,8 @@ function goBackToContacts() {
   
   // Hide chat area and show empty state
   document.getElementById('chatMain').style.display = 'none';
+  document.getElementById('profilePage').style.display = 'none';
+  document.getElementById('settingsPage').style.display = 'none';
   document.getElementById('emptyState').style.display = 'flex';
   
   // Remove active state from all contacts and groups
@@ -4753,6 +4753,7 @@ function openSettings() {
   
   // Show settings page (both mobile and desktop)
   document.getElementById('chatMain').style.display = 'none';
+  document.getElementById('profilePage').style.display = 'none';
   document.getElementById('emptyState').style.display = 'none';
   document.getElementById('settingsPage').style.display = 'flex';
   
@@ -4969,7 +4970,7 @@ function openProfile() {
   document.getElementById('settingsPage').style.display = 'none';
   
   // Show profile page
-  document.getElementById('profilePage').classList.add('active');
+  document.getElementById('profilePage').style.display = 'flex';
   
   // Load profile data
   loadProfileData();
