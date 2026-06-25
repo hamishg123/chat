@@ -230,10 +230,31 @@ function initUser() {
     var data = snap.val();
     myUsername = data.username || '';
     updateUsernameDisplay();
+    initializeProfileAvatar();
     setupPresence();
     loadContacts();
     loadGroups();
     listenForIncomingCalls();
+  });
+}
+
+function initializeProfileAvatar() {
+  if (!uid) return;
+  var avatarEl = document.getElementById('usernameDisplay');
+  if (!avatarEl) return;
+  
+  // Set initial avatar with first letter
+  var firstLetter = (myUsername || 'U')[0].toUpperCase();
+  avatarEl.innerHTML = firstLetter;
+  
+  // Try to load profile image
+  db.ref('users/' + uid + '/profileImage').once('value').then(function(snap) {
+    if (snap.exists() && avatarEl) {
+      var profileImage = snap.val();
+      avatarEl.innerHTML = '<img src="' + profileImage + '" alt="Profile" style="width:100%; height:100%; border-radius:8px; object-fit:cover;">';
+    }
+  }).catch(function(err) {
+    console.error('Error loading profile image:', err);
   });
 }
 
@@ -2347,19 +2368,32 @@ function loadProfileData() {
   if (!uid) return;
   
   // Update username
-  document.getElementById('profileUsername').textContent = '@' + (myUsername || 'User');
-  document.getElementById('profileAvatarDisplay').textContent = (myUsername || 'U')[0].toUpperCase();
+  var profileUsername = document.getElementById('profileUsername');
+  if (profileUsername) {
+    profileUsername.textContent = '@' + (myUsername || 'User');
+  }
+  
+  var avatarEl = document.getElementById('profileAvatarDisplay');
+  if (!avatarEl) return;
+  
+  // Set initial avatar with first letter
+  var firstLetter = (myUsername || 'U')[0].toUpperCase();
+  avatarEl.textContent = firstLetter;
+  avatarEl.style.display = 'flex';
+  avatarEl.style.alignItems = 'center';
+  avatarEl.style.justifyContent = 'center';
   
   // Load profile image from database
   db.ref('users/' + uid + '/profileImage').once('value').then(function(snap) {
-    if (snap.exists()) {
+    if (snap.exists() && avatarEl) {
       var profileImage = snap.val();
-      var avatarEl = document.getElementById('profileAvatarDisplay');
       
       // Clear text content and show image
       avatarEl.textContent = '';
-      avatarEl.innerHTML = '<img src="' + profileImage + '" alt="Profile">';
+      avatarEl.innerHTML = '<img src="' + profileImage + '" alt="Profile" style="width:100%; height:100%; border-radius:12px; object-fit:cover;">';
     }
+  }).catch(function(err) {
+    console.error('Error loading profile image:', err);
   });
 }
 
@@ -2368,9 +2402,29 @@ function uploadProfileImage(event) {
   if (!file || !uid) return;
   event.target.value = '';
   
+  // Validate file is an image
+  if (!file.type.startsWith('image/')) {
+    showToast('Please select a valid image file');
+    return;
+  }
+  
   var progress = document.getElementById('uploadProgress');
+  if (!progress) {
+    progress = document.createElement('div');
+    progress.id = 'uploadProgress';
+    document.body.appendChild(progress);
+  }
+  
   progress.style.display = 'block';
   progress.textContent = 'Uploading profile photo...';
+  progress.style.position = 'fixed';
+  progress.style.top = '20px';
+  progress.style.right = '20px';
+  progress.style.background = 'var(--primary)';
+  progress.style.color = 'white';
+  progress.style.padding = '12px 16px';
+  progress.style.borderRadius = '8px';
+  progress.style.zIndex = '9999';
   
   if (file.size > 2 * 1024 * 1024) {
     progress.textContent = 'Compressing image...';
@@ -2383,6 +2437,10 @@ function uploadProfileImage(event) {
     reader.onload = function(e) {
       saveProfileImage(e.target.result);
     };
+    reader.onerror = function() {
+      showToast('Failed to read file');
+      progress.style.display = 'none';
+    };
     reader.readAsDataURL(file);
   }
 }
@@ -2390,12 +2448,24 @@ function uploadProfileImage(event) {
 function saveProfileImage(base64Data) {
   var progress = document.getElementById('uploadProgress');
   
+  if (!base64Data || base64Data.length === 0) {
+    showToast('Invalid image data');
+    if (progress) progress.style.display = 'none';
+    return;
+  }
+  
   db.ref('users/' + uid + '/profileImage').set(base64Data).then(function() {
     showToast('Profile photo updated!');
-    progress.style.display = 'none';
+    if (progress) progress.style.display = 'none';
+    
+    // Update profile display
     loadProfileData();
+    
+    // Update sidebar avatar
+    initializeProfileAvatar();
   }).catch(function(err) {
     showToast('Failed to upload: ' + err.message);
-    progress.style.display = 'none';
+    if (progress) progress.style.display = 'none';
+    console.error('Profile image save error:', err);
   });
 }

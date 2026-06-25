@@ -1989,12 +1989,19 @@ input:checked + .toggle-slider:before {
   border: 3px solid var(--border);
   overflow: hidden;
   object-fit: cover;
+  position: relative;
+  transition: transform 0.2s ease;
+}
+
+.profile-avatar-large:hover {
+  transform: scale(1.05);
 }
 
 .profile-avatar-large img {
   width: 100%;
   height: 100%;
   object-fit: cover;
+  display: block;
 }
 
 .profile-upload-btn {
