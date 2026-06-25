@@ -240,7 +240,7 @@ function initUser() {
 
 function initializeProfileAvatar() {
   if (!uid) return;
-  var avatarEl = document.getElementById('usernameDisplay');
+  var avatarEl = document.getElementById('myAvatar');
   if (!avatarEl) return;
   
   // Set initial avatar with first letter

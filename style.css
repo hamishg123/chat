@@ -293,12 +293,13 @@ body {
 }
 
 #usernameDisplay {
-  font-size: 16px;
-  font-weight: 600;
-  color: var(--primary);
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--text);
   display: block;
-  margin-bottom: 8px;
+  margin: 0;
   word-break: break-all;
+  line-height: 1.2;
 }
 
 #usernameSubtext {
@@ -1975,20 +1976,21 @@ input:checked + .toggle-slider:before {
 }
 
 .profile-avatar-large {
-  width: 120px;
-  height: 120px;
+  width: 100px;
+  height: 100px;
+  max-width: 100px;
+  max-height: 100px;
   border-radius: 16px;
   background: var(--gradient);
   display: flex;
   align-items: center;
   justify-content: center;
   color: white;
-  font-size: 48px;
+  font-size: 40px;
   font-weight: 600;
   flex-shrink: 0;
   border: 3px solid var(--border);
   overflow: hidden;
-  object-fit: cover;
   position: relative;
   transition: transform 0.2s ease;
 }

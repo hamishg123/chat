@@ -60,9 +60,12 @@
         </div>
       </div>
 
-    <div id="usernameSection" style="cursor: pointer;" onclick="openProfile()" title="Click to view your profile">
-      <div id="usernameDisplay">@loading</div>
-      <div id="usernameSubtext">Your permanent username</div>
+    <div id="usernameSection" style="cursor: pointer; display: flex; align-items: center; gap: 12px; padding: 16px; border-bottom: 1px solid var(--border);" onclick="openProfile()" title="Click to view your profile">
+      <div id="myAvatar" class="avatar">U</div>
+      <div style="flex: 1; min-width: 0;">
+        <div id="usernameDisplay" style="margin: 0; font-size: 15px; font-weight: 700; color: var(--text);">@loading</div>
+        <div id="usernameSubtext" style="font-size: 11px; color: var(--text-muted-dark); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">Your permanent username</div>
+      </div>
     </div>
 
     <div id="tabBar">
