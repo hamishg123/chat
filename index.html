@@ -3,7 +3,8 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>SecureChat</title>
+<title>UChat — Connect Instantly</title>
+<link rel="icon" type="image/png" href="uchat-logo.png">
 <!-- Firebase v8 -->
 <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
 <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js"></script>
@@ -19,8 +20,11 @@
 <!-- Auth Screen -->
 <div id="authScreen">
   <div id="authBox">
-    <h1>SecureChat</h1>
-    <p>Connect with friends instantly</p>
+    <div class="auth-logo">
+      <img src="uchat-logo.png" alt="UChat Logo">
+      <span class="auth-logo-text">UChat</span>
+    </div>
+    <p>Connect with friends instantly &amp; securely</p>
 
     <div class="auth-tabs">
       <button class="auth-tab active" onclick="switchAuthTab('login')">Sign In</button>
@@ -54,13 +58,16 @@
   <!-- Sidebar -->
   <div id="sidebar">
       <div id="sidebarHeader">
-        <h2>Chat</h2>
+        <div class="sidebar-brand">
+          <img src="uchat-logo.png" alt="UChat">
+          <span class="sidebar-brand-name">UChat</span>
+        </div>
         <div class="header-actions">
           <button id="menuBtn" onclick="openSettings()" title="Settings">⚙️</button>
         </div>
       </div>
 
-    <div id="usernameSection" style="cursor: pointer; display: flex; align-items: center; gap: 12px; padding: 16px; border-bottom: 1px solid var(--border);" onclick="openProfile()" title="Click to view your profile">
+    <div id="usernameSection" style="cursor: pointer; display: flex; align-items: center; gap: 12px; padding: 14px 18px; border-bottom: 1px solid var(--border);" onclick="openProfile()" title="Click to view your profile">
       <div id="myAvatar" class="avatar">U</div>
       <div style="flex: 1; min-width: 0;">
         <div id="usernameDisplay" style="margin: 0; font-size: 15px; font-weight: 700; color: var(--text);">@loading</div>
@@ -87,16 +94,16 @@
     <div id="emptyState">
       <div class="icon">💬</div>
       <p>Select a chat to start messaging</p>
-      <p>Add contacts by their username</p>
+      <p style="font-size:13px; color: var(--text-muted-dark);">Add contacts by their username</p>
     </div>
 
     <!-- Settings Page -->
     <div id="settingsPage" style="display:none; flex-direction:column; flex:1; overflow-y:auto; padding:24px;">
-      <div style="display:flex; align-items:center; gap:12px; margin-bottom:24px;">
-        <button id="settingsBackBtn" onclick="goBackToContacts()" style="background:none; border:none; color:var(--primary); font-size:20px; font-weight:600; cursor:pointer; padding:8px; display:none;">←</button>
+      <div style="display:flex; align-items:center; gap:12px; margin-bottom:28px;">
+        <button id="settingsBackBtn" onclick="goBackToContacts()" style="background:none; border:none; color:var(--primary); font-size:20px; font-weight:700; cursor:pointer; padding:8px; display:none;">←</button>
         <div>
-          <h2 style="font-size:28px; font-weight:700; margin-bottom:8px; margin:0;">Settings</h2>
-          <p style="color:var(--text-muted); font-size:14px; margin:0;">Customize your chat experience</p>
+          <h2 style="font-size:26px; font-weight:800; margin:0;">Settings</h2>
+          <p style="color:var(--text-muted); font-size:13px; margin:0; margin-top:4px;">Customize your UChat experience</p>
         </div>
       </div>
 
@@ -105,10 +112,14 @@
         <div class="settings-section-title">🎨 Appearance</div>
         <div class="settings-item">
           <div>
-            <div class="settings-label">Theme</div>
-            <div class="settings-description">Choose light or dark mode</div>
+            <div class="settings-label">Color Theme</div>
+            <div class="settings-description">Choose your preferred look</div>
           </div>
-          <button class="settings-toggle" onclick="toggleTheme()">Toggle</button>
+          <div class="theme-selector">
+            <button class="theme-btn active" id="themeBtnDefault" onclick="setTheme('default')">🌑 Dark</button>
+            <button class="theme-btn" id="themeBtnLight" onclick="setTheme('light')">☀️ Light</button>
+            <button class="theme-btn" id="themeBtnWarm" onclick="setTheme('warm')">🔥 Warm</button>
+          </div>
         </div>
       </div>
 
@@ -120,7 +131,7 @@
             <div class="settings-label">Bubble Style</div>
             <div class="settings-description">Change how messages look</div>
           </div>
-          <select id="bubbleStyleSelect" onchange="changeBubbleStyle(this.value)" style="padding:8px 12px; border-radius:6px; border:1px solid var(--border); background:var(--surface-light); color:var(--text); cursor:pointer; font-size:13px;">
+          <select id="bubbleStyleSelect" onchange="changeBubbleStyle(this.value)" style="padding:8px 12px; border-radius:8px; border:1.5px solid var(--border); background:var(--surface-light); color:var(--text); cursor:pointer; font-size:13px; font-weight:600;">
             <option value="rounded">Rounded</option>
             <option value="square">Square</option>
             <option value="pill">Pill</option>
@@ -131,20 +142,20 @@
             <div class="settings-label">Bubble Color</div>
             <div class="settings-description">Customize your message color</div>
           </div>
-          <input type="color" id="bubbleColorInput" onchange="changeBubbleColor(this.value)" style="width:50px; height:40px; border:1px solid var(--border); border-radius:6px; cursor:pointer;">
+          <input type="color" id="bubbleColorInput" onchange="changeBubbleColor(this.value)" style="width:50px; height:40px; border:1.5px solid var(--border); border-radius:8px; cursor:pointer;">
         </div>
         <div class="settings-item">
           <div>
             <div class="settings-label">Reset Appearance</div>
             <div class="settings-description">Back to default bubble style and color</div>
           </div>
-          <button class="settings-btn" onclick="resetAppearance()" style="padding:8px 16px; border-radius:8px; background:var(--surface-light); border:1px solid var(--border); color:var(--text); cursor:pointer; font-weight:600; font-size:13px;">Reset</button>
+          <button class="settings-btn" onclick="resetAppearance()" style="padding:8px 16px; border-radius:8px; background:var(--surface-light); border:1.5px solid var(--border); color:var(--text); cursor:pointer; font-weight:700; font-size:13px; transition:all 0.2s;">Reset</button>
         </div>
       </div>
 
       <!-- Privacy Section -->
       <div class="settings-section">
-        <div class="settings-section-title">🔒 Privacy & Safety</div>
+        <div class="settings-section-title">🔒 Privacy &amp; Safety</div>
         <div class="settings-item">
           <div>
             <div class="settings-label">Ghost Mode</div>
@@ -194,7 +205,7 @@
 
       <!-- Data Section -->
       <div class="settings-section">
-        <div class="settings-section-title">📊 Data & Storage</div>
+        <div class="settings-section-title">📊 Data &amp; Storage</div>
         <div class="settings-item">
           <div>
             <div class="settings-label">Clear Cache</div>
@@ -221,8 +232,8 @@
         <div class="settings-section-title">ℹ️ About</div>
         <div class="settings-item">
           <div>
-            <div class="settings-label">SecureChat</div>
-            <div class="settings-description">Version 1.0.0</div>
+            <div class="settings-label">UChat</div>
+            <div class="settings-description">Version 2.0.0</div>
           </div>
         </div>
         <div class="settings-item">
@@ -246,7 +257,7 @@
         </div>
         <div class="profile-info">
           <div class="profile-username" id="profileUsername">@username</div>
-          <div class="profile-subtext">Your profile</div>
+          <div class="profile-subtext">Your UChat profile</div>
         </div>
       </div>
 
@@ -257,15 +268,15 @@
 
       <div class="profile-section">
         <div class="profile-section-title">👤 Display Name</div>
-        <input type="text" id="profileDisplayName" placeholder="Enter your display name" maxlength="30" style="width: 100%; padding: 10px 12px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface-light); color: var(--text); font-size: 14px; margin-bottom: 12px;">
-        <button class="profile-save-btn" onclick="saveProfileDisplayName()" style="background: var(--primary); color: white; border: none; padding: 8px 16px; border-radius: 8px; cursor: pointer; font-weight: 600; font-size: 13px;">Save Display Name</button>
+        <input type="text" id="profileDisplayName" placeholder="Enter your display name" maxlength="30" style="width: 100%; padding: 11px 14px; border: 1.5px solid var(--border); border-radius: 10px; background: var(--surface-light); color: var(--text); font-size: 14px; margin-bottom: 12px; font-family: inherit; transition: all 0.2s;">
+        <button class="profile-save-btn" onclick="saveProfileDisplayName()" style="background: var(--brand-gradient, linear-gradient(135deg, #ff6b00, #ffb300)); color: white; border: none; padding: 9px 18px; border-radius: 10px; cursor: pointer; font-weight: 700; font-size: 13px; box-shadow: 0 3px 10px rgba(255,107,0,0.25);">Save Display Name</button>
       </div>
 
       <div class="profile-section">
         <div class="profile-section-title">📝 Bio</div>
-        <textarea id="profileBio" placeholder="Tell us about yourself..." maxlength="150" oninput="updateBioCharCount()" style="width: 100%; padding: 10px 12px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface-light); color: var(--text); font-size: 14px; resize: vertical; min-height: 80px; margin-bottom: 12px; font-family: inherit;"></textarea>
+        <textarea id="profileBio" placeholder="Tell us about yourself..." maxlength="150" oninput="updateBioCharCount()" style="width: 100%; padding: 11px 14px; border: 1.5px solid var(--border); border-radius: 10px; background: var(--surface-light); color: var(--text); font-size: 14px; resize: vertical; min-height: 80px; margin-bottom: 12px; font-family: inherit; transition: all 0.2s;"></textarea>
         <p style="font-size: 12px; color: var(--text-muted-dark); margin: 0 0 12px 0;"><span id="bioCharCount">0</span>/150 characters</p>
-        <button class="profile-save-btn" onclick="saveProfileBio()" style="background: var(--primary); color: white; border: none; padding: 8px 16px; border-radius: 8px; cursor: pointer; font-weight: 600; font-size: 13px;">Save Bio</button>
+        <button class="profile-save-btn" onclick="saveProfileBio()" style="background: var(--brand-gradient, linear-gradient(135deg, #ff6b00, #ffb300)); color: white; border: none; padding: 9px 18px; border-radius: 10px; cursor: pointer; font-weight: 700; font-size: 13px; box-shadow: 0 3px 10px rgba(255,107,0,0.25);">Save Bio</button>
       </div>
     </div>
 
@@ -286,13 +297,13 @@
       <div id="messages"></div>
       <div id="typingIndicator"></div>
       <div id="uploadProgress">Uploading image...</div>
-      <div id="inputAreaContainer" style="padding: 10px 16px; border-top: 1px solid var(--border);">
+      <div id="inputAreaContainer" style="padding: 10px 16px; border-top: 1px solid var(--border); background: var(--surface);">
         <div class="reply-preview" id="replyPreview">
           <div class="reply-preview-close" onclick="cancelReply()">×</div>
           <div class="reply-preview-content" id="replyPreviewContent">Replying to...</div>
         </div>
         <div id="inputArea" style="border:none; padding:0;">
-          <textarea id="msgInput" rows="1" placeholder="Type a message..."
+          <textarea id="msgInput" rows="1" placeholder="Message..."
             onkeydown="handleMsgKey(event)" oninput="handleTyping(); autoResize(this)"></textarea>
           <button id="voiceBtn" onclick="toggleVoiceRecording()" title="Voice Message">🎤</button>
           <button id="imgBtn" onclick="document.getElementById('imgUpload').click()" title="Upload image">🖼️</button>
@@ -306,46 +317,39 @@
   </div>
 
 </div>
+
 <!-- Camera Modal -->
 <div class="modal-overlay" id="cameraModal">
-  <div class="modal">
-    <h3>Take Photo</h3>
-    <p>Smile for the camera!</p>
+  <div class="modal" id="cameraModalInner">
+    <h3>📷 Take Photo</h3>
     <div id="cameraPreviewContainer">
       <video id="cameraVideo" autoplay playsinline></video>
       <canvas id="cameraCanvas"></canvas>
     </div>
-    <div class="modal-actions">
-      <button class="btn-secondary" onclick="closeCameraModal()">Cancel</button>
-      <button class="btn-primary" onclick="capturePhoto()">📸 Capture & Send</button>
+    <div class="camera-controls">
+      <button class="capture-btn" onclick="capturePhoto()" title="Capture"></button>
+    </div>
+    <div class="modal-actions" style="margin-top:16px;">
+      <button class="btn-secondary" onclick="closeCamera()">Cancel</button>
+      <button class="btn-primary" id="sendPhotoBtn" onclick="sendCapturedPhoto()" style="display:none;">Send Photo</button>
     </div>
   </div>
 </div>
 
 <!-- Add Contact Modal -->
 <div class="modal-overlay" id="addContactModal">
-  <div class="modal" style="width: 450px;">
-    <h3>Add Contact</h3>
-    <p>Find new friends and see who you have in common</p>
-    
+  <div class="modal">
+    <h3>➕ Add Contact</h3>
+    <p>Find and add people by their username</p>
     <div class="search-container">
       <span class="search-icon">🔍</span>
-      <input type="text" id="addUsernameInput" placeholder="Search by username..." autocomplete="off"
-        oninput="filterSuggestions()">
+      <input type="text" id="addContactInput" placeholder="Search by username..." oninput="searchUsers(this.value)" autocomplete="off">
     </div>
-
-    <div class="suggestions-header">
-      <span id="suggestionsCount">Loading people...</span>
-      <span>Mutual Friends</span>
-    </div>
-
-    <div class="suggestions-list" id="suggestionsList">
-      <div class="loading-spinner">Searching for accounts...</div>
-    </div>
-
+    <div id="searchResults"></div>
     <div class="modal-error" id="addContactError"></div>
     <div class="modal-actions">
-      <button class="btn-secondary" onclick="closeModal('addContactModal')" style="flex: none; width: 100px;">Close</button>
+      <button class="btn-secondary" onclick="closeAddContactModal()">Cancel</button>
+      <button class="btn-primary" onclick="addContact()">Add Contact</button>
     </div>
   </div>
 </div>
@@ -353,36 +357,17 @@
 <!-- Create Group Modal -->
 <div class="modal-overlay" id="createGroupModal">
   <div class="modal">
-    <h3>Create Group</h3>
-    <p>You'll be the owner and can manage members</p>
-    <input type="text" id="groupNameInput" placeholder="e.g. Friends, Team, Study Group" maxlength="40"
-      onkeydown="if(event.key==='Enter')createGroup()">
-    <div class="modal-actions">
-      <button class="btn-secondary" onclick="closeModal('createGroupModal')">Cancel</button>
-      <button class="btn-primary" onclick="createGroup()">✓ Create</button>
+    <h3>👥 Create Group</h3>
+    <p>Create a group chat with your contacts</p>
+    <input type="text" id="groupNameInput" placeholder="Group name" maxlength="30">
+    <div class="modal-section">
+      <div class="modal-section-title">Add Members</div>
+      <div id="contactCheckboxList" style="max-height:200px; overflow-y:auto;"></div>
     </div>
-  </div>
-</div>
-
-<!-- View User Profile Modal -->
-<div class="modal-overlay" id="userProfileModal">
-  <div class="modal" style="width: 400px; padding: 0; overflow: hidden; border-radius: 24px; max-height: 90vh; overflow-y: auto;">
-    <div id="userProfileCover" style="height: 100px; background: var(--gradient);"></div>
-    <div style="padding: 24px; position: relative; text-align: center;">
-      <div id="userProfileAvatar" class="profile-avatar-large" style="margin: -60px auto 16px; border: 4px solid var(--surface); width: 100px; height: 100px; box-shadow: var(--shadow);">U</div>
-      <h3 id="userProfileName" style="margin: 0; font-size: 24px; font-weight: 800;">@username</h3>
-      <p id="userProfileDisplayName" style="color: var(--primary); font-size: 16px; font-weight: 600; margin: 4px 0;"></p>
-      <p id="userProfileStatus" style="color: var(--text-muted); font-size: 14px; margin: 4px 0 16px;">User Profile</p>
-      
-      <div id="userProfileBioSection" style="text-align: left; margin: 16px 0; padding: 12px; background: var(--surface-light); border-radius: 8px; display: none;">
-        <p style="font-size: 12px; color: var(--text-muted); margin: 0 0 8px 0; font-weight: 600;">BIO</p>
-        <p id="userProfileBio" style="font-size: 14px; color: var(--text); margin: 0; word-wrap: break-word;"></p>
-      </div>
-      
-      <div id="userProfileActions" style="display: flex; gap: 12px; justify-content: center; margin-top: 16px;">
-        <button class="btn-primary" id="userProfileChatBtn" onclick="closeModal('userProfileModal')">Message</button>
-        <button class="btn-secondary" onclick="closeModal('userProfileModal')">Close</button>
-      </div>
+    <div class="modal-error" id="createGroupError"></div>
+    <div class="modal-actions">
+      <button class="btn-secondary" onclick="closeCreateGroupModal()">Cancel</button>
+      <button class="btn-primary" onclick="createGroup()">Create Group</button>
     </div>
   </div>
 </div>
@@ -390,161 +375,164 @@
 <!-- Group Settings Modal -->
 <div class="modal-overlay" id="groupSettingsModal">
   <div class="modal">
-    <h3>Group Settings</h3>
-    <p>Owner only • Manage group members and name</p>
-    
+    <h3>⚙️ Group Settings</h3>
     <div class="modal-section">
-      <div class="modal-section-title">📝 Group Name</div>
-      <input type="text" id="groupNameEdit" placeholder="Group name" maxlength="40">
+      <div class="modal-section-title">Group Name</div>
+      <input type="text" id="groupNameEdit" placeholder="Group name" maxlength="30">
+      <button class="btn-primary" onclick="saveGroupName()" style="width:100%; margin-bottom:8px;">Save Name</button>
     </div>
-
     <div class="modal-section">
-      <div class="modal-section-title">👥 Members</div>
-      <div class="member-list" id="memberList"></div>
-      <input type="text" id="addMemberUsername" placeholder="Enter username to add" maxlength="50">
+      <div class="modal-section-title">Members</div>
+      <div class="member-list" id="groupMemberList"></div>
+      <div class="modal-section-title" style="margin-top:12px;">Add Member</div>
+      <input type="text" id="addMemberInput" placeholder="Username to add">
+      <button class="btn-primary" onclick="addGroupMember()" style="width:100%;">Add Member</button>
     </div>
-
-    <div class="modal-error" id="addMemberError"></div>
-
-    <div class="modal-actions">
-      <button class="btn-secondary" onclick="closeModal('groupSettingsModal')">Close</button>
-      <button class="btn-primary" onclick="addGroupMember()">+ Add Member</button>
-      <button class="btn-primary" onclick="updateGroupName()" style="background:var(--success)">💾 Save</button>
+    <div class="modal-error" id="groupSettingsError"></div>
+    <div class="modal-actions" style="margin-top:16px;">
+      <button class="btn-secondary" onclick="closeGroupSettings()">Close</button>
+      <button class="btn-secondary" style="border-color:var(--danger); color:var(--danger);" onclick="leaveGroup()">Leave Group</button>
     </div>
   </div>
 </div>
 
-<!-- Settings Modal (for desktop) -->
+<!-- Settings Modal (mobile) -->
 <div class="modal-overlay" id="settingsModal">
-  <div class="modal" style="max-height:90vh; overflow-y:auto; width:90%; max-width:600px; padding:0;">
-    <div style="display:flex; justify-content:space-between; align-items:center; padding:20px; border-bottom:1px solid var(--border);">
-      <h3 style="margin:0;">Settings</h3>
-      <button onclick="closeModal('settingsModal')" style="background:none; border:none; font-size:24px; cursor:pointer; color:var(--text);">✕</button>
+  <div class="modal" style="max-height:90vh; overflow-y:auto;">
+    <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:24px;">
+      <div style="display:flex; align-items:center; gap:10px;">
+        <img src="uchat-logo.png" alt="UChat" style="width:32px; height:32px; object-fit:contain; filter:drop-shadow(0 2px 6px rgba(255,107,0,0.35));">
+        <h3 style="margin:0; font-size:20px; font-weight:800; background:linear-gradient(135deg,#ff6b00,#ffb300); -webkit-background-clip:text; -webkit-text-fill-color:transparent; background-clip:text;">UChat Settings</h3>
+      </div>
+      <button onclick="closeSettingsModal()" style="background:var(--surface-light); border:1px solid var(--border); color:var(--text); width:32px; height:32px; border-radius:8px; cursor:pointer; font-size:16px; display:flex; align-items:center; justify-content:center;">✕</button>
     </div>
-    <div style="padding:24px; overflow-y:auto; max-height:calc(90vh - 70px);">
-      <!-- Theme Section -->
-      <div class="settings-section">
-        <div class="settings-section-title">🎨 Appearance</div>
-        <div class="settings-item">
-          <div>
-            <div class="settings-label">Theme</div>
-            <div class="settings-description">Choose light or dark mode</div>
-          </div>
-          <button class="settings-toggle" onclick="toggleTheme()">Toggle</button>
+
+    <!-- Theme Section -->
+    <div class="settings-section">
+      <div class="settings-section-title">🎨 Appearance</div>
+      <div class="settings-item">
+        <div>
+          <div class="settings-label">Color Theme</div>
+          <div class="settings-description">Choose your preferred look</div>
+        </div>
+        <div class="theme-selector">
+          <button class="theme-btn active" id="themeBtnDefaultModal" onclick="setTheme('default')">🌑 Dark</button>
+          <button class="theme-btn" id="themeBtnLightModal" onclick="setTheme('light')">☀️ Light</button>
+          <button class="theme-btn" id="themeBtnWarmModal" onclick="setTheme('warm')">🔥 Warm</button>
         </div>
       </div>
+    </div>
 
-      <!-- Message Bubbles Section -->
-      <div class="settings-section">
-        <div class="settings-section-title">💬 Message Bubbles</div>
-        <div class="settings-item">
-          <div>
-            <div class="settings-label">Bubble Style</div>
-            <div class="settings-description">Change how messages look</div>
-          </div>
-          <select id="bubbleStyleSelectModal" onchange="changeBubbleStyle(this.value)" style="padding:8px 12px; border-radius:6px; border:1px solid var(--border); background:var(--surface-light); color:var(--text); cursor:pointer; font-size:13px;">
-            <option value="rounded">Rounded</option>
-            <option value="square">Square</option>
-            <option value="pill">Pill</option>
-          </select>
+    <!-- Message Bubbles Section -->
+    <div class="settings-section">
+      <div class="settings-section-title">💬 Message Bubbles</div>
+      <div class="settings-item">
+        <div>
+          <div class="settings-label">Bubble Style</div>
+          <div class="settings-description">Change how messages look</div>
         </div>
-        <div class="settings-item">
-          <div>
-            <div class="settings-label">Bubble Color</div>
-            <div class="settings-description">Customize your message color</div>
-          </div>
-          <input type="color" id="bubbleColorInputModal" onchange="changeBubbleColor(this.value)" style="width:50px; height:40px; border:1px solid var(--border); border-radius:6px; cursor:pointer;">
+        <select id="bubbleStyleSelectModal" onchange="changeBubbleStyle(this.value)" style="padding:8px 12px; border-radius:8px; border:1.5px solid var(--border); background:var(--surface-light); color:var(--text); cursor:pointer; font-size:13px; font-weight:600;">
+          <option value="rounded">Rounded</option>
+          <option value="square">Square</option>
+          <option value="pill">Pill</option>
+        </select>
+      </div>
+      <div class="settings-item">
+        <div>
+          <div class="settings-label">Bubble Color</div>
+          <div class="settings-description">Customize your message color</div>
+        </div>
+        <input type="color" id="bubbleColorInputModal" onchange="changeBubbleColor(this.value)" style="width:50px; height:40px; border:1.5px solid var(--border); border-radius:8px; cursor:pointer;">
+      </div>
+    </div>
+
+    <!-- Privacy Section -->
+    <div class="settings-section">
+      <div class="settings-section-title">🔒 Privacy &amp; Safety</div>
+      <div class="settings-item">
+        <div>
+          <div class="settings-label">Ghost Mode</div>
+          <div class="settings-description">Hide your online status</div>
+        </div>
+        <label class="toggle-switch">
+          <input type="checkbox" id="ghostModeToggleModal" onchange="toggleGhostMode()">
+          <span class="toggle-slider"></span>
+        </label>
+      </div>
+      <div class="settings-item">
+        <div>
+          <div class="settings-label">Read Receipts</div>
+          <div class="settings-description">Let people know when you've read messages</div>
+        </div>
+        <label class="toggle-switch">
+          <input type="checkbox" id="readReceiptsToggleModal" checked onchange="toggleReadReceipts()">
+          <span class="toggle-slider"></span>
+        </label>
+      </div>
+    </div>
+
+    <!-- Notifications Section -->
+    <div class="settings-section">
+      <div class="settings-section-title">🔔 Notifications</div>
+      <div class="settings-item">
+        <div>
+          <div class="settings-label">Message Notifications</div>
+          <div class="settings-description">Receive alerts for new messages</div>
+        </div>
+        <label class="toggle-switch">
+          <input type="checkbox" id="notificationsToggleModal" checked onchange="toggleNotifications()">
+          <span class="toggle-slider"></span>
+        </label>
+      </div>
+      <div class="settings-item">
+        <div>
+          <div class="settings-label">Sound</div>
+          <div class="settings-description">Play sound on new message</div>
+        </div>
+        <label class="toggle-switch">
+          <input type="checkbox" id="soundToggleModal" checked onchange="toggleSound()">
+          <span class="toggle-slider"></span>
+        </label>
+      </div>
+    </div>
+
+    <!-- Data Section -->
+    <div class="settings-section">
+      <div class="settings-section-title">📊 Data &amp; Storage</div>
+      <div class="settings-item">
+        <div>
+          <div class="settings-label">Clear Cache</div>
+          <div class="settings-description">Remove locally stored data</div>
+        </div>
+        <button class="settings-btn-danger" onclick="clearCache()">Clear</button>
+      </div>
+    </div>
+
+    <!-- Account Section -->
+    <div class="settings-section">
+      <div class="settings-section-title">👤 Account</div>
+      <div class="settings-item">
+        <div>
+          <div class="settings-label">Sign Out</div>
+          <div class="settings-description">Log out of your account</div>
+        </div>
+        <button class="settings-btn-danger" onclick="doLogout()">Sign Out</button>
+      </div>
+    </div>
+
+    <!-- About Section -->
+    <div class="settings-section" style="margin-bottom:0;">
+      <div class="settings-section-title">ℹ️ About</div>
+      <div class="settings-item">
+        <div>
+          <div class="settings-label">UChat</div>
+          <div class="settings-description">Version 2.0.0</div>
         </div>
       </div>
-
-      <!-- Privacy Section -->
-      <div class="settings-section">
-        <div class="settings-section-title">🔒 Privacy & Safety</div>
-        <div class="settings-item">
-          <div>
-            <div class="settings-label">Ghost Mode</div>
-            <div class="settings-description">Hide your online status</div>
-          </div>
-          <label class="toggle-switch">
-            <input type="checkbox" id="ghostModeToggleModal" onchange="toggleGhostMode()">
-            <span class="toggle-slider"></span>
-          </label>
-        </div>
-        <div class="settings-item">
-          <div>
-            <div class="settings-label">Read Receipts</div>
-            <div class="settings-description">Let people know when you've read messages</div>
-          </div>
-          <label class="toggle-switch">
-            <input type="checkbox" id="readReceiptsToggleModal" checked onchange="toggleReadReceipts()">
-            <span class="toggle-slider"></span>
-          </label>
-        </div>
-      </div>
-
-      <!-- Notifications Section -->
-      <div class="settings-section">
-        <div class="settings-section-title">🔔 Notifications</div>
-        <div class="settings-item">
-          <div>
-            <div class="settings-label">Message Notifications</div>
-            <div class="settings-description">Receive alerts for new messages</div>
-          </div>
-          <label class="toggle-switch">
-            <input type="checkbox" id="notificationsToggleModal" checked onchange="toggleNotifications()">
-            <span class="toggle-slider"></span>
-          </label>
-        </div>
-        <div class="settings-item">
-          <div>
-            <div class="settings-label">Sound</div>
-            <div class="settings-description">Play sound on new message</div>
-          </div>
-          <label class="toggle-switch">
-            <input type="checkbox" id="soundToggleModal" checked onchange="toggleSound()">
-            <span class="toggle-slider"></span>
-          </label>
-        </div>
-      </div>
-
-      <!-- Data Section -->
-      <div class="settings-section">
-        <div class="settings-section-title">📊 Data & Storage</div>
-        <div class="settings-item">
-          <div>
-            <div class="settings-label">Clear Cache</div>
-            <div class="settings-description">Remove locally stored data</div>
-          </div>
-          <button class="settings-btn-danger" onclick="clearCache()">Clear</button>
-        </div>
-      </div>
-
-      <!-- Account Section -->
-      <div class="settings-section">
-        <div class="settings-section-title">👤 Account</div>
-        <div class="settings-item">
-          <div>
-            <div class="settings-label">Sign Out</div>
-            <div class="settings-description">Log out of your account</div>
-          </div>
-          <button class="settings-btn-danger" onclick="doLogout()">Sign Out</button>
-        </div>
-      </div>
-
-      <!-- About Section -->
-      <div class="settings-section" style="margin-bottom:0;">
-        <div class="settings-section-title">ℹ️ About</div>
-        <div class="settings-item">
-          <div>
-            <div class="settings-label">SecureChat</div>
-            <div class="settings-description">Version 1.0.0</div>
-          </div>
-        </div>
-        <div class="settings-item">
-          <div>
-            <div class="settings-label">Status</div>
-            <div class="settings-description" id="accountStatusModal">Connected</div>
-          </div>
+      <div class="settings-item">
+        <div>
+          <div class="settings-label">Status</div>
+          <div class="settings-description" id="accountStatusModal">Connected</div>
         </div>
       </div>
     </div>
@@ -580,7 +568,6 @@
   <button class="call-btn end" style="width:44px; height:44px;" onclick="rejectCall()">✕</button>
 </div>
 
-
-	<script src="script.js"></script>
+<script src="script.js"></script>
 </body>
-	</html>
+</html>

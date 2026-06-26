@@ -1988,8 +1988,29 @@ function goBackToContacts() {
 }
 
 function toggleTheme() {
-  document.body.classList.toggle('light');
-  localStorage.setItem('theme', document.body.classList.contains('light') ? 'light' : 'dark');
+  // Legacy: cycle through themes
+  var current = localStorage.getItem('theme') || 'default';
+  var next = current === 'default' ? 'light' : current === 'light' ? 'warm' : 'default';
+  setTheme(next);
+}
+
+function setTheme(theme) {
+  document.body.classList.remove('light', 'warm');
+  if (theme === 'light') document.body.classList.add('light');
+  if (theme === 'warm') document.body.classList.add('warm');
+  localStorage.setItem('theme', theme);
+  // Update theme buttons
+  ['Default', 'Light', 'Warm'].forEach(function(t) {
+    var btn = document.getElementById('themeBtn' + t);
+    var btnModal = document.getElementById('themeBtn' + t + 'Modal');
+    if (btn) btn.classList.toggle('active', t.toLowerCase() === theme || (t === 'Default' && theme === 'default'));
+    if (btnModal) btnModal.classList.toggle('active', t.toLowerCase() === theme || (t === 'Default' && theme === 'default'));
+  });
+  showToast('Theme switched to ' + (theme === 'default' ? 'Dark' : theme.charAt(0).toUpperCase() + theme.slice(1)));
+}
+
+function closeSettingsModal() {
+  document.getElementById('settingsModal').classList.remove('open');
 }
 
 function openLightbox(url) {
@@ -2177,9 +2198,22 @@ function clearMessageListeners() {
 }
 
 // Load theme preference
-if (localStorage.getItem('theme') === 'light') {
-  document.body.classList.add('light');
-}
+(function() {
+  var savedTheme = localStorage.getItem('theme') || 'default';
+  document.body.classList.remove('light', 'warm');
+  if (savedTheme === 'light') document.body.classList.add('light');
+  if (savedTheme === 'warm') document.body.classList.add('warm');
+  // Update theme buttons after DOM ready
+  setTimeout(function() {
+    ['Default', 'Light', 'Warm'].forEach(function(t) {
+      var btn = document.getElementById('themeBtn' + t);
+      var btnModal = document.getElementById('themeBtn' + t + 'Modal');
+      var isActive = t.toLowerCase() === savedTheme || (t === 'Default' && savedTheme === 'default');
+      if (btn) btn.classList.toggle('active', isActive);
+      if (btnModal) btnModal.classList.toggle('active', isActive);
+    });
+  }, 50);
+})();
 
 // Close modals on overlay click
 document.querySelectorAll('.modal-overlay').forEach(function(el) {
@@ -2198,7 +2232,7 @@ if (window.innerWidth <= 768) {
 
 var userSettings = {
   bubbleStyle: localStorage.getItem('bubbleStyle') || 'rounded',
-  bubbleColor: localStorage.getItem('bubbleColor') || '#3b82f6',
+  bubbleColor: localStorage.getItem('bubbleColor') || '#ff6b00',
   ghostMode: localStorage.getItem('ghostMode') === 'true',
   readReceipts: localStorage.getItem('readReceipts') !== 'false',
   notifications: localStorage.getItem('notifications') !== 'false',
@@ -2263,7 +2297,7 @@ function resetAppearance() {
   if (!confirm('Reset your message appearance to default?')) return;
   
   userSettings.bubbleStyle = 'rounded';
-  userSettings.bubbleColor = '#3b82f6'; // Default primary
+  userSettings.bubbleColor = '#ff6b00'; // Default primary (UChat orange)
   
   localStorage.removeItem('bubbleStyle');
   localStorage.removeItem('bubbleColor');
@@ -2276,7 +2310,7 @@ function resetAppearance() {
   var styleSelect = document.getElementById('bubbleStyleSelect');
   var colorInput = document.getElementById('bubbleColorInput');
   if (styleSelect) styleSelect.value = 'rounded';
-  if (colorInput) colorInput.value = '#3b82f6';
+  if (colorInput) colorInput.value = '#ff6b00';
   
   // Remove custom styles
   var customStyle = document.getElementById('customBubbleStyle');
