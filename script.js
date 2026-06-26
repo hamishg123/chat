@@ -780,13 +780,26 @@ function renderSortedContacts(contacts) {
     var item = document.createElement('div');
     item.className = 'contact-item' + (currentChatUid === otherUid && currentChatType === 'dm' ? ' active' : '');
     item.id = 'contact-' + otherUid;
+    
+    var avatarHtml = '<div class="avatar" id="avatar-' + otherUid + '">' + escapeHtml(name[0].toUpperCase()) + '</div>';
+    
     item.innerHTML =
-      '<div class="avatar">' + escapeHtml(name[0].toUpperCase()) + '</div>' +
+      avatarHtml +
       '<div class="contact-info">' +
         '<div class="contact-name">@' + escapeHtml(name) + '</div>' +
         '<div class="contact-code" id="unread-' + otherUid + '"></div>' +
       '</div>' +
       '<div class="status-dot" id="dot-' + otherUid + '"></div>';
+    
+    // Load user's profile image for the avatar
+    db.ref('users/' + otherUid + '/profileImage').once('value').then(function(snap) {
+      if (snap.exists()) {
+        var avatarEl = document.getElementById('avatar-' + otherUid);
+        if (avatarEl) {
+          avatarEl.innerHTML = '<img src="' + snap.val() + '" alt="Profile" style="width:100%; height:100%; border-radius:8px; object-fit:cover;">';
+        }
+      }
+    });
     
     watchUnread('messages/' + chatId(uid, otherUid), 'unread-' + otherUid);
     item.onclick = function() { openDM(otherUid, name); };
@@ -1261,14 +1274,19 @@ function openUserProfile(targetUid) {
   
   var modal = document.getElementById('userProfileModal');
   var nameEl = document.getElementById('userProfileName');
+  var displayNameEl = document.getElementById('userProfileDisplayName');
   var avatarEl = document.getElementById('userProfileAvatar');
   var statusEl = document.getElementById('userProfileStatus');
+  var bioEl = document.getElementById('userProfileBio');
+  var bioSection = document.getElementById('userProfileBioSection');
   var chatBtn = document.getElementById('userProfileChatBtn');
   
   // Set initial loading state
   nameEl.textContent = 'Loading...';
+  displayNameEl.textContent = '';
   avatarEl.innerHTML = '?';
   statusEl.textContent = 'Fetching profile details...';
+  bioSection.style.display = 'none';
   
   db.ref('users/' + targetUid).once('value').then(function(snap) {
     if (!snap.exists()) {
@@ -1279,11 +1297,23 @@ function openUserProfile(targetUid) {
     var data = snap.val();
     var username = data.username || 'User';
     nameEl.textContent = '@' + username;
+    
+    if (data.displayName) {
+      displayNameEl.textContent = data.displayName;
+    }
+    
     avatarEl.innerHTML = username[0].toUpperCase();
     statusEl.textContent = 'Member since ' + new Date(data.createdAt || Date.now()).toLocaleDateString();
     
     if (data.profileImage) {
       avatarEl.innerHTML = '<img src="' + data.profileImage + '" alt="Profile">';
+    }
+    
+    if (data.bio) {
+      bioEl.textContent = data.bio;
+      bioSection.style.display = 'block';
+    } else {
+      bioSection.style.display = 'none';
     }
     
     chatBtn.onclick = function() {
@@ -2434,17 +2464,31 @@ function loadProfileData() {
   avatarEl.style.alignItems = 'center';
   avatarEl.style.justifyContent = 'center';
   
-  // Load profile image from database
-  db.ref('users/' + uid + '/profileImage').once('value').then(function(snap) {
-    if (snap.exists() && avatarEl) {
-      var profileImage = snap.val();
-      
-      // Clear text content and show image
+  // Load profile data including display name and bio
+  db.ref('users/' + uid).once('value').then(function(snap) {
+    if (!snap.exists()) return;
+    var data = snap.val();
+    
+    // Load display name
+    var displayNameEl = document.getElementById('profileDisplayName');
+    if (displayNameEl && data.displayName) {
+      displayNameEl.value = data.displayName;
+    }
+    
+    // Load bio
+    var bioEl = document.getElementById('profileBio');
+    if (bioEl && data.bio) {
+      bioEl.value = data.bio;
+      updateBioCharCount();
+    }
+    
+    // Load profile image
+    if (data.profileImage && avatarEl) {
       avatarEl.textContent = '';
-      avatarEl.innerHTML = '<img src="' + profileImage + '" alt="Profile" style="width:100%; height:100%; border-radius:12px; object-fit:cover;">';
+      avatarEl.innerHTML = '<img src="' + data.profileImage + '" alt="Profile" style="width:100%; height:100%; border-radius:12px; object-fit:cover;">';
     }
   }).catch(function(err) {
-    console.error('Error loading profile image:', err);
+    console.error('Error loading profile data:', err);
   });
 }
 
@@ -2519,4 +2563,38 @@ function saveProfileImage(base64Data) {
     if (progress) progress.style.display = 'none';
     console.error('Profile image save error:', err);
   });
+}
+function saveProfileDisplayName() {
+  var displayNameEl = document.getElementById('profileDisplayName');
+  var displayName = displayNameEl.value.trim();
+  
+  if (!displayName) {
+    showToast('Please enter a display name');
+    return;
+  }
+  
+  db.ref('users/' + uid + '/displayName').set(displayName).then(function() {
+    showToast('Display name updated!');
+  }).catch(function(err) {
+    showToast('Failed to save: ' + err.message);
+  });
+}
+
+function saveProfileBio() {
+  var bioEl = document.getElementById('profileBio');
+  var bio = bioEl.value.trim();
+  
+  db.ref('users/' + uid + '/bio').set(bio).then(function() {
+    showToast('Bio updated!');
+  }).catch(function(err) {
+    showToast('Failed to save: ' + err.message);
+  });
+}
+
+function updateBioCharCount() {
+  var bioEl = document.getElementById('profileBio');
+  var charCountEl = document.getElementById('bioCharCount');
+  if (charCountEl) {
+    charCountEl.textContent = bioEl.value.length;
+  }
 }
