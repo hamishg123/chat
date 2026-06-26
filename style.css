@@ -515,8 +515,8 @@ body {
 }
 
 #chatHeaderAvatar {
-  width: 44px;
-  height: 44px;
+  width: 40px;
+  height: 40px;
   border-radius: 10px;
   background: var(--gradient);
   display: flex;
@@ -524,8 +524,22 @@ body {
   justify-content: center;
   color: white;
   font-weight: 600;
-  font-size: 18px;
+  font-size: 16px;
   flex-shrink: 0;
+  overflow: hidden;
+  cursor: pointer;
+  transition: transform 0.2s ease;
+}
+
+#chatHeaderAvatar:hover {
+  transform: scale(1.05);
+}
+
+#chatHeaderAvatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
 }
 
 #chatHeaderInfo {

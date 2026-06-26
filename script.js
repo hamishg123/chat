@@ -1238,12 +1238,63 @@ function openDM(otherUid, name) {
 
   currentChatName = name;
   showChatArea(name);
-  document.getElementById('chatHeaderAvatar').textContent = name[0].toUpperCase();
-  document.getElementById('chatHeaderAvatar').style.background = 'var(--gradient)';
+  
+  var headerAvatar = document.getElementById('chatHeaderAvatar');
+  headerAvatar.innerHTML = name[0].toUpperCase();
+  headerAvatar.style.background = 'var(--gradient)';
+  headerAvatar.onclick = function() { openUserProfile(otherUid); };
+  
+  // Try to load user's profile image for the header
+  db.ref('users/' + otherUid + '/profileImage').once('value').then(function(snap) {
+    if (snap.exists() && currentChatUid === otherUid) {
+      headerAvatar.innerHTML = '<img src="' + snap.val() + '" alt="Profile">';
+    }
+  });
 
   loadMessages('messages/' + currentChat, false);
   listenTyping('typing/' + currentChat);
   if (window.innerWidth <= 768) hideSidebar();
+}
+
+function openUserProfile(targetUid) {
+  if (!targetUid) return;
+  
+  var modal = document.getElementById('userProfileModal');
+  var nameEl = document.getElementById('userProfileName');
+  var avatarEl = document.getElementById('userProfileAvatar');
+  var statusEl = document.getElementById('userProfileStatus');
+  var chatBtn = document.getElementById('userProfileChatBtn');
+  
+  // Set initial loading state
+  nameEl.textContent = 'Loading...';
+  avatarEl.innerHTML = '?';
+  statusEl.textContent = 'Fetching profile details...';
+  
+  db.ref('users/' + targetUid).once('value').then(function(snap) {
+    if (!snap.exists()) {
+      showToast('User not found');
+      return;
+    }
+    
+    var data = snap.val();
+    var username = data.username || 'User';
+    nameEl.textContent = '@' + username;
+    avatarEl.innerHTML = username[0].toUpperCase();
+    statusEl.textContent = 'Member since ' + new Date(data.createdAt || Date.now()).toLocaleDateString();
+    
+    if (data.profileImage) {
+      avatarEl.innerHTML = '<img src="' + data.profileImage + '" alt="Profile">';
+    }
+    
+    chatBtn.onclick = function() {
+      closeModal('userProfileModal');
+      openDM(targetUid, username);
+    };
+    
+    openModal('userProfileModal');
+  }).catch(function(err) {
+    showToast('Error: ' + err.message);
+  });
 }
 
 function openGroup(groupId, name) {
@@ -1405,9 +1456,9 @@ function renderMessage(m, isGroup, box) {
   var senderLabel = '';
   if (isGroup && !isMe) {
     var color = getMemberColor(m.sender);
-    senderLabel = '<div class="msg-sender-label" style="color:' + color + '">@' + escapeHtml(m.senderName || m.sender || '') + '</div>';
+    senderLabel = '<div class="msg-sender-label" style="color:' + color + '; cursor: pointer;" onclick="openUserProfile(\'' + m.sender + '\')">@' + escapeHtml(m.senderName || m.sender || '') + '</div>';
   } else if (!isGroup && !isMe) {
-    senderLabel = '<div class="msg-sender-label">@' + escapeHtml(m.senderName || m.sender || '') + '</div>';
+    senderLabel = '<div class="msg-sender-label" style="cursor: pointer;" onclick="openUserProfile(\'' + m.sender + '\')">@' + escapeHtml(m.senderName || m.sender || '') + '</div>';
   }
 
   // --- REPLY RENDERING ---
