@@ -937,12 +937,22 @@ function watchUnread(path, elementId) {
 var allPotentialContacts = [];
 
 function openAddContactModal() {
-  document.getElementById('addUsernameInput').value = '';
-  document.getElementById('addContactError').style.display = 'none';
-  document.getElementById('suggestionsList').innerHTML = '<div class="loading-spinner">Searching for accounts...</div>';
-  document.getElementById('suggestionsCount').textContent = 'Loading people...';
+  var input = document.getElementById('addContactInput');
+  if (input) input.value = '';
+  var err = document.getElementById('addContactError');
+  if (err) err.style.display = 'none';
+  var results = document.getElementById('searchResults');
+  if (results) results.innerHTML = '<div class="loading-spinner">Searching for accounts...</div>';
   openModal('addContactModal');
   loadPotentialContacts();
+}
+
+function closeAddContactModal() {
+  closeModal('addContactModal');
+}
+
+function searchUsers(query) {
+  filterSuggestions(query);
 }
 
 async function loadPotentialContacts() {
@@ -967,73 +977,68 @@ async function loadPotentialContacts() {
         
         const otherUser = usersData[otherUid];
         
-        // Calculate mutual friends
-        const otherContactsSnap = await db.ref('contacts/' + otherUid).once('value');
-        let mutualCount = 0;
-        if (otherContactsSnap.exists()) {
-          otherContactsSnap.forEach(child => {
-            if (myContactIds.has(child.key)) mutualCount++;
-          });
-        }
-        
         suggestions.push({
           uid: otherUid,
           username: otherUser.username || 'Unknown',
-          mutualCount: mutualCount
+          displayName: otherUser.displayName || '',
+          profileImage: otherUser.profileImage || ''
         });
       }
     }
     
-    // Sort by mutual friends descending
-    suggestions.sort((a, b) => b.mutualCount - a.mutualCount);
     allPotentialContacts = suggestions;
     renderSuggestions(suggestions);
     
   } catch (error) {
     console.error("Error loading suggestions:", error);
-    document.getElementById('suggestionsList').innerHTML = '<div class="loading-spinner" style="color:var(--danger)">Failed to load accounts</div>';
+    var res = document.getElementById('searchResults');
+    if (res) res.innerHTML = '<div style="padding:20px; text-align:center; color:var(--danger)">Failed to load accounts</div>';
   }
 }
 
 function renderSuggestions(suggestions) {
-  const list = document.getElementById('suggestionsList');
-  const countEl = document.getElementById('suggestionsCount');
+  const list = document.getElementById('searchResults');
+  if (!list) return;
   list.innerHTML = '';
   
   if (suggestions.length === 0) {
-    list.innerHTML = '<div class="loading-spinner">No accounts found</div>';
-    countEl.textContent = '0 accounts';
+    list.innerHTML = '<div style="padding:20px; text-align:center; color:var(--text-muted);">No users found</div>';
     return;
   }
-  
-  countEl.textContent = suggestions.length + ' account' + (suggestions.length === 1 ? '' : 's');
   
   suggestions.forEach(person => {
     const item = document.createElement('div');
     item.className = 'suggestion-item';
+    item.style.cssText = 'display:flex; align-items:center; justify-content:space-between; padding:10px; border-bottom:1px solid var(--border);';
+    
+    const avatar = person.profileImage 
+      ? `<img src="${person.profileImage}" alt="Avatar" style="width:40px; height:40px; border-radius:10px; object-fit:cover;">`
+      : `<div class="suggestion-avatar" style="width:40px; height:40px; border-radius:10px; background:var(--brand-gradient); display:flex; align-items:center; justify-content:center; color:white; font-weight:bold;">${(person.displayName || person.username || '?')[0].toUpperCase()}</div>`;
+      
     item.innerHTML = `
-      <div class="suggestion-user">
-        <div class="suggestion-avatar">${escapeHtml(person.username[0].toUpperCase())}</div>
-        <div class="suggestion-info">
-          <div class="suggestion-name">@${escapeHtml(person.username)}</div>
-          <div class="suggestion-mutual">${person.mutualCount} mutual friend${person.mutualCount === 1 ? '' : 's'}</div>
+      <div class="suggestion-info" style="display:flex; align-items:center; gap:12px;">
+        ${avatar}
+        <div>
+          <div class="suggestion-name" style="font-weight:bold; color:var(--text);">${escapeHtml(person.displayName || person.username)}</div>
+          <div class="suggestion-username" style="font-size:12px; color:var(--text-muted);">@${escapeHtml(person.username)}</div>
         </div>
       </div>
-      <button class="suggestion-add-btn" onclick="addContactById('${person.uid}', '${escapeHtml(person.username)}')">Add</button>
+      <button class="btn-primary" style="padding:6px 12px; font-size:12px;" onclick="addContactById('${person.uid}', '${escapeHtml(person.username)}')">Add</button>
     `;
     list.appendChild(item);
   });
 }
 
-function filterSuggestions() {
-  const query = document.getElementById('addUsernameInput').value.trim().toLowerCase();
+function filterSuggestions(query) {
   if (!query) {
     renderSuggestions(allPotentialContacts);
     return;
   }
   
+  query = query.trim().toLowerCase();
   const filtered = allPotentialContacts.filter(p => 
-    p.username.toLowerCase().includes(query)
+    (p.username && p.username.toLowerCase().includes(query)) || 
+    (p.displayName && p.displayName.toLowerCase().includes(query))
   );
   renderSuggestions(filtered);
 }
@@ -1134,19 +1139,96 @@ function renderSortedGroups(groups) {
 
 function openCreateGroupModal() {
   document.getElementById('groupNameInput').value = '';
+  var list = document.getElementById('contactCheckboxList');
+  list.innerHTML = '';
+  
+  // Load contacts for selection
+  db.ref('contacts/' + uid).once('value').then(function(snap) {
+    if (!snap.exists()) {
+      list.innerHTML = '<p style="padding:10px; color:var(--text-muted); font-size:13px;">No contacts to add. Add some friends first!</p>';
+      return;
+    }
+    
+    snap.forEach(function(child) {
+      var otherUid = child.key;
+      var username = child.val().name;
+      
+      var item = document.createElement('div');
+      item.style.cssText = 'display:flex; align-items:center; gap:10px; padding:8px 12px; border-bottom:1px solid var(--border);';
+      
+      var checkbox = document.createElement('input');
+      checkbox.type = 'checkbox';
+      checkbox.className = 'group-member-checkbox';
+      checkbox.value = otherUid;
+      checkbox.setAttribute('data-username', username);
+      checkbox.id = 'cb-' + otherUid;
+      
+      var label = document.createElement('label');
+      label.htmlFor = 'cb-' + otherUid;
+      label.style.cssText = 'flex:1; cursor:pointer; font-size:14px; color:var(--text);';
+      label.textContent = username;
+      
+      // Try to get display name
+      db.ref('users/' + otherUid + '/displayName').once('value').then(function(dSnap) {
+        if (dSnap.exists()) label.textContent = dSnap.val();
+      });
+      
+      item.appendChild(checkbox);
+      item.appendChild(label);
+      list.appendChild(item);
+    });
+  });
+  
   openModal('createGroupModal');
+}
+
+function closeCreateGroupModal() {
+  closeModal('createGroupModal');
 }
 
 function createGroup() {
   var name = document.getElementById('groupNameInput').value.trim();
-  if (!name) return;
+  var err = document.getElementById('createGroupError');
+  if (!name) {
+    if (err) { err.textContent = 'Please enter a group name'; err.style.display = 'block'; }
+    return;
+  }
+  
+  var selectedUids = [];
+  document.querySelectorAll('.group-member-checkbox:checked').forEach(function(cb) {
+    selectedUids.push(cb.value);
+  });
+  
+  if (selectedUids.length === 0) {
+    if (err) { err.textContent = 'Please select at least one member'; err.style.display = 'block'; }
+    return;
+  }
+  
   var groupRef = db.ref('groups').push();
   var groupId = groupRef.key;
-  groupRef.set({ name: name, createdBy: uid, createdAt: Date.now(), memberCount: 1 });
-  db.ref('groupMembers/' + uid + '/' + groupId).set(true);
-  closeModal('createGroupModal');
-  showToast('Group created!');
-  openGroup(groupId, name);
+  
+  var groupData = {
+    name: name,
+    createdBy: uid,
+    createdAt: Date.now(),
+    memberCount: selectedUids.length + 1
+  };
+  
+  groupRef.set(groupData).then(function() {
+    // Add me as member
+    db.ref('groupMembers/' + uid + '/' + groupId).set(true);
+    
+    // Add others
+    selectedUids.forEach(function(otherUid) {
+      db.ref('groupMembers/' + otherUid + '/' + groupId).set(true);
+    });
+    
+    closeModal('createGroupModal');
+    showToast('Group "' + name + '" created!');
+    openGroup(groupId, name);
+  }).catch(function(e) {
+    if (err) { err.textContent = 'Error: ' + e.message; err.style.display = 'block'; }
+  });
 }
 
 function openGroupSettings() {
