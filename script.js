@@ -797,8 +797,7 @@ function renderSortedContacts(contacts) {
     item.innerHTML =
       avatarHtml +
       '<div class="contact-info">' +
-        '<div class="contact-name" id="name-' + otherUid + '">@' + escapeHtml(name) + '</div>' +
-        '<div class="contact-subtext" id="sub-' + otherUid + '">UChat Member</div>' +
+        '<div class="contact-name" id="name-' + otherUid + '">' + escapeHtml(name) + '</div>' +
         '<div class="contact-code" id="unread-' + otherUid + '"></div>' +
       '</div>' +
       '<div class="status-dot" id="dot-' + otherUid + '"></div>';
@@ -817,7 +816,6 @@ function renderSortedContacts(contacts) {
         
         if (userData.displayName && nameEl) {
           nameEl.textContent = userData.displayName;
-          if (subEl) subEl.textContent = '@' + name;
         }
       }
     });
