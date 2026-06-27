@@ -716,11 +716,22 @@ function playNotificationSound() {
 
 function updateUsernameDisplay() {
   var display = document.getElementById('usernameDisplay');
-  if (myUsername) {
-    display.textContent = '@' + myUsername;
-  } else {
+  var subtext = document.getElementById('usernameSubtext');
+  
+  if (!myUsername) {
     display.textContent = '@loading';
+    return;
   }
+  
+  db.ref('users/' + uid + '/displayName').once('value').then(function(snap) {
+    if (snap.exists()) {
+      display.textContent = snap.val();
+      if (subtext) subtext.textContent = '@' + myUsername;
+    } else {
+      display.textContent = '@' + myUsername;
+      if (subtext) subtext.textContent = 'Set a display name';
+    }
+  });
 }
 
 // ──────────────────────────────────────────────────────────────────────────────
@@ -786,17 +797,27 @@ function renderSortedContacts(contacts) {
     item.innerHTML =
       avatarHtml +
       '<div class="contact-info">' +
-        '<div class="contact-name">@' + escapeHtml(name) + '</div>' +
+        '<div class="contact-name" id="name-' + otherUid + '">@' + escapeHtml(name) + '</div>' +
+        '<div class="contact-subtext" id="sub-' + otherUid + '">UChat Member</div>' +
         '<div class="contact-code" id="unread-' + otherUid + '"></div>' +
       '</div>' +
       '<div class="status-dot" id="dot-' + otherUid + '"></div>';
     
-    // Load user's profile image for the avatar
-    db.ref('users/' + otherUid + '/profileImage').once('value').then(function(snap) {
+    // Load user's profile details (image and display name)
+    db.ref('users/' + otherUid).once('value').then(function(snap) {
       if (snap.exists()) {
+        var userData = snap.val();
         var avatarEl = document.getElementById('avatar-' + otherUid);
-        if (avatarEl) {
-          avatarEl.innerHTML = '<img src="' + snap.val() + '" alt="Profile" style="width:100%; height:100%; border-radius:8px; object-fit:cover;">';
+        var nameEl = document.getElementById('name-' + otherUid);
+        var subEl = document.getElementById('sub-' + otherUid);
+
+        if (userData.profileImage && avatarEl) {
+          avatarEl.innerHTML = '<img src="' + userData.profileImage + '" alt="Profile" style="width:100%; height:100%; border-radius:8px; object-fit:cover;">';
+        }
+        
+        if (userData.displayName && nameEl) {
+          nameEl.textContent = userData.displayName;
+          if (subEl) subEl.textContent = '@' + name;
         }
       }
     });
@@ -1253,14 +1274,27 @@ function openDM(otherUid, name) {
   showChatArea(name);
   
   var headerAvatar = document.getElementById('chatHeaderAvatar');
+  var headerName = document.getElementById('chatName');
+  var headerSubtitle = document.getElementById('chatSubtitle');
+  
   headerAvatar.innerHTML = name[0].toUpperCase();
   headerAvatar.style.background = 'var(--gradient)';
   headerAvatar.onclick = function() { openUserProfile(otherUid); };
   
-  // Try to load user's profile image for the header
-  db.ref('users/' + otherUid + '/profileImage').once('value').then(function(snap) {
+  // Try to load user's profile details for the header
+  db.ref('users/' + otherUid).once('value').then(function(snap) {
     if (snap.exists() && currentChatUid === otherUid) {
-      headerAvatar.innerHTML = '<img src="' + snap.val() + '" alt="Profile">';
+      var userData = snap.val();
+      if (userData.profileImage) {
+        headerAvatar.innerHTML = '<img src="' + userData.profileImage + '" alt="Profile">';
+      }
+      if (userData.displayName) {
+        headerName.textContent = userData.displayName;
+        headerSubtitle.textContent = '@' + name;
+      } else {
+        headerName.textContent = '@' + name;
+        headerSubtitle.textContent = 'UChat Member';
+      }
     }
   });
 
@@ -1296,10 +1330,13 @@ function openUserProfile(targetUid) {
     
     var data = snap.val();
     var username = data.username || 'User';
-    nameEl.textContent = '@' + username;
     
     if (data.displayName) {
-      displayNameEl.textContent = data.displayName;
+      nameEl.textContent = data.displayName;
+      displayNameEl.textContent = '@' + username;
+    } else {
+      nameEl.textContent = '@' + username;
+      displayNameEl.textContent = 'UChat Member';
     }
     
     avatarEl.innerHTML = username[0].toUpperCase();
@@ -1484,20 +1521,37 @@ function renderMessage(m, isGroup, box) {
   div.setAttribute('data-key', m._key);
 
   var senderLabel = '';
-  if (isGroup && !isMe) {
-    var color = getMemberColor(m.sender);
-    senderLabel = '<div class="msg-sender-label" style="color:' + color + '; cursor: pointer;" onclick="openUserProfile(\'' + m.sender + '\')">@' + escapeHtml(m.senderName || m.sender || '') + '</div>';
-  } else if (!isGroup && !isMe) {
-    senderLabel = '<div class="msg-sender-label" style="cursor: pointer;" onclick="openUserProfile(\'' + m.sender + '\')">@' + escapeHtml(m.senderName || m.sender || '') + '</div>';
+  if (!isMe) {
+    var labelId = 'sender-label-' + m._key;
+    var color = isGroup ? getMemberColor(m.sender) : '';
+    var colorStyle = color ? 'color:' + color + ';' : '';
+    senderLabel = '<div id="' + labelId + '" class="msg-sender-label" style="' + colorStyle + ' cursor: pointer;" onclick="openUserProfile(\'' + m.sender + '\')">@' + escapeHtml(m.senderName || m.sender || '') + '</div>';
+    
+    // Fetch and update with display name
+    db.ref('users/' + m.sender + '/displayName').once('value').then(function(snap) {
+      if (snap.exists()) {
+        var el = document.getElementById(labelId);
+        if (el) el.textContent = snap.val();
+      }
+    });
   }
 
   // --- REPLY RENDERING ---
   var replyHtml = '';
   if (m.replyTo) {
+    var replyId = 'reply-name-' + m._key;
     replyHtml = '<div class="msg-reply-container">' +
-      '<b>@' + escapeHtml(m.replyTo.senderName) + '</b>: ' +
+      '<b id="' + replyId + '">@' + escapeHtml(m.replyTo.senderName) + '</b>: ' +
       escapeHtml(m.replyTo.text.substring(0, 50)) + (m.replyTo.text.length > 50 ? '...' : '') +
       '</div>';
+      
+    // Fetch and update reply name with display name
+    db.ref('users/' + m.replyTo.sender + '/displayName').once('value').then(function(snap) {
+      if (snap.exists()) {
+        var el = document.getElementById(replyId);
+        if (el) el.textContent = snap.val();
+      }
+    });
   }
 
   // --- CONTENT RENDERING ---
