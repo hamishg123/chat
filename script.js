@@ -1154,27 +1154,46 @@ function openCreateGroupModal() {
       var username = child.val().name;
       
       var item = document.createElement('div');
-      item.style.cssText = 'display:flex; align-items:center; gap:10px; padding:8px 12px; border-bottom:1px solid var(--border);';
+      item.className = 'group-member-select-item';
+      item.style.cssText = 'display:flex; align-items:center; gap:12px; padding:10px 14px; border-radius:12px; cursor:pointer; transition:all 0.2s; margin-bottom:4px; border:1px solid transparent;';
+      
+      var avatarId = 'cb-avatar-' + otherUid;
+      var avatarHtml = '<div class="avatar" id="' + avatarId + '" style="width:36px; height:36px; font-size:14px;">' + escapeHtml(username[0].toUpperCase()) + '</div>';
       
       var checkbox = document.createElement('input');
       checkbox.type = 'checkbox';
       checkbox.className = 'group-member-checkbox';
+      checkbox.style.display = 'none';
       checkbox.value = otherUid;
       checkbox.setAttribute('data-username', username);
       checkbox.id = 'cb-' + otherUid;
       
-      var label = document.createElement('label');
-      label.htmlFor = 'cb-' + otherUid;
-      label.style.cssText = 'flex:1; cursor:pointer; font-size:14px; color:var(--text);';
-      label.textContent = username;
+      item.innerHTML = 
+        avatarHtml + 
+        '<div style="flex:1; min-width:0;">' +
+          '<div class="member-name" id="cb-name-' + otherUid + '" style="font-weight:700; font-size:14px; color:var(--text);">' + escapeHtml(username) + '</div>' +
+          '<div style="font-size:11px; color:var(--text-muted-dark);">@' + escapeHtml(username) + '</div>' +
+        '</div>' +
+        '<div class="check-mark" style="width:20px; height:20px; border-radius:50%; border:2px solid var(--border); display:flex; align-items:center; justify-content:center; color:white; font-size:12px;">✓</div>';
       
-      // Try to get display name
-      db.ref('users/' + otherUid + '/displayName').once('value').then(function(dSnap) {
-        if (dSnap.exists()) label.textContent = dSnap.val();
+      item.onclick = function() {
+        checkbox.checked = !checkbox.checked;
+        item.style.background = checkbox.checked ? 'rgba(255,107,0,0.1)' : 'transparent';
+        item.style.borderColor = checkbox.checked ? 'var(--primary)' : 'transparent';
+        item.querySelector('.check-mark').style.background = checkbox.checked ? 'var(--primary)' : 'transparent';
+        item.querySelector('.check-mark').style.borderColor = checkbox.checked ? 'var(--primary)' : 'var(--border)';
+      };
+      
+      // Load details
+      db.ref('users/' + otherUid).once('value').then(function(uSnap) {
+        if (uSnap.exists()) {
+          var uData = uSnap.val();
+          if (uData.displayName) document.getElementById('cb-name-' + otherUid).textContent = uData.displayName;
+          if (uData.profileImage) document.getElementById(avatarId).innerHTML = '<img src="' + uData.profileImage + '" alt="Profile" style="width:100%; height:100%; border-radius:8px; object-fit:cover;">';
+        }
       });
       
       item.appendChild(checkbox);
-      item.appendChild(label);
       list.appendChild(item);
     });
   });
@@ -1236,47 +1255,71 @@ function openGroupSettings() {
   db.ref('groups/' + currentGroupId).once('value').then(function(snap) {
     if (!snap.exists()) return;
     var g = snap.val();
-    if (g.createdBy !== uid) {
-      showToast('Only the group owner can change settings');
-      return;
-    }
-    document.getElementById('groupNameEdit').value = g.name || '';
+    
+    // Set group name in edit field
+    var nameEdit = document.getElementById('groupNameEdit');
+    if (nameEdit) nameEdit.value = g.name || '';
+    
+    // Reset add member field
+    var addInput = document.getElementById('addMemberInput');
+    if (addInput) addInput.value = '';
+    
+    var err = document.getElementById('groupSettingsError');
+    if (err) err.style.display = 'none';
+    
     loadGroupMembers();
-    document.getElementById('addMemberUsername').value = '';
-    document.getElementById('addMemberError').style.display = 'none';
     openModal('groupSettingsModal');
   });
 }
 
 function loadGroupMembers() {
-  var list = document.getElementById('memberList');
-  list.innerHTML = '';
+  var list = document.getElementById('groupMemberList');
+  if (!list) return;
+  list.innerHTML = '<div style="padding:10px; text-align:center; color:var(--text-muted);">Loading members...</div>';
+  
   db.ref('groupMembers').once('value').then(function(snap) {
-    snap.forEach(function(userMembers) {
-      var memberId = userMembers.key;
-      userMembers.forEach(function(group) {
-        if (group.key === currentGroupId) {
-          db.ref('users/' + memberId).once('value').then(function(userSnap) {
-            if (!userSnap.exists()) return;
-            var userData = userSnap.val();
-            var memberName = userData.username || memberId;
-            var item = document.createElement('div');
-            item.className = 'member-item';
-            var isOwner = memberId === db.ref('groups/' + currentGroupId).once('value').then(function(s) { return s.val().createdBy; });
-            var badge = '';
-            db.ref('groups/' + currentGroupId).once('value').then(function(gSnap) {
-              if (gSnap.val().createdBy === memberId) {
-                badge = '<span class="member-badge">Owner</span>';
+    if (!snap.exists()) return;
+    var allMembers = snap.val();
+    list.innerHTML = '';
+    
+    Object.keys(allMembers).forEach(function(memberId) {
+      if (allMembers[memberId][currentGroupId]) {
+        db.ref('users/' + memberId).once('value').then(function(uSnap) {
+          if (!uSnap.exists()) return;
+          var u = uSnap.val();
+          var item = document.createElement('div');
+          item.className = 'member-item';
+          item.style.cssText = 'display:flex; align-items:center; justify-content:space-between; padding:8px 12px; border-bottom:1px solid var(--border);';
+          
+          var name = u.displayName || u.username;
+          item.innerHTML = '<div style="display:flex; align-items:center; gap:10px;">' +
+            '<div class="avatar" style="width:30px; height:30px; font-size:12px;">' + escapeHtml(name[0].toUpperCase()) + '</div>' +
+            '<div>' +
+              '<div style="font-weight:700; font-size:13px; color:var(--text);">' + escapeHtml(name) + '</div>' +
+              '<div style="font-size:11px; color:var(--text-muted-dark);">@' + escapeHtml(u.username) + '</div>' +
+            '</div>' +
+          '</div>';
+          
+          if (uid !== memberId) {
+            // Check if I'm the owner to show remove button
+            db.ref('groups/' + currentGroupId + '/createdBy').once('value').then(function(ownerSnap) {
+              if (ownerSnap.val() === uid) {
+                var btn = document.createElement('button');
+                btn.textContent = '✕';
+                btn.style.cssText = 'background:none; border:none; color:var(--danger); cursor:pointer; font-size:16px; padding:4px;';
+                btn.onclick = function() { removeGroupMember(memberId); };
+                item.appendChild(btn);
               }
-              var removeBtn = memberId === uid
-                ? '<span style="color:var(--text-muted-dark);font-size:11px">You</span>'
-                : '<button class="member-remove" onclick="removeGroupMember(\'' + memberId + '\')">×</button>';
-              item.innerHTML = '<div class="member-name">' + badge + '@' + escapeHtml(memberName) + '</div>' + removeBtn;
             });
-            list.appendChild(item);
-          });
-        }
-      });
+          } else {
+            var badge = document.createElement('div');
+            badge.textContent = 'You';
+            badge.style.cssText = 'font-size:10px; background:var(--surface-light); padding:2px 6px; border-radius:4px; color:var(--text-muted);';
+            item.appendChild(badge);
+          }
+          list.appendChild(item);
+        });
+      }
     });
   });
 }
@@ -1291,47 +1334,80 @@ function addGroupMember() {
       return;
     }
 
-    var username = document.getElementById('addMemberUsername').value.trim().toLowerCase();
-    var errEl = document.getElementById('addMemberError');
-    errEl.style.display = 'none';
+    var username = document.getElementById('addMemberInput').value.trim().toLowerCase();
+    var errEl = document.getElementById('groupSettingsError');
+    if (errEl) errEl.style.display = 'none';
 
     if (!username) {
-      errEl.textContent = 'Please enter a username';
-      errEl.style.display = 'block';
+      if (errEl) { errEl.textContent = 'Please enter a username'; errEl.style.display = 'block'; }
       return;
     }
 
     if (username.startsWith('@')) username = username.substring(1);
 
     if (username === myUsername.toLowerCase()) {
-      errEl.textContent = "That's your own username!";
-      errEl.style.display = 'block';
+      if (errEl) { errEl.textContent = "That's your own username!"; errEl.style.display = 'block'; }
       return;
     }
 
-    db.ref('usernames/' + username).once('value').then(function(snap) {
-      if (!snap.exists()) {
-        errEl.textContent = 'User not found';
-        errEl.style.display = 'block';
+    db.ref('usernames/' + username).once('value').then(function(uSnap) {
+      if (!uSnap.exists()) {
+        if (errEl) { errEl.textContent = 'User not found'; errEl.style.display = 'block'; }
         return;
       }
-      var memberId = snap.val().uid;
+      var memberId = uSnap.val();
       db.ref('groupMembers/' + memberId + '/' + currentGroupId).once('value').then(function(memberSnap) {
         if (memberSnap.exists()) {
-          errEl.textContent = 'User is already in this group';
-          errEl.style.display = 'block';
+          if (errEl) { errEl.textContent = 'User is already in this group'; errEl.style.display = 'block'; }
           return;
         }
         db.ref('groupMembers/' + memberId + '/' + currentGroupId).set(true);
         db.ref('groups/' + currentGroupId + '/memberCount').transaction(function(current) {
           return (current || 0) + 1;
         });
-        document.getElementById('addMemberUsername').value = '';
+        document.getElementById('addMemberInput').value = '';
         showToast('Member added!');
         loadGroupMembers();
       });
     });
   });
+}
+
+function saveGroupName() {
+  if (!currentGroupId) return;
+  var newName = document.getElementById('groupNameEdit').value.trim();
+  if (!newName) {
+    showToast('Please enter a group name');
+    return;
+  }
+  
+  db.ref('groups/' + currentGroupId + '/name').set(newName).then(function() {
+    showToast('Group name updated!');
+    currentChatName = newName;
+    document.getElementById('chatName').textContent = newName;
+    loadGroups(); // Refresh sidebar
+  }).catch(function(e) {
+    showToast('Error: ' + e.message);
+  });
+}
+
+function leaveGroup() {
+  if (!currentGroupId) return;
+  if (!confirm('Are you sure you want to leave this group?')) return;
+  
+  db.ref('groupMembers/' + uid + '/' + currentGroupId).remove().then(function() {
+    db.ref('groups/' + currentGroupId + '/memberCount').transaction(function(current) {
+      return Math.max((current || 1) - 1, 0);
+    });
+    showToast('You left the group');
+    closeModal('groupSettingsModal');
+    goBackToContacts();
+    loadGroups();
+  });
+}
+
+function closeGroupSettings() {
+  closeModal('groupSettingsModal');
 }
 
 function removeGroupMember(memberId) {
