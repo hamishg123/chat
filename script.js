@@ -800,6 +800,7 @@ function renderSortedContacts(contacts) {
         '<div class="contact-name" id="name-' + otherUid + '">' + escapeHtml(name) + '</div>' +
         '<div class="contact-code" id="unread-' + otherUid + '"></div>' +
       '</div>' +
+      '<div class="contact-options-btn" id="opt-' + otherUid + '">⋮</div>' +
       '<div class="status-dot" id="dot-' + otherUid + '"></div>';
     
     // Load user's profile details (image and display name)
@@ -821,10 +822,57 @@ function renderSortedContacts(contacts) {
     });
     
     watchUnread('messages/' + chatId(uid, otherUid), 'unread-' + otherUid);
-    item.onclick = function() { openDM(otherUid, name); };
+    
+    // Clicking the item opens the DM
+    item.onclick = function(e) {
+      if (e.target.classList.contains('contact-options-btn')) return;
+      openDM(otherUid, name);
+    };
+    
+    // Clicking the three dots opens the context menu
+    var optBtn = item.querySelector('.contact-options-btn');
+    if (optBtn) {
+      optBtn.onclick = function(e) {
+        e.stopPropagation();
+        showContactContextMenu(e, otherUid, name);
+      };
+    }
+    
     list.appendChild(item);
     watchPresence(otherUid);
   });
+}
+
+function showContactContextMenu(e, otherUid, name) {
+  var menu = document.getElementById('contactContextMenu');
+  menu.style.display = 'block';
+  menu.style.left = e.pageX + 'px';
+  menu.style.top = e.pageY + 'px';
+  
+  // Update menu actions
+  document.getElementById('menuViewProfile').onclick = function() {
+    menu.style.display = 'none';
+    openUserProfile(otherUid);
+  };
+  
+  document.getElementById('menuRemoveFriend').onclick = function() {
+    menu.style.display = 'none';
+    removeFriend(otherUid, name);
+  };
+  
+  document.getElementById('menuBlockUser').onclick = function() {
+    menu.style.display = 'none';
+    blockUser(otherUid, name);
+  };
+  
+  // Close menu when clicking elsewhere
+  var closeMenu = function() {
+    menu.style.display = 'none';
+    document.removeEventListener('click', closeMenu);
+  };
+  setTimeout(function() {
+    document.addEventListener('click', closeMenu);
+  }, 10);
 }
 
 function watchPresence(id) {
@@ -2683,4 +2731,37 @@ function updateBioCharCount() {
   if (charCountEl) {
     charCountEl.textContent = bioEl.value.length;
   }
+}
+
+function removeFriend(targetUid, name) {
+  if (!confirm('Are you sure you want to remove ' + name + ' from your contacts?')) return;
+  
+  db.ref('contacts/' + uid + '/' + targetUid).remove().then(function() {
+    showToast('Removed ' + name + ' from contacts');
+    // If currently chatting with them, close the chat
+    if (currentChatUid === targetUid) {
+      goBackToContacts();
+    }
+    loadContacts();
+  }).catch(function(err) {
+    showToast('Failed to remove: ' + err.message);
+  });
+}
+
+function blockUser(targetUid, name) {
+  if (!confirm('Block ' + name + '? You will no longer receive messages from them.')) return;
+  
+  // 1. Add to blocked list
+  db.ref('blocked/' + uid + '/' + targetUid).set(true).then(function() {
+    // 2. Remove from contacts
+    return db.ref('contacts/' + uid + '/' + targetUid).remove();
+  }).then(function() {
+    showToast(name + ' has been blocked');
+    if (currentChatUid === targetUid) {
+      goBackToContacts();
+    }
+    loadContacts();
+  }).catch(function(err) {
+    showToast('Failed to block: ' + err.message);
+  });
 }

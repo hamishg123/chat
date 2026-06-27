@@ -568,6 +568,37 @@
   <button class="call-btn end" style="width:44px; height:44px;" onclick="rejectCall()">✕</button>
 </div>
 
+<!-- User Profile Modal -->
+<div class="modal-overlay" id="userProfileModal">
+  <div class="modal profile-modal">
+    <div class="profile-modal-header">
+      <div class="profile-modal-avatar" id="userProfileAvatar">?</div>
+      <div class="profile-modal-info">
+        <h3 id="userProfileName">User</h3>
+        <p id="userProfileDisplayName">@username</p>
+      </div>
+    </div>
+    <div class="profile-modal-body">
+      <div id="userProfileBioSection" style="display:none;">
+        <label>Bio</label>
+        <p id="userProfileBio"></p>
+      </div>
+      <div class="profile-modal-status" id="userProfileStatus">Member</div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn-secondary" onclick="closeModal('userProfileModal')">Close</button>
+      <button class="btn-primary" id="userProfileChatBtn">Message</button>
+    </div>
+  </div>
+</div>
+
+<!-- Contact Context Menu -->
+<div id="contactContextMenu" class="context-menu">
+  <div class="menu-item" id="menuViewProfile">👤 View Profile</div>
+  <div class="menu-item" id="menuRemoveFriend">👋 Remove Friend</div>
+  <div class="menu-item danger" id="menuBlockUser">🚫 Block User</div>
+</div>
+
 <script src="script.js"></script>
 </body>
 </html>
