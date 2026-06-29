@@ -2310,18 +2310,16 @@ function openCameraModal() {
   }
 }
 
-function closeCameraModal() {
-  if (cameraStream) {
-    cameraStream.getTracks().forEach(track => track.stop());
-    cameraStream = null;
-  }
-  closeModal('cameraModal');
-}
+
+
+var lastCapturedPhoto = null;
 
 function capturePhoto() {
   var video = document.getElementById('cameraVideo');
   var canvas = document.getElementById('cameraCanvas');
   var context = canvas.getContext('2d');
+  
+  if (!video.videoWidth) return;
   
   // Set canvas dimensions to match video
   canvas.width = video.videoWidth;
@@ -2334,11 +2332,44 @@ function capturePhoto() {
   context.restore();
   
   // Convert to base64
-  var base64Data = canvas.toDataURL('image/jpeg', 0.8);
+  lastCapturedPhoto = canvas.toDataURL('image/jpeg', 0.8);
   
-  // Send as image
-  sendCapturedImage(base64Data);
-  closeCameraModal();
+  // Show preview on canvas and hide video
+  video.style.display = 'none';
+  canvas.style.display = 'block';
+  
+  // Show Send button, hide Capture button
+  document.getElementById('sendPhotoBtn').style.display = 'block';
+  document.querySelector('.capture-btn').style.display = 'none';
+}
+
+function sendCapturedPhoto() {
+  if (lastCapturedPhoto) {
+    sendCapturedImage(lastCapturedPhoto);
+    closeCameraModal();
+  }
+}
+
+function closeCameraModal() {
+  if (cameraStream) {
+    cameraStream.getTracks().forEach(track => track.stop());
+    cameraStream = null;
+  }
+  
+  // Reset UI for next time
+  var video = document.getElementById('cameraVideo');
+  var canvas = document.getElementById('cameraCanvas');
+  if (video) video.style.display = 'block';
+  if (canvas) canvas.style.display = 'none';
+  
+  var sendBtn = document.getElementById('sendPhotoBtn');
+  if (sendBtn) sendBtn.style.display = 'none';
+  
+  var captureBtn = document.querySelector('.capture-btn');
+  if (captureBtn) captureBtn.style.display = 'block';
+  
+  lastCapturedPhoto = null;
+  closeModal('cameraModal');
 }
 
 function toggleVoiceRecording() {
