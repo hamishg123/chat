@@ -1134,7 +1134,7 @@ function addContactById(otherUid, otherUsername) {
 function loadGroups() {
   db.ref('groupMembers/' + uid).on('value', function(snap) {
     var list = document.getElementById('groupList');
-    if (!snap.exists()) {
+    if (!snap.exists() || snap.numChildren() === 0) {
       list.innerHTML = '<div style="padding:16px;text-align:center;color:var(--text-muted-dark);font-size:13px">No groups yet. Create one!</div>';
       return;
     }
@@ -1424,8 +1424,15 @@ function addGroupMember() {
         if (errEl) { errEl.textContent = 'User not found'; errEl.style.display = 'block'; }
         return;
       }
-      // The usernames path stores an object: { uid: "...", email: "..." }
-      var memberId = uSnap.val().uid;
+      
+      var uData = uSnap.val();
+      var memberId = (typeof uData === 'object') ? uData.uid : uData;
+      
+      if (!memberId) {
+        if (errEl) { errEl.textContent = 'User data error'; errEl.style.display = 'block'; }
+        return;
+      }
+
       db.ref('groupMembers/' + memberId + '/' + currentGroupId).once('value').then(function(memberSnap) {
         if (memberSnap.exists()) {
           if (errEl) { errEl.textContent = 'User is already in this group'; errEl.style.display = 'block'; }
