@@ -1419,12 +1419,13 @@ function addGroupMember() {
       return;
     }
 
-    db.ref('usernames/' + username).once('value').then(function(uSnap) {
+      db.ref('usernames/' + username).once('value').then(function(uSnap) {
       if (!uSnap.exists()) {
         if (errEl) { errEl.textContent = 'User not found'; errEl.style.display = 'block'; }
         return;
       }
-      var memberId = uSnap.val();
+      // The usernames path stores an object: { uid: "...", email: "..." }
+      var memberId = uSnap.val().uid;
       db.ref('groupMembers/' + memberId + '/' + currentGroupId).once('value').then(function(memberSnap) {
         if (memberSnap.exists()) {
           if (errEl) { errEl.textContent = 'User is already in this group'; errEl.style.display = 'block'; }
