@@ -1887,33 +1887,56 @@ function renderMessage(m, isGroup, box) {
     '<div class="message" onclick="handleMessageTap(this)" id="msg-' + m._key + '">' + actionsOverlay + replyHtml + content + deleteBtn + '</div>' +
     reactionsHtml +
     '<div class="msg-time">' + time + (status ? ' <span class="msg-status">' + status + '</span>' : '') + '</div>';
+  
+  // --- PRE-APPLY MY APPEARANCE (Anti-Flicker) ---
+  if (isMe) {
+    var msgEl = div.querySelector('.message');
+    if (userSettings.bubbleColor) {
+      msgEl.style.background = userSettings.bubbleColor;
+      msgEl.style.color = getContrastColor(userSettings.bubbleColor);
+      
+      // Add glow matching the color
+      var color = userSettings.bubbleColor;
+      if (color.startsWith('#')) {
+        var r = parseInt(color.slice(1, 3), 16);
+        var g = parseInt(color.slice(3, 5), 16);
+        var b = parseInt(color.slice(5, 7), 16);
+        msgEl.style.boxShadow = '0 4px 15px rgba(' + r + ',' + g + ',' + b + ', 0.25)';
+      }
+    }
+    if (userSettings.bubbleStyle) {
+      if (userSettings.bubbleStyle === 'rounded') msgEl.style.borderRadius = '18px';
+      else if (userSettings.bubbleStyle === 'square') msgEl.style.borderRadius = '4px';
+      else if (userSettings.bubbleStyle === 'pill') msgEl.style.borderRadius = '24px';
+      msgEl.style.borderBottomRightRadius = '4px';
+    }
+  }
+
   box.appendChild(div);
 
-  // --- SHARED APPEARANCE SYNC ---
-  db.ref('users/' + m.sender + '/appearance').once('value').then(function(snap) {
-    if (!snap.exists()) return;
-    var app = snap.val();
-    var msgEl = document.getElementById('msg-' + m._key);
-    if (!msgEl) return;
+  // --- SHARED APPEARANCE SYNC (For others) ---
+  if (!isMe) {
+    db.ref('users/' + m.sender + '/appearance').once('value').then(function(snap) {
+      if (!snap.exists()) return;
+      var app = snap.val();
+      var msgEl = document.getElementById('msg-' + m._key);
+      if (!msgEl) return;
 
-    if (app.bubbleColor) {
-      msgEl.style.background = app.bubbleColor;
-      msgEl.style.color = getContrastColor(app.bubbleColor);
-      // Ensure icons/buttons inside also inherit color
-      msgEl.querySelectorAll('button, span').forEach(el => {
-        if (!el.classList.contains('reaction-btn')) el.style.color = 'inherit';
-      });
-    }
-    if (app.bubbleStyle) {
-      if (app.bubbleStyle === 'rounded') msgEl.style.borderRadius = '18px';
-      else if (app.bubbleStyle === 'square') msgEl.style.borderRadius = '4px';
-      else if (app.bubbleStyle === 'pill') msgEl.style.borderRadius = '24px';
-      
-      // Keep the tail for the correct side
-      if (isMe) msgEl.style.borderBottomRightRadius = '4px';
-      else msgEl.style.borderBottomLeftRadius = '4px';
-    }
-  });
+      if (app.bubbleColor) {
+        msgEl.style.background = app.bubbleColor;
+        msgEl.style.color = getContrastColor(app.bubbleColor);
+        msgEl.querySelectorAll('button, span').forEach(el => {
+          if (!el.classList.contains('reaction-btn')) el.style.color = 'inherit';
+        });
+      }
+      if (app.bubbleStyle) {
+        if (app.bubbleStyle === 'rounded') msgEl.style.borderRadius = '18px';
+        else if (app.bubbleStyle === 'square') msgEl.style.borderRadius = '4px';
+        else if (app.bubbleStyle === 'pill') msgEl.style.borderRadius = '24px';
+        msgEl.style.borderBottomLeftRadius = '4px';
+      }
+    });
+  }
 }
 
 function getContrastColor(hexcolor) {
@@ -2683,6 +2706,7 @@ function applyBubbleStyle() {
   var style = userSettings.bubbleStyle;
   var messages = document.querySelectorAll('.message');
   messages.forEach(function(msg) {
+    var isMe = msg.parentElement.classList.contains('me');
     if (style === 'rounded') {
       msg.style.borderRadius = '18px';
     } else if (style === 'square') {
@@ -2690,6 +2714,10 @@ function applyBubbleStyle() {
     } else if (style === 'pill') {
       msg.style.borderRadius = '24px';
     }
+    
+    // Preserve side-specific tail
+    if (isMe) msg.style.borderBottomRightRadius = '4px';
+    else msg.style.borderBottomLeftRadius = '4px';
   });
 }
 
@@ -2701,7 +2729,22 @@ function applyBubbleColor() {
     style.id = 'customBubbleStyle';
     document.head.appendChild(style);
   }
-  style.textContent = '.msg-container.me .message { background: ' + color + ' !important; color: ' + getContrastColor(color) + ' !important; }';
+  
+  // Create a glow color with lower opacity
+  var glowColor = color;
+  if (color.startsWith('#')) {
+    var r = parseInt(color.slice(1, 3), 16);
+    var g = parseInt(color.slice(3, 5), 16);
+    var b = parseInt(color.slice(5, 7), 16);
+    glowColor = 'rgba(' + r + ',' + g + ',' + b + ', 0.25)';
+  }
+
+  style.textContent = 
+    '.msg-container.me .message { ' +
+      'background: ' + color + ' !important; ' +
+      'color: ' + getContrastColor(color) + ' !important; ' +
+      'box-shadow: 0 4px 15px ' + glowColor + ' !important; ' +
+    '}';
 }
 
 function toggleGhostMode() {
@@ -2788,24 +2831,7 @@ function loadSettingsUI() {
   applyBubbleColor();
 }
 
-// Add back button to Settings page on mobile
-setTimeout(function() {
-  var settingsPage = document.getElementById('settingsPage');
-  if (settingsPage && window.innerWidth <= 768) {
-    var backBtn = document.createElement('button');
-    backBtn.textContent = '← Back';
-    backBtn.style.cssText = 'position:absolute; top:16px; left:16px; background:none; border:none; color:var(--primary); font-size:16px; font-weight:600; cursor:pointer; padding:8px; z-index:10;';
-    backBtn.onclick = function() {
-      document.getElementById('settingsPage').style.display = 'none';
-      document.getElementById('emptyState').style.display = 'flex';
-      showSidebar();
-    };
-    if (!settingsPage.querySelector('button[style*="position:absolute"]')) {
-      settingsPage.style.position = 'relative';
-      settingsPage.insertBefore(backBtn, settingsPage.firstChild);
-	    }
-	  }
-	}, 100);
+
 
 // ──────────────────────────────────────────────────────────────────────────────
 // PROFILE PAGE
