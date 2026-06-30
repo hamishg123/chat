@@ -235,7 +235,76 @@ function initUser() {
     loadContacts();
     loadGroups();
     listenForIncomingCalls();
+    setupGlobalMessageListener();
   });
+}
+
+function setupGlobalMessageListener() {
+  // Listen for all messages sent to any DM I am part of
+  // Note: Since Firebase is structured as messages/chatId/msgId, 
+  // we listen to the parent and filter. In a real app, you'd use Cloud Functions.
+  // For this app, we'll listen to contacts and then listen to their respective chat paths.
+  
+  db.ref('contacts/' + uid).on('child_added', function(snap) {
+    var otherUid = snap.key;
+    var chatPath = 'messages/' + chatId(uid, otherUid);
+    
+    // Listen for new messages in this chat
+    // We only care about messages added AFTER the app started
+    var startTime = Date.now();
+    
+    db.ref(chatPath).orderByChild('time').startAt(startTime).on('child_added', function(msgSnap) {
+      var m = msgSnap.val();
+      if (m.sender !== uid && !m.seen) {
+        // Only notify if we aren't currently looking at this chat
+        if (currentChat !== chatId(uid, otherUid)) {
+          handleIncomingNotification(m, 'dm');
+        }
+      }
+    });
+  });
+  
+  // Also listen for Group messages
+  db.ref('groupMembers/' + uid).on('child_added', function(snap) {
+    var groupId = snap.key;
+    var chatPath = 'groupMessages/' + groupId;
+    var startTime = Date.now();
+    
+    db.ref(chatPath).orderByChild('time').startAt(startTime).on('child_added', function(msgSnap) {
+      var m = msgSnap.val();
+      if (m.sender !== uid && !m.seen) {
+        if (currentChat !== groupId) {
+          handleIncomingNotification(m, 'group', groupId);
+        }
+      }
+    });
+  });
+}
+
+function handleIncomingNotification(m, type, groupId = null) {
+  if (!userSettings.notifications) return;
+  
+  var title = 'New message from ' + (m.senderName || 'Someone');
+  if (type === 'group' && groupId) {
+    // Try to get group name
+    db.ref('groups/' + groupId + '/name').once('value').then(function(snap) {
+      var groupName = snap.val() || 'Group';
+      title = groupName + ': ' + (m.senderName || 'Someone');
+      triggerNotification(title, m);
+    });
+  } else {
+    triggerNotification(title, m);
+  }
+}
+
+function triggerNotification(title, m) {
+  var body = m.type === 'text' ? decryptMessage(m.text || '') : '[Image]';
+  sendNotification(title, { 
+    body: body.substring(0, 100), 
+    icon: 'uchat-logo.png',
+    tag: m.sender // Group notifications from same person or chat
+  });
+  if (userSettings.sound) playNotificationSound();
 }
 
 function initializeProfileAvatar() {
@@ -1645,14 +1714,7 @@ function loadMessages(path, isGroup, append = false) {
         firstMessageKey = m._key;
       }
       
-      var msgId = chatIdFromPath + '_' + child.key;
-      if (m.sender !== uid && !m.opened && !seenMessageIds.has(msgId) && userSettings.notifications) {
-        var txt = m.type === 'text' ? decryptMessage(m.text || '') : '[Image]';
-        var sender = m.senderName || 'Someone';
-        sendNotification('New message from ' + sender, { body: txt.substring(0, 100), icon: '💬' });
-        if (userSettings.sound) playNotificationSound();
-      }
-      seenMessageIds.add(msgId);
+      seenMessageIds.add(chatIdFromPath + '_' + child.key);
       
       if (m.sender !== uid && !m.opened) {
         updates[child.key + '/seen'] = true;
