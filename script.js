@@ -48,6 +48,10 @@ var encryptionKey = 'SecureChat2024!';
 
 // WebRTC State
 var peerConnections = {}; // Map of uid -> RTCPeerConnection
+
+// Stripe Config
+var stripePriceId = 'price_1To7bYGW79t0aQmmSwiMJsrt';
+var isPro = false;
 var localStream = null;
 var callId = null;
 var isCallActive = false;
@@ -236,7 +240,56 @@ function initUser() {
     loadGroups();
     listenForIncomingCalls();
     setupGlobalMessageListener();
+    
+    // Listen for Pro status
+    db.ref('users/' + uid + '/isPro').on('value', function(proSnap) {
+      isPro = proSnap.val() === true;
+      updateProUI();
+    });
   });
+}
+
+function updateProUI() {
+  var proBadge = document.getElementById('proBadge');
+  var upgradeBtn = document.getElementById('upgradeToProBtn');
+  var manageBtn = document.getElementById('manageProBtn');
+  var sidebarBadge = document.getElementById('sidebarProBadge');
+  
+  if (isPro) {
+    if (proBadge) proBadge.style.display = 'block';
+    if (upgradeBtn) upgradeBtn.style.display = 'none';
+    if (manageBtn) manageBtn.style.display = 'block';
+    
+    // Add Pro badge to sidebar if it doesn't exist
+    if (!sidebarBadge) {
+      var nameDisplay = document.getElementById('usernameDisplay');
+      if (nameDisplay) {
+        sidebarBadge = document.createElement('span');
+        sidebarBadge.id = 'sidebarProBadge';
+        sidebarBadge.textContent = 'PRO';
+        sidebarBadge.style.cssText = 'background:var(--primary); color:white; font-size:9px; font-weight:800; padding:2px 6px; border-radius:10px; margin-left:6px; vertical-align:middle;';
+        nameDisplay.appendChild(sidebarBadge);
+      }
+    }
+  } else {
+    if (proBadge) proBadge.style.display = 'none';
+    if (upgradeBtn) upgradeBtn.style.display = 'block';
+    if (manageBtn) manageBtn.style.display = 'none';
+    if (sidebarBadge) sidebarBadge.remove();
+  }
+}
+
+function upgradeToPro() {
+  var paymentUrl = 'https://buy.stripe.com/dRmbJ11Pe1Np9ye2Pn0Fi03';
+  // Open in new tab
+  window.open(paymentUrl, '_blank');
+  showToast('Opening secure checkout...');
+}
+
+function manageSubscription() {
+  // Since we don't have a backend to create a portal session, 
+  // we redirect to the Stripe customer portal if available or show a message.
+  showToast('Please contact support or check your email to manage your subscription.');
 }
 
 function setupGlobalMessageListener() {
@@ -1292,6 +1345,13 @@ function createGroup() {
     return;
   }
   
+  // Pro limit check
+  var limit = isPro ? 500 : 20;
+  if (selectedUids.length > limit) {
+    if (err) { err.textContent = 'Free users can only add up to 20 members. Upgrade to Pro for 500!'; err.style.display = 'block'; }
+    return;
+  }
+  
   var groupRef = db.ref('groups').push();
   var groupId = groupRef.key;
   
@@ -2099,6 +2159,15 @@ function sendMessage() {
 function sendImage(event) {
   var file = event.target.files[0];
   if (!file || !currentChat) return;
+  
+  // Pro limit check
+  var sizeLimit = isPro ? 100 * 1024 * 1024 : 5 * 1024 * 1024;
+  if (file.size > sizeLimit) {
+    showToast(isPro ? 'File too large (max 100MB)' : 'File too large. Upgrade to Pro for 100MB limits!');
+    event.target.value = '';
+    return;
+  }
+
   event.target.value = '';
 
   var progress = document.getElementById('uploadProgress');

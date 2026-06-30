@@ -107,6 +107,28 @@
         </div>
       </div>
 
+      <!-- Subscription Section -->
+      <div class="settings-section" id="proSubscriptionSection">
+        <div class="settings-section-title">✨ UChat Pro</div>
+        <div class="pro-card" style="background: linear-gradient(135deg, rgba(255,107,0,0.15), rgba(255,179,0,0.1)); border: 1px solid var(--primary); border-radius: 16px; padding: 20px; margin-top: 12px;">
+          <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 12px;">
+            <div>
+              <h4 style="margin: 0; font-size: 18px; font-weight: 800; color: var(--primary);">UChat Pro</h4>
+              <p style="margin: 4px 0 0 0; font-size: 13px; color: var(--text);">Unlock the full power of UChat</p>
+            </div>
+            <div id="proBadge" style="background: var(--primary); color: white; padding: 4px 10px; border-radius: 20px; font-size: 11px; font-weight: 800; display: none;">PRO ACTIVE</div>
+          </div>
+          <ul style="margin: 0; padding: 0; list-style: none; font-size: 13px; color: var(--text-muted-dark); margin-bottom: 20px;">
+            <li style="margin-bottom: 8px; display: flex; align-items: center; gap: 8px;">🚀 Higher file upload limits (up to 100MB)</li>
+            <li style="margin-bottom: 8px; display: flex; align-items: center; gap: 8px;">🎨 Exclusive high-resolution themes</li>
+            <li style="margin-bottom: 8px; display: flex; align-items: center; gap: 8px;">👥 Larger group chats (up to 500 members)</li>
+            <li style="margin-bottom: 0; display: flex; align-items: center; gap: 8px;">⭐ Special Pro badge on your profile</li>
+          </ul>
+          <button id="upgradeToProBtn" onclick="upgradeToPro()" class="btn-primary" style="width: 100%; height: 44px; font-weight: 800; box-shadow: 0 4px 15px rgba(255,107,0,0.3);">Upgrade for $4.99/mo</button>
+          <button id="manageProBtn" onclick="manageSubscription()" class="btn-secondary" style="width: 100%; height: 44px; font-weight: 800; display: none;">Manage Subscription</button>
+        </div>
+      </div>
+
       <!-- Theme Section -->
       <div class="settings-section">
         <div class="settings-section-title">🎨 Appearance</div>
