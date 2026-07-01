@@ -280,7 +280,8 @@ function updateProUI() {
 }
 
 function upgradeToPro() {
-  var paymentUrl = 'https://buy.stripe.com/fZu14n1PeeAb6m29dL0Fi04';
+  // Pass the current user's UID to Stripe so the webhook knows who paid
+  var paymentUrl = 'https://buy.stripe.com/fZu14n1PeeAb6m29dL0Fi04?client_reference_id=' + uid;
   // Open in new tab
   window.open(paymentUrl, '_blank');
   showToast('Opening secure checkout...');
