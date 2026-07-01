@@ -50,7 +50,7 @@ var encryptionKey = 'SecureChat2024!';
 var peerConnections = {}; // Map of uid -> RTCPeerConnection
 
 // Stripe Config
-var stripePriceId = 'price_1To7bYGW79t0aQmmSwiMJsrt';
+var stripePriceId = 'price_1To7gwGW79t0aQmm99yyxgba';
 var isPro = false;
 var localStream = null;
 var callId = null;
@@ -280,7 +280,7 @@ function updateProUI() {
 }
 
 function upgradeToPro() {
-  var paymentUrl = 'https://buy.stripe.com/dRmbJ11Pe1Np9ye2Pn0Fi03';
+  var paymentUrl = 'https://buy.stripe.com/fZu14n1PeeAb6m29dL0Fi04';
   // Open in new tab
   window.open(paymentUrl, '_blank');
   showToast('Opening secure checkout...');
@@ -2173,9 +2173,10 @@ function sendImage(event) {
   var progress = document.getElementById('uploadProgress');
   progress.style.display = 'block';
 
-  if (file.size > 1 * 1024 * 1024) {
+  var compressionLimit = isPro ? 5 * 1024 * 1024 : 1 * 1024 * 1024;
+  if (file.size > compressionLimit) {
     progress.textContent = 'Compressing image...';
-    compressImage(file, 1024 * 1024, function(compressedBase64) {
+    compressImage(file, compressionLimit, function(compressedBase64) {
       uploadImageData(compressedBase64);
     });
   } else {
