@@ -58,6 +58,7 @@ var userProfileCache = {};
 var userProfileRequests = {};
 var appearanceCache = {};
 var replyPayloadCache = {};
+var proStatusListeners = {};
 
 function getCachedUserProfile(userId) {
   if (!userId) return Promise.resolve({});
@@ -74,6 +75,41 @@ function getCachedUserProfile(userId) {
     });
   }
   return userProfileRequests[userId];
+}
+
+function refreshUserProfile(userId) {
+  return db.ref('users/' + userId).once('value').then(function(snap) {
+    var data = snap.exists() ? (snap.val() || {}) : {};
+    userProfileCache[userId] = data;
+    return data;
+  });
+}
+
+function updateContactProBadge(userId, isProValue) {
+  var nameEl = document.getElementById('name-' + userId);
+  if (!nameEl) return;
+  var baseName = nameEl.getAttribute('data-base-name') || nameEl.textContent.replace(/\s*PRO\s*$/i, '').trim();
+  nameEl.setAttribute('data-base-name', baseName);
+  nameEl.innerHTML = escapeHtml(baseName) + (isProValue ? ' ' + proBadgeHtml(true) : '');
+}
+
+function watchUserProStatus(userId) {
+  if (!userId || proStatusListeners[userId]) return;
+  var ref = db.ref('users/' + userId + '/isPro');
+  var listener = ref.on('value', function(snap) {
+    var isProValue = snap.val() === true;
+    if (userProfileCache[userId]) userProfileCache[userId].isPro = isProValue;
+    updateContactProBadge(userId, isProValue);
+    if (currentChatUid === userId) {
+      var headerName = document.getElementById('chatName');
+      var headerBase = headerName && (headerName.getAttribute('data-base-name') || headerName.textContent.replace(/\s*PRO\s*$/i, '').trim());
+      if (headerName && headerBase) {
+        headerName.setAttribute('data-base-name', headerBase);
+        headerName.innerHTML = escapeHtml(headerBase) + (isProValue ? ' ' + proBadgeHtml(false) : '');
+      }
+    }
+  });
+  proStatusListeners[userId] = { ref: ref, listener: listener };
 }
 
 function getCachedAppearance(userId) {
@@ -1022,11 +1058,12 @@ function renderSortedContacts(contacts) {
           avatarEl.innerHTML = '<img src="' + userData.profileImage + '" alt="Profile" loading="lazy" decoding="async" style="width:100%; height:100%; border-radius:8px; object-fit:cover;">';
         }
         
-        if (userData.displayName && nameEl) {
-          nameEl.innerHTML = escapeHtml(userData.displayName) + (userData.isPro ? ' ' + proBadgeHtml(true) : '');
-        } else if (userData.isPro && nameEl) {
-          nameEl.innerHTML = escapeHtml(name) + ' ' + proBadgeHtml(true);
+        if (nameEl) {
+          var contactBaseName = userData.displayName || name;
+          nameEl.setAttribute('data-base-name', contactBaseName);
+          nameEl.innerHTML = escapeHtml(contactBaseName) + (userData.isPro ? ' ' + proBadgeHtml(true) : '');
         }
+        watchUserProStatus(otherUid);
         loadPhotoStreak(chatId(uid, otherUid), function(streak) {
           var streakEl = document.getElementById('streak-' + otherUid);
           if (streakEl && streak > 0) streakEl.textContent = '🔥 ' + streak;
@@ -1715,6 +1752,8 @@ function openDM(otherUid, name) {
   var headerMeta = document.getElementById('chatHeaderMeta');
   if (headerMeta) headerMeta.textContent = 'Loading photo streak...';
   headerAvatar.onclick = function() { openUserProfile(otherUid); };
+  headerName.setAttribute('data-base-name', name);
+  watchUserProStatus(otherUid);
   
   // Try to load user's profile details for the header
   getCachedUserProfile(otherUid).then(function(userData) {
@@ -1766,7 +1805,7 @@ function openUserProfile(targetUid) {
   if (membershipEl) { membershipEl.style.display = 'none'; membershipEl.innerHTML = ''; }
   if (streakEl) { streakEl.style.display = 'none'; streakEl.textContent = ''; }
   
-  getCachedUserProfile(targetUid).then(function(data) {
+  refreshUserProfile(targetUid).then(function(data) {
     if (!data || !Object.keys(data).length) {
       showToast('User not found');
       return;
@@ -1784,10 +1823,11 @@ function openUserProfile(targetUid) {
     
     avatarEl.innerHTML = username[0].toUpperCase();
     statusEl.textContent = 'Member since ' + new Date(data.createdAt || Date.now()).toLocaleDateString();
-    if (data.isPro && membershipEl) {
-      membershipEl.innerHTML = proBadgeHtml(false) + ' UChat Pro member';
-      membershipEl.style.display = 'inline-flex';
+    if (membershipEl) {
+      membershipEl.innerHTML = data.isPro ? proBadgeHtml(false) + ' UChat Pro member' : '';
+      membershipEl.style.display = data.isPro ? 'inline-flex' : 'none';
     }
+    watchUserProStatus(targetUid);
     if (targetUid !== uid) {
       var profileChatId = chatId(uid, targetUid);
       loadPhotoStreak(profileChatId, function(streak) {
