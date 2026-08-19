@@ -53,6 +53,61 @@ var peerConnections = {}; // Map of uid -> RTCPeerConnection
 var stripePriceId = 'price_1To7gwGW79t0aQmm99yyxgba';
 var isPro = false;
 var localStream = null;
+var currentChatStreak = 0;
+
+function streakDayKey(timestamp) {
+  var date = timestamp ? new Date(timestamp) : new Date();
+  return date.getUTCFullYear() + '-' + String(date.getUTCMonth() + 1).padStart(2, '0') + '-' + String(date.getUTCDate()).padStart(2, '0');
+}
+
+function dayKeyOffset(dayKey, offset) {
+  var parts = dayKey.split('-').map(Number);
+  var date = new Date(Date.UTC(parts[0], parts[1] - 1, parts[2] + offset));
+  return streakDayKey(date.getTime());
+}
+
+function updatePhotoStreak() {
+  if (currentChatType !== 'dm' || !currentChat || !currentChatUid) return;
+  var today = streakDayKey();
+  var dayRef = db.ref('streaks/' + currentChat + '/days/' + today + '/' + uid);
+  dayRef.set(firebase.database.ServerValue.TIMESTAMP).then(function() {
+    return db.ref('streaks/' + currentChat + '/days').once('value');
+  }).then(function(snap) {
+    var days = snap.val() || {};
+    var cursor = today;
+    var streak = 0;
+    while (days[cursor] && days[cursor][uid] && days[cursor][currentChatUid]) {
+      streak++;
+      cursor = dayKeyOffset(cursor, -1);
+    }
+    currentChatStreak = streak;
+    return db.ref('streaks/' + currentChat).update({ currentStreak: streak, lastDate: today, updatedAt: firebase.database.ServerValue.TIMESTAMP });
+  }).then(function() {
+    renderCurrentChatStreak();
+  }).catch(function(err) { console.error('Streak update error:', err); });
+}
+
+function loadPhotoStreak(chatIdValue, callback) {
+  if (!chatIdValue) return callback(0);
+  db.ref('streaks/' + chatIdValue).once('value').then(function(snap) {
+    var data = snap.val() || {};
+    var today = streakDayKey();
+    var current = Number(data.currentStreak || 0);
+    if (data.lastDate && data.lastDate !== today && data.lastDate !== dayKeyOffset(today, -1)) current = 0;
+    callback(current);
+  }).catch(function() { callback(0); });
+}
+
+function renderCurrentChatStreak() {
+  var meta = document.getElementById('chatHeaderMeta');
+  if (!meta) return;
+  meta.textContent = currentChatType === 'dm' && currentChatStreak > 0 ? '🔥 ' + currentChatStreak + ' day photo streak' : '';
+}
+
+function proBadgeHtml(compact) {
+  return '<span class="pro-member-badge' + (compact ? ' compact' : '') + '">PRO</span>';
+}
+
 var callId = null;
 var isCallActive = false;
 var callType = 'dm'; // 'dm' or 'group'
@@ -922,6 +977,7 @@ function renderSortedContacts(contacts) {
       '<div class="contact-info">' +
         '<div class="contact-name" id="name-' + otherUid + '">' + escapeHtml(name) + '</div>' +
         '<div class="contact-code" id="unread-' + otherUid + '"></div>' +
+        '<div class="contact-streak" id="streak-' + otherUid + '"></div>' +
       '</div>' +
       '<div class="contact-options-btn" id="opt-' + otherUid + '">⋮</div>' +
       '<div class="status-dot" id="dot-' + otherUid + '"></div>';
@@ -939,8 +995,14 @@ function renderSortedContacts(contacts) {
         }
         
         if (userData.displayName && nameEl) {
-          nameEl.textContent = userData.displayName;
+          nameEl.innerHTML = escapeHtml(userData.displayName) + (userData.isPro ? ' ' + proBadgeHtml(true) : '');
+        } else if (userData.isPro && nameEl) {
+          nameEl.innerHTML = escapeHtml(name) + ' ' + proBadgeHtml(true);
         }
+        loadPhotoStreak(chatId(uid, otherUid), function(streak) {
+          var streakEl = document.getElementById('streak-' + otherUid);
+          if (streakEl && streak > 0) streakEl.textContent = '🔥 ' + streak + ' day streak';
+        });
       }
     });
     
@@ -1621,6 +1683,9 @@ function openDM(otherUid, name) {
   
   headerAvatar.innerHTML = name[0].toUpperCase();
   headerAvatar.style.background = 'var(--gradient)';
+  currentChatStreak = 0;
+  var headerMeta = document.getElementById('chatHeaderMeta');
+  if (headerMeta) headerMeta.textContent = 'Loading photo streak...';
   headerAvatar.onclick = function() { openUserProfile(otherUid); };
   
   // Try to load user's profile details for the header
@@ -1631,12 +1696,18 @@ function openDM(otherUid, name) {
         headerAvatar.innerHTML = '<img src="' + userData.profileImage + '" alt="Profile">';
       }
       if (userData.displayName) {
-        headerName.textContent = userData.displayName;
+        headerName.innerHTML = escapeHtml(userData.displayName) + (userData.isPro ? ' ' + proBadgeHtml(false) : '');
         headerSubtitle.textContent = '@' + name;
       } else {
-        headerName.textContent = '@' + name;
+        headerName.innerHTML = '@' + escapeHtml(name) + (userData.isPro ? ' ' + proBadgeHtml(false) : '');
         headerSubtitle.textContent = 'UChat Member';
       }
+      loadPhotoStreak(currentChat, function(streak) {
+        if (currentChatUid === otherUid) {
+          currentChatStreak = streak;
+          renderCurrentChatStreak();
+        }
+      });
     }
   });
 
@@ -1656,6 +1727,8 @@ function openUserProfile(targetUid) {
   var bioEl = document.getElementById('userProfileBio');
   var bioSection = document.getElementById('userProfileBioSection');
   var chatBtn = document.getElementById('userProfileChatBtn');
+  var membershipEl = document.getElementById('userProfileMembership');
+  var streakEl = document.getElementById('userProfileStreak');
   
   // Set initial loading state
   nameEl.textContent = 'Loading...';
@@ -1663,6 +1736,8 @@ function openUserProfile(targetUid) {
   avatarEl.innerHTML = '?';
   statusEl.textContent = 'Fetching profile details...';
   bioSection.style.display = 'none';
+  if (membershipEl) { membershipEl.style.display = 'none'; membershipEl.innerHTML = ''; }
+  if (streakEl) { streakEl.style.display = 'none'; streakEl.textContent = ''; }
   
   db.ref('users/' + targetUid).once('value').then(function(snap) {
     if (!snap.exists()) {
@@ -1683,6 +1758,19 @@ function openUserProfile(targetUid) {
     
     avatarEl.innerHTML = username[0].toUpperCase();
     statusEl.textContent = 'Member since ' + new Date(data.createdAt || Date.now()).toLocaleDateString();
+    if (data.isPro && membershipEl) {
+      membershipEl.innerHTML = proBadgeHtml(false) + ' UChat Pro member';
+      membershipEl.style.display = 'inline-flex';
+    }
+    if (targetUid !== uid) {
+      var profileChatId = chatId(uid, targetUid);
+      loadPhotoStreak(profileChatId, function(streak) {
+        if (streakEl && streak > 0) {
+          streakEl.textContent = '🔥 ' + streak + ' day photo streak';
+          streakEl.style.display = 'block';
+        }
+      });
+    }
     
     if (data.profileImage) {
       avatarEl.innerHTML = '<img src="' + data.profileImage + '" alt="Profile">';
@@ -1862,11 +1950,12 @@ function renderMessage(m, isGroup, box) {
     var colorStyle = color ? 'color:' + color + ';' : '';
     senderLabel = '<div id="' + labelId + '" class="msg-sender-label" style="' + colorStyle + ' cursor: pointer;" onclick="openUserProfile(\'' + m.sender + '\')">@' + escapeHtml(m.senderName || m.sender || '') + '</div>';
     
-    // Fetch and update with display name
-    db.ref('users/' + m.sender + '/displayName').once('value').then(function(snap) {
+    // Fetch and update with display name and Pro membership
+    db.ref('users/' + m.sender).once('value').then(function(snap) {
       if (snap.exists()) {
+        var senderData = snap.val();
         var el = document.getElementById(labelId);
-        if (el) el.textContent = snap.val();
+        if (el) el.innerHTML = escapeHtml(senderData.displayName || ('@' + (m.senderName || m.sender || ''))) + (senderData.isPro ? ' ' + proBadgeHtml(true) : '');
       }
     });
   }
@@ -2250,6 +2339,7 @@ function uploadImageData(base64Data) {
   }).then(function() {
     showToast('Image sent!');
     progress.style.display = 'none';
+    updatePhotoStreak();
     sendNotification('Photo sent', { body: 'Image' });
   }).catch(function(err) {
     showToast('Failed to send: ' + err.message);
@@ -2636,6 +2726,7 @@ function sendCapturedImage(base64Data) {
   }).then(function() {
     showToast('Image sent!');
     progress.style.display = 'none';
+    updatePhotoStreak();
     sendNotification('Photo sent', { body: 'Image' });
   }).catch(function(err) {
     showToast('Failed to send: ' + err.message);

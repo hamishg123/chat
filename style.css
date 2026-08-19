@@ -2417,3 +2417,15 @@ input:checked + .toggle-slider:before {
   text-align: center;
   margin-top: 10px;
 }
+
+/* UChat Pro visibility and reciprocal photo streaks */
+.pro-member-badge { display:inline-flex; align-items:center; gap:3px; padding:2px 7px; border-radius:999px; background:linear-gradient(135deg,#ff6b00,#ffb300); color:#fff; font-size:10px; font-weight:800; letter-spacing:.06em; vertical-align:middle; box-shadow:0 2px 8px rgba(255,107,0,.22); }
+.pro-member-badge.compact { font-size:8px; padding:1px 5px; }
+.chat-header-meta { color:var(--primary,#ff6b00); font-size:11px; font-weight:700; min-height:15px; }
+.contact-streak { color:var(--primary,#ff6b00); font-size:10px; font-weight:700; min-height:14px; }
+.profile-membership-badge { align-items:center; gap:5px; margin-top:4px; color:var(--primary,#ff6b00); font-size:11px; font-weight:700; }
+.profile-streak-summary { margin-top:12px; padding:10px 12px; border-radius:10px; background:rgba(255,107,0,.10); color:var(--primary,#ff6b00); font-weight:700; font-size:12px; }
+@media (prefers-reduced-motion:no-preference) { .pro-member-badge { animation:proBadgeIn .22s ease-out; } }
+@keyframes proBadgeIn { from { opacity:0; transform:translateY(2px); } to { opacity:1; transform:translateY(0); } }
+.message .pro-member-badge { margin-left:4px; }
+.contact-item.active .contact-streak { color:rgba(255,255,255,.9); }

@@ -309,6 +309,7 @@
         <div id="chatHeaderInfo">
           <div id="chatName">Chat</div>
           <div id="chatSubtitle"></div>
+          <div id="chatHeaderMeta" class="chat-header-meta"></div>
         </div>
         <div id="chatHeaderActions">
           <button class="hdr-btn" id="videoCallBtn" onclick="startVideoCall()" title="Video Call">📹</button>
@@ -598,6 +599,7 @@
       <div class="profile-modal-info">
         <h3 id="userProfileName">User</h3>
         <p id="userProfileDisplayName">@username</p>
+          <div id="userProfileMembership" class="profile-membership-badge" style="display:none;"></div>
       </div>
     </div>
     <div class="profile-modal-body">
@@ -606,6 +608,7 @@
         <p id="userProfileBio"></p>
       </div>
       <div class="profile-modal-status" id="userProfileStatus">Member</div>
+      <div id="userProfileStreak" class="profile-streak-summary" style="display:none;"></div>
     </div>
     <div class="modal-actions">
       <button class="btn-secondary" onclick="closeModal('userProfileModal')">Close</button>
