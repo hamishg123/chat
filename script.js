@@ -54,6 +54,35 @@ var stripePriceId = 'price_1To7gwGW79t0aQmm99yyxgba';
 var isPro = false;
 var localStream = null;
 var currentChatStreak = 0;
+var userProfileCache = {};
+var userProfileRequests = {};
+var appearanceCache = {};
+
+function getCachedUserProfile(userId) {
+  if (!userId) return Promise.resolve({});
+  if (userProfileCache[userId]) return Promise.resolve(userProfileCache[userId]);
+  if (!userProfileRequests[userId]) {
+    userProfileRequests[userId] = db.ref('users/' + userId).once('value').then(function(snap) {
+      var data = snap.exists() ? (snap.val() || {}) : {};
+      userProfileCache[userId] = data;
+      delete userProfileRequests[userId];
+      return data;
+    }).catch(function(err) {
+      delete userProfileRequests[userId];
+      throw err;
+    });
+  }
+  return userProfileRequests[userId];
+}
+
+function getCachedAppearance(userId) {
+  if (!userId) return Promise.resolve({});
+  if (appearanceCache[userId]) return Promise.resolve(appearanceCache[userId]);
+  return db.ref('users/' + userId + '/appearance').once('value').then(function(snap) {
+    appearanceCache[userId] = snap.exists() ? (snap.val() || {}) : {};
+    return appearanceCache[userId];
+  });
+}
 
 function streakDayKey(timestamp) {
   var date = timestamp ? new Date(timestamp) : new Date();
@@ -425,11 +454,10 @@ function initializeProfileAvatar() {
   var firstLetter = (myUsername || 'U')[0].toUpperCase();
   avatarEl.innerHTML = firstLetter;
   
-  // Try to load profile image
-  db.ref('users/' + uid + '/profileImage').once('value').then(function(snap) {
-    if (snap.exists() && avatarEl) {
-      var profileImage = snap.val();
-      avatarEl.innerHTML = '<img src="' + profileImage + '" alt="Profile" style="width:100%; height:100%; border-radius:8px; object-fit:cover;">';
+  // Load profile image from the shared in-memory cache
+  getCachedUserProfile(uid).then(function(data) {
+    if (data.profileImage && avatarEl) {
+      avatarEl.innerHTML = '<img src="' + data.profileImage + '" alt="Profile" loading="eager" decoding="async" style="width:100%; height:100%; border-radius:8px; object-fit:cover;">';
     }
   }).catch(function(err) {
     console.error('Error loading profile image:', err);
@@ -983,15 +1011,14 @@ function renderSortedContacts(contacts) {
       '<div class="status-dot" id="dot-' + otherUid + '"></div>';
     
     // Load user's profile details (image and display name)
-    db.ref('users/' + otherUid).once('value').then(function(snap) {
-      if (snap.exists()) {
-        var userData = snap.val();
+    getCachedUserProfile(otherUid).then(function(userData) {
+      if (userData && Object.keys(userData).length) {
         var avatarEl = document.getElementById('avatar-' + otherUid);
         var nameEl = document.getElementById('name-' + otherUid);
         var subEl = document.getElementById('sub-' + otherUid);
 
         if (userData.profileImage && avatarEl) {
-          avatarEl.innerHTML = '<img src="' + userData.profileImage + '" alt="Profile" style="width:100%; height:100%; border-radius:8px; object-fit:cover;">';
+          avatarEl.innerHTML = '<img src="' + userData.profileImage + '" alt="Profile" loading="lazy" decoding="async" style="width:100%; height:100%; border-radius:8px; object-fit:cover;">';
         }
         
         if (userData.displayName && nameEl) {
@@ -1689,11 +1716,10 @@ function openDM(otherUid, name) {
   headerAvatar.onclick = function() { openUserProfile(otherUid); };
   
   // Try to load user's profile details for the header
-  db.ref('users/' + otherUid).once('value').then(function(snap) {
-    if (snap.exists() && currentChatUid === otherUid) {
-      var userData = snap.val();
+  getCachedUserProfile(otherUid).then(function(userData) {
+    if (userData && Object.keys(userData).length && currentChatUid === otherUid) {
       if (userData.profileImage) {
-        headerAvatar.innerHTML = '<img src="' + userData.profileImage + '" alt="Profile">';
+        headerAvatar.innerHTML = '<img src="' + userData.profileImage + '" alt="Profile" loading="eager" decoding="async">';
       }
       if (userData.displayName) {
         headerName.innerHTML = escapeHtml(userData.displayName) + (userData.isPro ? ' ' + proBadgeHtml(false) : '');
@@ -1739,13 +1765,12 @@ function openUserProfile(targetUid) {
   if (membershipEl) { membershipEl.style.display = 'none'; membershipEl.innerHTML = ''; }
   if (streakEl) { streakEl.style.display = 'none'; streakEl.textContent = ''; }
   
-  db.ref('users/' + targetUid).once('value').then(function(snap) {
-    if (!snap.exists()) {
+  getCachedUserProfile(targetUid).then(function(data) {
+    if (!data || !Object.keys(data).length) {
       showToast('User not found');
       return;
     }
-    
-    var data = snap.val();
+
     var username = data.username || 'User';
     
     if (data.displayName) {
@@ -1773,7 +1798,7 @@ function openUserProfile(targetUid) {
     }
     
     if (data.profileImage) {
-      avatarEl.innerHTML = '<img src="' + data.profileImage + '" alt="Profile">';
+      avatarEl.innerHTML = '<img src="' + data.profileImage + '" alt="Profile" loading="lazy" decoding="async">';
     }
     
     if (data.bio) {
@@ -1894,10 +1919,12 @@ function loadMessages(path, isGroup, append = false) {
     // Check if we reached the end
     if (snapCount < messageLimit) hasMoreMessages = false;
 
+    var messageFragment = document.createDocumentFragment();
     for (var i = 0; i < messagesToRender.length; i++) {
       if (currentRenderId !== lastRenderId) return;
-      renderMessage(messagesToRender[i], isGroup, box);
+      renderMessage(messagesToRender[i], isGroup, messageFragment);
     }
+    box.appendChild(messageFragment);
     
     // Handle scrolling
     if (!isLoadingMore) {
@@ -1951,9 +1978,8 @@ function renderMessage(m, isGroup, box) {
     senderLabel = '<div id="' + labelId + '" class="msg-sender-label" style="' + colorStyle + ' cursor: pointer;" onclick="openUserProfile(\'' + m.sender + '\')">@' + escapeHtml(m.senderName || m.sender || '') + '</div>';
     
     // Fetch and update with display name and Pro membership
-    db.ref('users/' + m.sender).once('value').then(function(snap) {
-      if (snap.exists()) {
-        var senderData = snap.val();
+    getCachedUserProfile(m.sender).then(function(senderData) {
+      if (senderData && Object.keys(senderData).length) {
         var el = document.getElementById(labelId);
         if (el) el.innerHTML = escapeHtml(senderData.displayName || ('@' + (m.senderName || m.sender || ''))) + (senderData.isPro ? ' ' + proBadgeHtml(true) : '');
       }
@@ -1970,11 +1996,9 @@ function renderMessage(m, isGroup, box) {
       '</div>';
       
     // Fetch and update reply name with display name
-    db.ref('users/' + m.replyTo.sender + '/displayName').once('value').then(function(snap) {
-      if (snap.exists()) {
-        var el = document.getElementById(replyId);
-        if (el) el.textContent = snap.val();
-      }
+    getCachedUserProfile(m.replyTo.sender).then(function(replyUser) {
+      var el = document.getElementById(replyId);
+      if (el && replyUser.displayName) el.textContent = replyUser.displayName;
     });
   }
 
@@ -1983,7 +2007,7 @@ function renderMessage(m, isGroup, box) {
   if (m.type === 'image' && m.url) {
     var decryptedUrl = decryptMessage(m.url);
     var safeUrl = decryptedUrl.replace(/"/g, '&quot;');
-    content = '<img src="' + safeUrl + '" onclick="openLightbox(\'' + safeUrl + '\')" alt="Image">';
+    content = '<img src="' + safeUrl + '" loading="lazy" decoding="async" onclick="openLightbox(\'' + safeUrl + '\')" alt="Image">';
   } else if (m.type === 'voice' && m.url) {
     var audioUrl = decryptMessage(m.url);
     content = '<div class="voice-msg">' +
@@ -2066,9 +2090,8 @@ function renderMessage(m, isGroup, box) {
 
   // --- SHARED APPEARANCE SYNC (For others) ---
   if (!isMe) {
-    db.ref('users/' + m.sender + '/appearance').once('value').then(function(snap) {
-      if (!snap.exists()) return;
-      var app = snap.val();
+    getCachedAppearance(m.sender).then(function(app) {
+      if (!app || !Object.keys(app).length) return;
       var msgEl = document.getElementById('msg-' + m._key);
       if (!msgEl) return;
 
@@ -2263,23 +2286,14 @@ function sendImage(event) {
   var progress = document.getElementById('uploadProgress');
   progress.style.display = 'block';
 
-  var compressionLimit = isPro ? 5 * 1024 * 1024 : 1 * 1024 * 1024;
-  if (file.size > compressionLimit) {
-    progress.textContent = 'Compressing image...';
-    compressImage(file, compressionLimit, function(compressedBase64) {
-      uploadImageData(compressedBase64);
-    });
-  } else {
-    progress.textContent = 'Processing image...';
-    var reader = new FileReader();
-    reader.onload = function(e) {
-      uploadImageData(e.target.result);
-    };
-    reader.readAsDataURL(file);
-  }
+  var compressionLimit = isPro ? 900 * 1024 : 450 * 1024;
+  progress.textContent = 'Optimizing photo...';
+  compressImage(file, compressionLimit, function(compressedBase64) {
+    uploadImageData(compressedBase64);
+  }, 960);
 }
 
-function compressImage(file, maxSize, callback) {
+function compressImage(file, maxSize, callback, maxDimension) {
   var reader = new FileReader();
   reader.onload = function(e) {
     var img = new Image();
@@ -2288,8 +2302,8 @@ function compressImage(file, maxSize, callback) {
       var width = img.width;
       var height = img.height;
 
-      // Initial scaling if image is huge
-      var maxDimension = 1200;
+      // Scale before encoding so Firebase payloads stay small and render quickly
+      maxDimension = maxDimension || 960;
       if (width > maxDimension || height > maxDimension) {
         if (width > height) {
           height *= maxDimension / width;
@@ -2306,7 +2320,7 @@ function compressImage(file, maxSize, callback) {
       ctx.drawImage(img, 0, 0, width, height);
 
       // Iterative compression
-      var quality = 0.8;
+      var quality = 0.76;
       var base64 = canvas.toDataURL('image/jpeg', quality);
       
       // If still too large, keep reducing quality
@@ -3102,23 +3116,10 @@ function uploadProfileImage(event) {
   progress.style.borderRadius = '8px';
   progress.style.zIndex = '9999';
   
-  if (file.size > 2 * 1024 * 1024) {
-    progress.textContent = 'Compressing image...';
-    compressImage(file, 2 * 1024 * 1024, function(compressedBase64) {
-      saveProfileImage(compressedBase64);
-    });
-  } else {
-    progress.textContent = 'Processing image...';
-    var reader = new FileReader();
-    reader.onload = function(e) {
-      saveProfileImage(e.target.result);
-    };
-    reader.onerror = function() {
-      showToast('Failed to read file');
-      progress.style.display = 'none';
-    };
-    reader.readAsDataURL(file);
-  }
+  progress.textContent = 'Optimizing profile photo...';
+  compressImage(file, 350 * 1024, function(compressedBase64) {
+    saveProfileImage(compressedBase64);
+  }, 640);
 }
 
 function saveProfileImage(base64Data) {
@@ -3132,6 +3133,7 @@ function saveProfileImage(base64Data) {
   
   db.ref('users/' + uid + '/profileImage').set(base64Data).then(function() {
     showToast('Profile photo updated!');
+    userProfileCache[uid] = Object.assign({}, userProfileCache[uid] || {}, { profileImage: base64Data });
     if (progress) progress.style.display = 'none';
     
     // Update profile display

@@ -2429,3 +2429,7 @@ input:checked + .toggle-slider:before {
 @keyframes proBadgeIn { from { opacity:0; transform:translateY(2px); } to { opacity:1; transform:translateY(0); } }
 .message .pro-member-badge { margin-left:4px; }
 .contact-item.active .contact-streak { color:rgba(255,255,255,.9); }
+
+/* Performance hints for long conversations and media-heavy chats */
+.msg-container { content-visibility: auto; contain-intrinsic-size: 72px; }
+.message img { max-width: min(280px, 72vw); height: auto; }
