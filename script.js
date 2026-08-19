@@ -59,6 +59,8 @@ var userProfileRequests = {};
 var appearanceCache = {};
 var replyPayloadCache = {};
 var proStatusListeners = {};
+var chatScrollPositions = {};
+var restoringChatScroll = false;
 
 function getCachedUserProfile(userId) {
   if (!userId) return Promise.resolve({});
@@ -1725,7 +1727,13 @@ function updateGroupName() {
 // OPEN CHAT
 // ──────────────────────────────────────────────────────────────────────────────
 
+function saveCurrentChatScroll() {
+  var box = document.getElementById('messages');
+  if (currentChat && box && !restoringChatScroll) chatScrollPositions[currentChat] = box.scrollTop;
+}
+
 function openDM(otherUid, name) {
+  saveCurrentChatScroll();
   clearMessageListeners();
   currentChatUid = otherUid;
   currentChat = chatId(uid, otherUid);
@@ -1861,6 +1869,7 @@ function openUserProfile(targetUid) {
 }
 
 function openGroup(groupId, name) {
+  saveCurrentChatScroll();
   clearMessageListeners();
   currentGroupId = groupId;
   currentChat = groupId;
@@ -1898,9 +1907,31 @@ function showChatArea(name) {
 // MESSAGES
 // ──────────────────────────────────────────────────────────────────────────────
 
-function scrollMessagesToBottom(box) {
+function restoreMessagesScroll(box, chatIdValue) {
+  if (!box || chatScrollPositions[chatIdValue] === undefined) {
+    scrollMessagesToBottom(box, chatIdValue);
+    return;
+  }
+  var savedTop = chatScrollPositions[chatIdValue];
+  var restore = function() {
+    if (currentChat !== chatIdValue) return;
+    restoringChatScroll = true;
+    box.scrollTo({ top: savedTop, left: 0, behavior: 'auto' });
+    restoringChatScroll = false;
+  };
+  requestAnimationFrame(restore);
+  setTimeout(restore, 60);
+  setTimeout(restore, 250);
+  setTimeout(restore, 600);
+  box.querySelectorAll('img').forEach(function(image) {
+    if (!image.complete) image.addEventListener('load', restore, { once: true });
+  });
+}
+
+function scrollMessagesToBottom(box, chatIdValue) {
   if (!box) return;
   var snapToBottom = function() {
+    if (chatIdValue && currentChat !== chatIdValue) return;
     box.scrollTo({ top: box.scrollHeight, left: 0, behavior: 'auto' });
   };
   requestAnimationFrame(snapToBottom);
@@ -1984,7 +2015,7 @@ function loadMessages(path, isGroup, append = false) {
     
     // Handle scrolling
     if (!isLoadingMore) {
-      scrollMessagesToBottom(box);
+      restoreMessagesScroll(box, chatIdFromPath);
     } else {
       // Restore scroll position after loading older messages
       box.scrollTop = box.scrollTop + (box.scrollHeight - oldScrollHeight);
@@ -2001,6 +2032,7 @@ function loadMessages(path, isGroup, append = false) {
 // Add scroll listener for lazy loading
 document.getElementById('messages').addEventListener('scroll', function() {
   var box = this;
+  if (currentChat && !restoringChatScroll) chatScrollPositions[currentChat] = box.scrollTop;
   if (box.scrollTop < 50 && !isLoadingMore && hasMoreMessages && currentChat) {
     isLoadingMore = true;
     messageLimit += 20;
