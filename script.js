@@ -57,6 +57,7 @@ var currentChatStreak = 0;
 var userProfileCache = {};
 var userProfileRequests = {};
 var appearanceCache = {};
+var replyPayloadCache = {};
 
 function getCachedUserProfile(userId) {
   if (!userId) return Promise.resolve({});
@@ -2045,8 +2046,10 @@ function renderMessage(m, isGroup, box) {
   reactionsHtml += '</div>';
 
   // --- ACTIONS OVERLAY ---
-  var replySender = escapeJsString(m.senderName || 'Someone');
-  var replyText = escapeJsString(m.type === 'text' ? decryptMessage(m.text || '') : '[' + m.type + ']');
+  replyPayloadCache[m._key] = {
+    senderName: m.senderName || 'Someone',
+    text: m.type === 'text' ? decryptMessage(m.text || '') : '[' + m.type + ']'
+  };
   var actionsOverlay = '<div class="msg-actions-overlay">' +
     '<span class="reaction-btn" onclick="event.stopPropagation(); toggleReaction(\'' + m._key + '\', \'❤️\')" title="Love">❤️</span>' +
     '<span class="reaction-btn" onclick="event.stopPropagation(); toggleReaction(\'' + m._key + '\', \'😂\')" title="Laughing">😂</span>' +
@@ -2055,7 +2058,7 @@ function renderMessage(m, isGroup, box) {
     '<span class="reaction-btn" onclick="event.stopPropagation(); toggleReaction(\'' + m._key + '\', \'🔥\')" title="Fire">🔥</span>' +
     '<span class="reaction-btn" onclick="event.stopPropagation(); toggleReaction(\'' + m._key + '\', \'😢\')" title="Sad">😢</span>' +
     '<span class="reaction-btn" onclick="event.stopPropagation(); openReactionPicker(\'' + m._key + '\')" title="More">➕</span>' +
-    '<span class="reaction-btn reply-action" onclick="event.stopPropagation(); setReply(\'' + escapeJsString(m._key) + '\', \'' + replySender + '\', \'' + replyText + '\')" title="Reply">↩️</span>' +
+    '<span class="reaction-btn reply-action" data-reply-key="' + escapeHtml(m._key) + '" role="button" tabindex="0" title="Reply">↩️</span>' +
     '</div>';
 
   var time = m.time ? formatTime(m.time) : '';
@@ -2234,6 +2237,18 @@ function handleMessageTap(event, el) {
     el.classList.add('mobile-active');
   }
 }
+
+// Reply buttons use event delegation so dynamically rendered messages work reliably.
+document.getElementById('messages').addEventListener('click', function(event) {
+  var replyButton = event.target.closest('.reply-action');
+  if (!replyButton) return;
+  event.preventDefault();
+  event.stopPropagation();
+  var payload = replyPayloadCache[replyButton.getAttribute('data-reply-key')];
+  if (!payload) return;
+  setReply(replyButton.getAttribute('data-reply-key'), payload.senderName, payload.text);
+  document.querySelectorAll('.message.mobile-active').forEach(function(message) { message.classList.remove('mobile-active'); });
+});
 
 // Close mobile reaction overlays when clicking elsewhere
 document.addEventListener('click', function(e) {
