@@ -101,7 +101,7 @@ function loadPhotoStreak(chatIdValue, callback) {
 function renderCurrentChatStreak() {
   var meta = document.getElementById('chatHeaderMeta');
   if (!meta) return;
-  meta.textContent = currentChatType === 'dm' && currentChatStreak > 0 ? '🔥 ' + currentChatStreak + ' day photo streak' : '';
+  meta.textContent = currentChatType === 'dm' && currentChatStreak > 0 ? '🔥 ' + currentChatStreak : '';
 }
 
 function proBadgeHtml(compact) {
@@ -1001,7 +1001,7 @@ function renderSortedContacts(contacts) {
         }
         loadPhotoStreak(chatId(uid, otherUid), function(streak) {
           var streakEl = document.getElementById('streak-' + otherUid);
-          if (streakEl && streak > 0) streakEl.textContent = '🔥 ' + streak + ' day streak';
+          if (streakEl && streak > 0) streakEl.textContent = '🔥 ' + streak;
         });
       }
     });
@@ -1766,7 +1766,7 @@ function openUserProfile(targetUid) {
       var profileChatId = chatId(uid, targetUid);
       loadPhotoStreak(profileChatId, function(streak) {
         if (streakEl && streak > 0) {
-          streakEl.textContent = '🔥 ' + streak + ' day photo streak';
+          streakEl.textContent = '🔥 ' + streak;
           streakEl.style.display = 'block';
         }
       });
