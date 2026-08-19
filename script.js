@@ -59,6 +59,7 @@ var userProfileRequests = {};
 var appearanceCache = {};
 var replyPayloadCache = {};
 var proStatusListeners = {};
+var initialMessageLoad = false;
 
 function getCachedUserProfile(userId) {
   if (!userId) return Promise.resolve({});
@@ -1726,6 +1727,7 @@ function updateGroupName() {
 // ──────────────────────────────────────────────────────────────────────────────
 
 function openDM(otherUid, name) {
+  initialMessageLoad = true;
   clearMessageListeners();
   currentChatUid = otherUid;
   currentChat = chatId(uid, otherUid);
@@ -1778,6 +1780,7 @@ function openDM(otherUid, name) {
   });
 
   loadMessages('messages/' + currentChat, false);
+  setTimeout(function() { scrollMessagesToBottom(document.getElementById('messages'), currentChat); }, 0);
   listenTyping('typing/' + currentChat);
   if (window.innerWidth <= 768) hideSidebar();
 }
@@ -1861,6 +1864,7 @@ function openUserProfile(targetUid) {
 }
 
 function openGroup(groupId, name) {
+  initialMessageLoad = true;
   clearMessageListeners();
   currentGroupId = groupId;
   currentChat = groupId;
@@ -1880,6 +1884,7 @@ function openGroup(groupId, name) {
   document.getElementById('chatHeaderAvatar').style.background = 'var(--gradient-alt)';
 
   loadMessages('groupMessages/' + groupId, true);
+  setTimeout(function() { scrollMessagesToBottom(document.getElementById('messages'), groupId); }, 0);
   listenTyping('groupTyping/' + groupId);
   if (window.innerWidth <= 768) hideSidebar();
 }
@@ -1902,7 +1907,9 @@ function scrollMessagesToBottom(box, chatIdValue) {
   if (!box) return;
   var snapToBottom = function() {
     if (chatIdValue && currentChat !== chatIdValue) return;
-    box.scrollTo({ top: box.scrollHeight, left: 0, behavior: 'auto' });
+    box.scrollTop = box.scrollHeight;
+    if (box.lastElementChild) box.lastElementChild.scrollIntoView({ block: 'end', inline: 'nearest', behavior: 'auto' });
+    box.scrollTop = box.scrollHeight;
   };
   requestAnimationFrame(snapToBottom);
   setTimeout(snapToBottom, 60);
@@ -1921,6 +1928,7 @@ function loadMessages(path, isGroup, append = false) {
     hasMoreMessages = true;
     firstMessageKey = null;
     isLoadingMore = false;
+    initialMessageLoad = true;
   }
   
   var ref = db.ref(path).limitToLast(messageLimit);
@@ -1991,6 +1999,7 @@ function loadMessages(path, isGroup, append = false) {
       box.scrollTop = box.scrollTop + (box.scrollHeight - oldScrollHeight);
       isLoadingMore = false;
     }
+    initialMessageLoad = false;
 
     if (Object.keys(updates).length > 0) {
       db.ref(path).update(updates);
@@ -2002,6 +2011,7 @@ function loadMessages(path, isGroup, append = false) {
 // Add scroll listener for lazy loading
 document.getElementById('messages').addEventListener('scroll', function() {
   var box = this;
+  if (initialMessageLoad) return;
   if (box.scrollTop < 50 && !isLoadingMore && hasMoreMessages && currentChat) {
     isLoadingMore = true;
     messageLimit += 20;
