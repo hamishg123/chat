@@ -1900,9 +1900,15 @@ function showChatArea(name) {
 
 function scrollMessagesToBottom(box) {
   if (!box) return;
-  requestAnimationFrame(function() {
-    box.scrollTop = box.scrollHeight;
-    setTimeout(function() { box.scrollTop = box.scrollHeight; }, 60);
+  var snapToBottom = function() {
+    box.scrollTo({ top: box.scrollHeight, left: 0, behavior: 'auto' });
+  };
+  requestAnimationFrame(snapToBottom);
+  setTimeout(snapToBottom, 60);
+  setTimeout(snapToBottom, 250);
+  setTimeout(snapToBottom, 600);
+  box.querySelectorAll('img').forEach(function(image) {
+    if (!image.complete) image.addEventListener('load', snapToBottom, { once: true });
   });
 }
 
@@ -1913,6 +1919,7 @@ function loadMessages(path, isGroup, append = false) {
     messageLimit = 20;
     hasMoreMessages = true;
     firstMessageKey = null;
+    isLoadingMore = false;
   }
   
   var ref = db.ref(path).limitToLast(messageLimit);
