@@ -1857,6 +1857,14 @@ function showChatArea(name) {
 // MESSAGES
 // ──────────────────────────────────────────────────────────────────────────────
 
+function scrollMessagesToBottom(box) {
+  if (!box) return;
+  requestAnimationFrame(function() {
+    box.scrollTop = box.scrollHeight;
+    setTimeout(function() { box.scrollTop = box.scrollHeight; }, 60);
+  });
+}
+
 function loadMessages(path, isGroup, append = false) {
   var box = document.getElementById('messages');
   if (!append) {
@@ -1928,7 +1936,7 @@ function loadMessages(path, isGroup, append = false) {
     
     // Handle scrolling
     if (!isLoadingMore) {
-      box.scrollTop = box.scrollHeight;
+      scrollMessagesToBottom(box);
     } else {
       // Restore scroll position after loading older messages
       box.scrollTop = box.scrollTop + (box.scrollHeight - oldScrollHeight);
@@ -1966,6 +1974,7 @@ function getMemberColor(memberId) {
 
 function renderMessage(m, isGroup, box) {
   var isMe = m.sender === uid;
+  var messageClass = 'message' + (m.type === 'voice' ? ' voice-message' : '');
   var div = document.createElement('div');
   div.className = 'msg-container' + (isMe ? ' me' : ' other');
   div.setAttribute('data-key', m._key);
@@ -2036,15 +2045,17 @@ function renderMessage(m, isGroup, box) {
   reactionsHtml += '</div>';
 
   // --- ACTIONS OVERLAY ---
+  var replySender = escapeJsString(m.senderName || 'Someone');
+  var replyText = escapeJsString(m.type === 'text' ? decryptMessage(m.text || '') : '[' + m.type + ']');
   var actionsOverlay = '<div class="msg-actions-overlay">' +
-    '<span class="reaction-btn" onclick="toggleReaction(\'' + m._key + '\', \'❤️\')" title="Love">❤️</span>' +
-    '<span class="reaction-btn" onclick="toggleReaction(\'' + m._key + '\', \'😂\')" title="Laughing">😂</span>' +
-    '<span class="reaction-btn" onclick="toggleReaction(\'' + m._key + '\', \'😮\')" title="Surprised">😮</span>' +
-    '<span class="reaction-btn" onclick="toggleReaction(\'' + m._key + '\', \'👍\')" title="Like">👍</span>' +
-    '<span class="reaction-btn" onclick="toggleReaction(\'' + m._key + '\', \'🔥\')" title="Fire">🔥</span>' +
-    '<span class="reaction-btn" onclick="toggleReaction(\'' + m._key + '\', \'😢\')" title="Sad">😢</span>' +
-    '<span class="reaction-btn" onclick="openReactionPicker(\'' + m._key + '\')" title="More">➕</span>' +
-    '<span class="reaction-btn" onclick="setReply(\'' + m._key + '\', \'' + (m.senderName || 'Someone') + '\', \'' + (m.type === 'text' ? decryptMessage(m.text || '') : '[' + m.type + ']') + '\')" title="Reply">↩️</span>' +
+    '<span class="reaction-btn" onclick="event.stopPropagation(); toggleReaction(\'' + m._key + '\', \'❤️\')" title="Love">❤️</span>' +
+    '<span class="reaction-btn" onclick="event.stopPropagation(); toggleReaction(\'' + m._key + '\', \'😂\')" title="Laughing">😂</span>' +
+    '<span class="reaction-btn" onclick="event.stopPropagation(); toggleReaction(\'' + m._key + '\', \'😮\')" title="Surprised">😮</span>' +
+    '<span class="reaction-btn" onclick="event.stopPropagation(); toggleReaction(\'' + m._key + '\', \'👍\')" title="Like">👍</span>' +
+    '<span class="reaction-btn" onclick="event.stopPropagation(); toggleReaction(\'' + m._key + '\', \'🔥\')" title="Fire">🔥</span>' +
+    '<span class="reaction-btn" onclick="event.stopPropagation(); toggleReaction(\'' + m._key + '\', \'😢\')" title="Sad">😢</span>' +
+    '<span class="reaction-btn" onclick="event.stopPropagation(); openReactionPicker(\'' + m._key + '\')" title="More">➕</span>' +
+    '<span class="reaction-btn reply-action" onclick="event.stopPropagation(); setReply(\'' + escapeJsString(m._key) + '\', \'' + replySender + '\', \'' + replyText + '\')" title="Reply">↩️</span>' +
     '</div>';
 
   var time = m.time ? formatTime(m.time) : '';
@@ -2058,7 +2069,7 @@ function renderMessage(m, isGroup, box) {
   }
 
   div.innerHTML = senderLabel +
-    '<div class="message" onclick="handleMessageTap(this)" id="msg-' + m._key + '">' + actionsOverlay + replyHtml + content + deleteBtn + '</div>' +
+    '<div class="' + messageClass + '" onclick="handleMessageTap(event, this)" id="msg-' + m._key + '">' + actionsOverlay + replyHtml + content + deleteBtn + '</div>' +
     reactionsHtml +
     '<div class="msg-time">' + time + (status ? ' <span class="msg-status">' + status + '</span>' : '') + '</div>';
   
@@ -2125,6 +2136,7 @@ function getContrastColor(hexcolor) {
 }
 
 function playVoice(btn, url) {
+  if (window.event) window.event.stopPropagation();
   var audio = new Audio(url);
   var bars = btn.parentElement.querySelectorAll('.voice-bar');
   btn.textContent = '⏸';
@@ -2208,8 +2220,9 @@ function cancelReply() {
   document.getElementById('replyPreview').classList.remove('active');
 }
 
-function handleMessageTap(el) {
+function handleMessageTap(event, el) {
   if (window.innerWidth > 768) return; // Only for mobile
+  if (event && (event.target.closest('.voice-msg') || event.target.closest('.msg-actions-overlay'))) return;
   
   // Toggle the reaction overlay on tap for mobile
   var wasActive = el.classList.contains('mobile-active');
@@ -2438,6 +2451,10 @@ function formatTime(ts) {
   var h = d.getHours().toString().padStart(2, '0');
   var m = d.getMinutes().toString().padStart(2, '0');
   return h + ':' + m;
+}
+
+function escapeJsString(text) {
+  return String(text || '').replace(/\\/g, '\\\\').replace(/'/g, "\\'").replace(/\r?\n/g, '\\n');
 }
 
 function escapeHtml(text) {

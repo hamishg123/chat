@@ -2433,3 +2433,13 @@ input:checked + .toggle-slider:before {
 /* Performance hints for long conversations and media-heavy chats */
 .msg-container { content-visibility: auto; contain-intrinsic-size: 72px; }
 .message img { max-width: min(280px, 72vw); height: auto; }
+
+/* Mobile message action fixes */
+.msg-actions-overlay { pointer-events: auto; }
+.msg-actions-overlay .reply-action { touch-action: manipulation; }
+@media (max-width: 768px) {
+  .message.voice-message .msg-actions-overlay { display: none !important; pointer-events: none; }
+  .message.voice-message { cursor: default; }
+  .message.mobile-active.voice-message .msg-actions-overlay { display: none !important; }
+  .msg-actions-overlay { z-index: 110; }
+}
