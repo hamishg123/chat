@@ -1938,6 +1938,7 @@ function loadMessages(path, isGroup, append = false) {
     if (currentChat !== chatIdFromPath) return;
 
     var currentRenderId = ++lastRenderId;
+    var wasLoadingOlderMessages = isLoadingMore;
     
     // Remember scroll position
     var oldScrollHeight = box.scrollHeight;
@@ -1992,10 +1993,11 @@ function loadMessages(path, isGroup, append = false) {
     box.appendChild(messageFragment);
     
     // Handle scrolling
-    if (!isLoadingMore) {
+    if (!wasLoadingOlderMessages) {
+      // Normal initial/live update: always show the newest message.
       scrollMessagesToBottom(box, chatIdFromPath);
     } else {
-      // Restore scroll position after loading older messages
+      // Only pagination restores the previous viewport after loading older messages.
       box.scrollTop = box.scrollTop + (box.scrollHeight - oldScrollHeight);
       isLoadingMore = false;
     }
@@ -2344,6 +2346,7 @@ function sendMessage() {
   
   msgRef.set(msgData).then(function() {
     isSending = false;
+    scrollMessagesToBottom(document.getElementById('messages'), currentChat);
     sendNotification('Message sent', { body: text.substring(0, 50) });
   }).catch(function(err) {
     isSending = false;
@@ -2440,6 +2443,7 @@ function uploadImageData(base64Data) {
     showToast('Image sent!');
     progress.style.display = 'none';
     updatePhotoStreak();
+    scrollMessagesToBottom(document.getElementById('messages'), currentChat);
     sendNotification('Photo sent', { body: 'Image' });
   }).catch(function(err) {
     showToast('Failed to send: ' + err.message);
@@ -2805,6 +2809,7 @@ function sendVoiceMessage(base64Data) {
   
   msgRef.set(msgData).then(function() {
     showToast('Voice message sent!');
+    scrollMessagesToBottom(document.getElementById('messages'), currentChat);
   });
 }
 
@@ -2831,6 +2836,7 @@ function sendCapturedImage(base64Data) {
     showToast('Image sent!');
     progress.style.display = 'none';
     updatePhotoStreak();
+    scrollMessagesToBottom(document.getElementById('messages'), currentChat);
     sendNotification('Photo sent', { body: 'Image' });
   }).catch(function(err) {
     showToast('Failed to send: ' + err.message);
