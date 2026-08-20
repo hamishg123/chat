@@ -47,7 +47,8 @@ var firstMessageKey = null;
 var encryptionKey = 'SecureChat2024!';
 
 // WebRTC State
-var peerConnections = {}; // Map of uid -> RTCPeerConnection
+var peerConnections = {};
+var remoteStreams = {}; // Map of uid -> MediaStream
 
 // Stripe Config
 var stripePriceId = 'price_1To7gwGW79t0aQmm99yyxgba';
@@ -547,7 +548,11 @@ async function startVideoCall() {
   document.getElementById('videoGrid').innerHTML = '';
   
   try {
-    localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+    localStream = await navigator.mediaDevices.getUserMedia({
+      video: true,
+      audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true }
+    });
+    if (!localStream.getAudioTracks().length) throw new Error('No microphone audio track was provided');
     document.getElementById('localVideo').srcObject = localStream;
     
     if (callType === 'dm') {
@@ -603,7 +608,13 @@ function setupPeerConnection(otherUid, otherName) {
   };
 
   pc.ontrack = e => {
-    addRemoteVideo(otherUid, otherName, e.streams[0]);
+    var stream = e.streams && e.streams[0];
+    if (!stream) {
+      stream = remoteStreams[otherUid] || new MediaStream();
+      stream.addTrack(e.track);
+    }
+    remoteStreams[otherUid] = stream;
+    addRemoteVideo(otherUid, otherName, stream);
   };
 
   pc.onconnectionstatechange = () => {
@@ -614,7 +625,19 @@ function setupPeerConnection(otherUid, otherName) {
 }
 
 function addRemoteVideo(otherUid, name, stream) {
-  if (document.getElementById('video-' + otherUid)) return;
+  var existing = document.getElementById('video-' + otherUid);
+  if (existing) {
+    var existingVideo = existing.querySelector('video');
+    var existingAudio = existing.querySelector('audio');
+    if (existingVideo) existingVideo.srcObject = stream;
+    if (existingAudio) {
+      existingAudio.srcObject = stream;
+      existingAudio.muted = false;
+      existingAudio.volume = 1;
+      existingAudio.play().catch(function() {});
+    }
+    return;
+  }
   
   var container = document.createElement('div');
   container.id = 'video-' + otherUid;
@@ -624,13 +647,28 @@ function addRemoteVideo(otherUid, name, stream) {
   video.className = 'remote-video';
   video.autoplay = true;
   video.playsinline = true;
+  video.muted = true;
   video.srcObject = stream;
   
+  var audio = document.createElement('audio');
+  audio.autoplay = true;
+  audio.setAttribute('autoplay', '');
+  audio.playsinline = true;
+  audio.setAttribute('playsinline', '');
+  audio.controls = false;
+  audio.muted = false;
+  audio.volume = 1;
+  audio.srcObject = stream;
+  audio.style.display = 'none';
+  audio.onloadedmetadata = function() { audio.play().catch(function() {}); };
+  audio.play().catch(function() {});
+
   var nameTag = document.createElement('div');
   nameTag.className = 'remote-name';
   nameTag.innerHTML = name + ' <span class="mute-status" style="display:none">🔇</span>';
   
   container.appendChild(video);
+  container.appendChild(audio);
   container.appendChild(nameTag);
   document.getElementById('videoGrid').appendChild(container);
 }
@@ -638,6 +676,7 @@ function addRemoteVideo(otherUid, name, stream) {
 function removeRemoteVideo(otherUid) {
   var el = document.getElementById('video-' + otherUid);
   if (el) el.remove();
+  delete remoteStreams[otherUid];
   if (peerConnections[otherUid]) {
     peerConnections[otherUid].close();
     delete peerConnections[otherUid];
@@ -683,7 +722,11 @@ async function acceptCall() {
   isCallActive = true;
   
   try {
-    localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+    localStream = await navigator.mediaDevices.getUserMedia({
+      video: true,
+      audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true }
+    });
+    if (!localStream.getAudioTracks().length) throw new Error('No microphone audio track was provided');
     document.getElementById('localVideo').srcObject = localStream;
     
     if (callType === 'dm') {
@@ -874,6 +917,7 @@ function endCall(notify = true) {
     peerConnections[id].close();
   }
   peerConnections = {};
+  remoteStreams = {};
   
   document.getElementById('videoCallOverlay').classList.remove('open');
   document.getElementById('videoGrid').innerHTML = '';
