@@ -49,6 +49,8 @@ var encryptionKey = 'SecureChat2024!';
 // WebRTC State
 var peerConnections = {};
 var remoteStreams = {}; // Map of uid -> MediaStream
+var pendingIceCandidates = {};
+var signalListeners = {};
 
 // Stripe Config
 var stripePriceId = 'price_1To7gwGW79t0aQmm99yyxgba';
@@ -559,8 +561,10 @@ async function startVideoCall() {
       setupPeerConnection(currentChatUid, currentChatName || 'User');
       var pc = peerConnections[currentChatUid];
       var offer = await pc.createOffer();
-      await pc.setLocalDescription(offer);
-      
+
+      // Publish the call record before setting the local description. Browsers can
+      // emit ICE immediately after setLocalDescription; creating the record first
+      // prevents those candidates from being overwritten by this initial write.
       await db.ref('calls/' + callId).set({
         sender: uid,
         senderName: myUsername,
@@ -570,6 +574,8 @@ async function startVideoCall() {
         createdAt: firebase.database.ServerValue.TIMESTAMP,
         muted: { [uid]: false }
       });
+
+      await pc.setLocalDescription(offer);
       
       listenToCallSignals(callId, currentChatUid);
     } else {
@@ -584,143 +590,22 @@ async function startVideoCall() {
       // Notify group members via a special message
       sendMessage('📞 Started a group video call', true);
       
-      joinGroupCall();
+      await joinGroupCall();
     }
   } catch (err) {
-    showToast('Could not start call: ' + err.message);
+      showToast('Could not start call: ' + err.message);
     endCall();
   }
-}
-
-function setupPeerConnection(otherUid, otherName) {
-  if (peerConnections[otherUid]) return;
-
-  var pc = new RTCPeerConnection(rtcConfig);
-  peerConnections[otherUid] = pc;
-
-  localStream.getTracks().forEach(track => pc.addTrack(track, localStream));
-
-  pc.onicecandidate = e => {
-    if (e.candidate) {
-      var path = callType === 'dm' ? 'calls/' + callId : 'groupCalls/' + callId + '/signals/' + uid + '/' + otherUid;
-      db.ref(path + '/candidates/' + uid).push(e.candidate.toJSON());
-    }
-  };
-
-  pc.ontrack = e => {
-    var stream = e.streams && e.streams[0];
-    if (!stream) {
-      stream = remoteStreams[otherUid] || new MediaStream();
-      stream.addTrack(e.track);
-    }
-    remoteStreams[otherUid] = stream;
-    addRemoteVideo(otherUid, otherName, stream);
-  };
-
-  pc.onconnectionstatechange = () => {
-    if (pc.connectionState === 'disconnected' || pc.connectionState === 'failed') {
-      removeRemoteVideo(otherUid);
-    }
-  };
-}
-
-function addRemoteVideo(otherUid, name, stream) {
-  var existing = document.getElementById('video-' + otherUid);
-  if (existing) {
-    var existingVideo = existing.querySelector('video');
-    var existingAudio = existing.querySelector('audio');
-    if (existingVideo) existingVideo.srcObject = stream;
-    if (existingAudio) {
-      existingAudio.srcObject = stream;
-      existingAudio.muted = false;
-      existingAudio.volume = 1;
-      existingAudio.play().catch(function() {});
-    }
-    return;
-  }
-  
-  var container = document.createElement('div');
-  container.id = 'video-' + otherUid;
-  container.className = 'remote-video-container';
-  
-  var video = document.createElement('video');
-  video.className = 'remote-video';
-  video.autoplay = true;
-  video.playsinline = true;
-  video.muted = true;
-  video.srcObject = stream;
-  
-  var audio = document.createElement('audio');
-  audio.autoplay = true;
-  audio.setAttribute('autoplay', '');
-  audio.playsinline = true;
-  audio.setAttribute('playsinline', '');
-  audio.controls = false;
-  audio.muted = false;
-  audio.volume = 1;
-  audio.srcObject = stream;
-  audio.style.display = 'none';
-  audio.onloadedmetadata = function() { audio.play().catch(function() {}); };
-  audio.play().catch(function() {});
-
-  var nameTag = document.createElement('div');
-  nameTag.className = 'remote-name';
-  nameTag.innerHTML = name + ' <span class="mute-status" style="display:none">🔇</span>';
-  
-  container.appendChild(video);
-  container.appendChild(audio);
-  container.appendChild(nameTag);
-  document.getElementById('videoGrid').appendChild(container);
-}
-
-function removeRemoteVideo(otherUid) {
-  var el = document.getElementById('video-' + otherUid);
-  if (el) el.remove();
-  delete remoteStreams[otherUid];
-  if (peerConnections[otherUid]) {
-    peerConnections[otherUid].close();
-    delete peerConnections[otherUid];
-  }
-}
-
-function listenToCallSignals(cId, otherUid) {
-  var path = callType === 'dm' ? 'calls/' + cId : 'groupCalls/' + cId + '/signals/' + otherUid + '/' + uid;
-  
-  // Listen for answer
-  db.ref(path + '/answer').on('value', async snap => {
-    if (snap.exists() && isCallActive && peerConnections[otherUid]) {
-      await peerConnections[otherUid].setRemoteDescription(new RTCSessionDescription(snap.val()));
-    }
-  });
-
-  // Listen for ICE candidates
-  db.ref(path + '/candidates/' + otherUid).on('child_added', snap => {
-    if (isCallActive && peerConnections[otherUid]) {
-      peerConnections[otherUid].addIceCandidate(new RTCIceCandidate(snap.val()));
-    }
-  });
-
-  // Listen for hangup
-  db.ref('calls/' + cId + '/status').on('value', snap => {
-    if (snap.val() === 'ended' || snap.val() === 'rejected') endCall(false);
-  });
-
-  // Listen for mute
-  db.ref('calls/' + cId + '/muted/' + otherUid).on('value', snap => {
-    var isMuted = snap.val();
-    var el = document.querySelector('#video-' + otherUid + ' .mute-status');
-    if (el) el.style.display = isMuted ? 'inline' : 'none';
-  });
 }
 
 async function acceptCall() {
   document.getElementById('incomingCallModal').classList.remove('open');
   if (isCallActive) endCall();
-  
+
   document.getElementById('videoCallOverlay').classList.add('open');
   document.getElementById('videoGrid').innerHTML = '';
   isCallActive = true;
-  
+
   try {
     localStream = await navigator.mediaDevices.getUserMedia({
       video: true,
@@ -728,28 +613,28 @@ async function acceptCall() {
     });
     if (!localStream.getAudioTracks().length) throw new Error('No microphone audio track was provided');
     document.getElementById('localVideo').srcObject = localStream;
-    
+
     if (callType === 'dm') {
       var snap = await db.ref('calls/' + callId).once('value');
       var call = snap.val();
+      if (!call || !call.offer) throw new Error('This call is no longer available');
       var otherUid = call.sender;
-      
-      setupPeerConnection(otherUid, call.senderName || 'User');
-      var pc = peerConnections[otherUid];
-      
+
+      var pc = setupPeerConnection(otherUid, call.senderName || 'User');
       await pc.setRemoteDescription(new RTCSessionDescription(call.offer));
+      await flushRemoteIceCandidates(otherUid);
       var answer = await pc.createAnswer();
       await pc.setLocalDescription(answer);
-      
+
       await db.ref('calls/' + callId).update({
         status: 'active',
         answer: { type: answer.type, sdp: answer.sdp },
-        [`muted/${uid}`]: false
+        ['muted/' + uid]: false
       });
-      
+
       listenToCallSignals(callId, otherUid);
     } else {
-      joinGroupCall();
+      await joinGroupCall();
     }
   } catch (err) {
     showToast('Could not accept call: ' + err.message);
@@ -757,125 +642,265 @@ async function acceptCall() {
   }
 }
 
+function setupPeerConnection(otherUid, otherName) {
+  if (peerConnections[otherUid]) return peerConnections[otherUid];
+
+  var pc = new RTCPeerConnection(rtcConfig);
+  peerConnections[otherUid] = pc;
+  pendingIceCandidates[otherUid] = pendingIceCandidates[otherUid] || [];
+
+  if (localStream) {
+    localStream.getTracks().forEach(track => pc.addTrack(track, localStream));
+  }
+
+  pc.onicecandidate = e => {
+    if (!e.candidate || !callId) return;
+    var path = callType === 'dm'
+      ? 'calls/' + callId + '/candidates/' + uid
+      : 'groupCalls/' + callId + '/signals/' + uid + '/' + otherUid + '/candidates/' + uid;
+    db.ref(path).push(e.candidate.toJSON()).catch(err => console.error('ICE candidate write failed:', err));
+  };
+
+  pc.ontrack = e => {
+    var stream = e.streams && e.streams[0];
+    if (!stream) {
+      stream = remoteStreams[otherUid] || new MediaStream();
+      if (!stream.getTracks().includes(e.track)) stream.addTrack(e.track);
+    }
+    remoteStreams[otherUid] = stream;
+    addRemoteVideo(otherUid, otherName, stream);
+  };
+
+  pc.onconnectionstatechange = () => {
+    if (pc.connectionState === 'failed' || pc.connectionState === 'closed') {
+      removeRemoteVideo(otherUid);
+    }
+  };
+
+  return pc;
+}
+
+function addRemoteVideo(otherUid, name, stream) {
+  var existing = document.getElementById('video-' + otherUid);
+  if (existing) {
+    var existingVideo = existing.querySelector('video');
+    if (existingVideo && existingVideo.srcObject !== stream) existingVideo.srcObject = stream;
+    if (existingVideo) existingVideo.play().catch(function() {});
+    return;
+  }
+
+  var container = document.createElement('div');
+  container.id = 'video-' + otherUid;
+  container.className = 'remote-video-container';
+
+  var video = document.createElement('video');
+  video.className = 'remote-video';
+  video.autoplay = true;
+  video.playsinline = true;
+  video.muted = false;
+  video.srcObject = stream;
+  video.onloadedmetadata = function() { video.play().catch(function() {}); };
+
+  var nameTag = document.createElement('div');
+  nameTag.className = 'remote-name';
+  nameTag.textContent = name || 'User';
+  var muteStatus = document.createElement('span');
+  muteStatus.className = 'mute-status';
+  muteStatus.textContent = ' 🔇';
+  muteStatus.style.display = 'none';
+  nameTag.appendChild(muteStatus);
+
+  container.appendChild(video);
+  container.appendChild(nameTag);
+  document.getElementById('videoGrid').appendChild(container);
+  video.play().catch(function() {});
+}
+
+function removeRemoteVideo(otherUid) {
+  var el = document.getElementById('video-' + otherUid);
+  if (el) el.remove();
+  delete remoteStreams[otherUid];
+  delete pendingIceCandidates[otherUid];
+  if (peerConnections[otherUid]) {
+    peerConnections[otherUid].close();
+    delete peerConnections[otherUid];
+  }
+}
+
+function addRemoteIceCandidate(otherUid, candidate) {
+  var pc = peerConnections[otherUid];
+  if (!pc || !candidate) return;
+  var iceCandidate = new RTCIceCandidate(candidate);
+  if (pc.remoteDescription && pc.remoteDescription.type) {
+    pc.addIceCandidate(iceCandidate).catch(err => console.warn('ICE candidate rejected:', err));
+  } else {
+    pendingIceCandidates[otherUid] = pendingIceCandidates[otherUid] || [];
+    pendingIceCandidates[otherUid].push(iceCandidate);
+  }
+}
+
+async function flushRemoteIceCandidates(otherUid) {
+  var pc = peerConnections[otherUid];
+  var queued = pendingIceCandidates[otherUid] || [];
+  if (!pc || !pc.remoteDescription || !pc.remoteDescription.type || !queued.length) return;
+  pendingIceCandidates[otherUid] = [];
+  for (var i = 0; i < queued.length; i++) {
+    try {
+      await pc.addIceCandidate(queued[i]);
+    } catch (err) {
+      console.warn('Queued ICE candidate rejected:', err);
+    }
+  }
+}
+
+function listenForIceCandidates(path, otherUid, listenerKey) {
+  var key = 'ice:' + listenerKey;
+  if (signalListeners[key]) return;
+  signalListeners[key] = true;
+  db.ref(path).on('child_added', snap => {
+    if (isCallActive && peerConnections[otherUid]) addRemoteIceCandidate(otherUid, snap.val());
+  });
+}
+
+function listenToCallSignals(cId, otherUid) {
+  var key = 'dm:' + cId;
+  if (signalListeners[key]) return;
+  signalListeners[key] = true;
+
+  db.ref('calls/' + cId + '/answer').on('value', async snap => {
+    var pc = peerConnections[otherUid];
+    if (!snap.exists() || !isCallActive || !pc || pc.signalingState !== 'have-local-offer') return;
+    try {
+      await pc.setRemoteDescription(new RTCSessionDescription(snap.val()));
+      await flushRemoteIceCandidates(otherUid);
+    } catch (err) {
+      console.error('Could not apply call answer:', err);
+      showToast('Call connection failed. Please try again.');
+    }
+  });
+
+  listenForIceCandidates('calls/' + cId + '/candidates/' + otherUid, otherUid, key + ':remote');
+
+  db.ref('calls/' + cId + '/status').on('value', snap => {
+    if (snap.val() === 'ended' || snap.val() === 'rejected') endCall(false);
+  });
+
+  db.ref('calls/' + cId + '/muted/' + otherUid).on('value', snap => {
+    var el = document.querySelector('#video-' + otherUid + ' .mute-status');
+    if (el) el.style.display = snap.val() ? 'inline' : 'none';
+  });
+}
+
+function listenToGroupPeerSignals(otherUid, isOfferer) {
+  var key = 'group:' + callId + ':' + otherUid + ':' + (isOfferer ? 'offerer' : 'answerer');
+  if (signalListeners[key]) return;
+  signalListeners[key] = true;
+
+  var incomingCandidatePath = isOfferer
+    ? 'groupCalls/' + callId + '/signals/' + uid + '/' + otherUid + '/candidates/' + otherUid
+    : 'groupCalls/' + callId + '/signals/' + otherUid + '/' + uid + '/candidates/' + otherUid;
+  listenForIceCandidates(incomingCandidatePath, otherUid, key);
+
+  if (isOfferer) {
+    db.ref('groupCalls/' + callId + '/signals/' + otherUid + '/' + uid + '/answer').on('value', async snap => {
+      var pc = peerConnections[otherUid];
+      if (!snap.exists() || !isCallActive || !pc || pc.signalingState !== 'have-local-offer') return;
+      try {
+        await pc.setRemoteDescription(new RTCSessionDescription(snap.val()));
+        await flushRemoteIceCandidates(otherUid);
+      } catch (err) {
+        console.error('Could not apply group call answer:', err);
+      }
+    });
+  }
+
+  db.ref('groupCalls/' + callId + '/participants/' + otherUid + '/muted').on('value', snap => {
+    var el = document.querySelector('#video-' + otherUid + ' .mute-status');
+    if (el) el.style.display = snap.val() ? 'inline' : 'none';
+  });
+}
+
 async function joinGroupCall() {
-  // 1. Add myself to participants
-  db.ref('groupCalls/' + callId + '/participants/' + uid).set({
+  await db.ref('groupCalls/' + callId + '/participants/' + uid).set({
     name: myUsername,
     joinedAt: firebase.database.ServerValue.TIMESTAMP,
     muted: false
   });
 
-  // 2. Listen for other participants
-  db.ref('groupCalls/' + callId + '/participants').on('child_added', async snap => {
+  var participantRef = db.ref('groupCalls/' + callId + '/participants');
+  participantRef.on('child_added', async snap => {
     var otherUid = snap.key;
-    if (otherUid === uid) return;
+    if (otherUid === uid || !isCallActive) return;
 
-    // To avoid race conditions where both try to offer, 
-    // we use a simple rule: the user with the "smaller" UID sends the offer.
-    if (uid < otherUid) {
-      setupPeerConnection(otherUid, snap.val().name || 'User');
-      var pc = peerConnections[otherUid];
-      var offer = await pc.createOffer();
-      await pc.setLocalDescription(offer);
-      
-      db.ref('groupCalls/' + callId + '/signals/' + uid + '/' + otherUid + '/offer').set({
-        type: offer.type,
-        sdp: offer.sdp
-      });
-      listenToGroupSignals(otherUid);
-    }
-  });
-
-  // 3. Listen for incoming offers (where I am the receiver)
-  db.ref('groupCalls/' + callId + '/signals').on('child_added', snap => {
-    var senderUid = snap.key;
-    if (senderUid === uid) return;
-    handleIncomingGroupSignals(senderUid);
-  });
-
-  // Also check existing signals in case they were added before we started listening
-  db.ref('groupCalls/' + callId + '/signals').once('value').then(snap => {
-    snap.forEach(child => {
-      var senderUid = child.key;
-      if (senderUid !== uid) handleIncomingGroupSignals(senderUid);
-    });
-  });
-
-  // 4. Listen for participants leaving
-  db.ref('groupCalls/' + callId + '/participants').on('child_removed', snap => {
-    var leavingUid = snap.key;
-    if (peerConnections[leavingUid]) {
-      peerConnections[leavingUid].close();
-      delete peerConnections[leavingUid];
-      removeRemoteVideo(leavingUid);
-    }
-  });
-}
-
-async function handleIncomingGroupSignals(senderUid) {
-  db.ref('groupCalls/' + callId + '/signals/' + senderUid + '/' + uid + '/offer').on('value', async oSnap => {
-    if (!oSnap.exists()) return;
-    
-    var otherName = 'User';
-    var pSnap = await db.ref('groupCalls/' + callId + '/participants/' + senderUid).once('value');
-    if (pSnap.exists()) otherName = pSnap.val().name;
-
-    setupPeerConnection(senderUid, otherName);
-    var pc = peerConnections[senderUid];
-    
-    if (pc.signalingState !== 'stable' || oSnap.val().sdp !== (pc.remoteDescription && pc.remoteDescription.sdp)) {
-      await pc.setRemoteDescription(new RTCSessionDescription(oSnap.val()));
-      var answer = await pc.createAnswer();
-      await pc.setLocalDescription(answer);
-      
-      db.ref('groupCalls/' + callId + '/signals/' + uid + '/' + senderUid + '/answer').set({
-        type: answer.type,
-        sdp: answer.sdp
-      });
-      listenToGroupSignals(senderUid);
-    }
-  });
-}
-
-function listenToGroupSignals(otherUid) {
-  var pc = peerConnections[otherUid];
-
-  // Listen for answer (if I was the one who sent the offer)
-  db.ref('groupCalls/' + callId + '/signals/' + otherUid + '/' + uid + '/answer').on('value', async snap => {
-    if (snap.exists() && isCallActive && peerConnections[otherUid]) {
-      var pc = peerConnections[otherUid];
-      if (pc.signalingState === 'have-local-offer') {
-        await pc.setRemoteDescription(new RTCSessionDescription(snap.val()));
+    // One deterministic offerer per pair prevents offer collisions.
+    if (uid < otherUid && !signalListeners['offer:' + otherUid]) {
+      signalListeners['offer:' + otherUid] = true;
+      var pc = setupPeerConnection(otherUid, snap.val().name || 'User');
+      try {
+        var offer = await pc.createOffer();
+        await pc.setLocalDescription(offer);
+        await db.ref('groupCalls/' + callId + '/signals/' + uid + '/' + otherUid + '/offer').set({
+          type: offer.type,
+          sdp: offer.sdp
+        });
+        listenToGroupPeerSignals(otherUid, true);
+      } catch (err) {
+        console.error('Could not create group offer:', err);
       }
     }
   });
-  
-  // ICE Candidates from them to me (the sender of candidates)
-  db.ref('groupCalls/' + callId + '/signals/' + otherUid + '/' + uid + '/candidates/' + otherUid).on('child_added', snap => {
-    if (isCallActive && peerConnections[otherUid]) {
-      peerConnections[otherUid].addIceCandidate(new RTCIceCandidate(snap.val()));
-    }
+
+  var signalsRef = db.ref('groupCalls/' + callId + '/signals');
+  signalsRef.on('child_added', snap => {
+    if (snap.key !== uid) handleIncomingGroupSignals(snap.key);
+  });
+  var existingSignals = await signalsRef.once('value');
+  existingSignals.forEach(child => {
+    if (child.key !== uid) handleIncomingGroupSignals(child.key);
   });
 
-  // Also listen for candidates from them if they are the "receiver" in the signal path
-  db.ref('groupCalls/' + callId + '/signals/' + uid + '/' + otherUid + '/candidates/' + otherUid).on('child_added', snap => {
-    if (isCallActive && peerConnections[otherUid]) {
-      peerConnections[otherUid].addIceCandidate(new RTCIceCandidate(snap.val()));
-    }
+  participantRef.on('child_removed', snap => {
+    if (snap.key !== uid) removeRemoteVideo(snap.key);
   });
+}
 
-  // Mute status
-  db.ref('groupCalls/' + callId + '/participants/' + otherUid + '/muted').on('value', snap => {
-    var isMuted = snap.val();
-    var el = document.querySelector('#video-' + otherUid + ' .mute-status');
-    if (el) el.style.display = isMuted ? 'inline' : 'none';
+function handleIncomingGroupSignals(senderUid) {
+  var key = 'incoming-offer:' + senderUid;
+  if (signalListeners[key]) return;
+  signalListeners[key] = true;
+
+  db.ref('groupCalls/' + callId + '/signals/' + senderUid + '/' + uid + '/offer').on('value', async oSnap => {
+    if (!oSnap.exists() || !isCallActive) return;
+    var otherName = 'User';
+    var pSnap = await db.ref('groupCalls/' + callId + '/participants/' + senderUid).once('value');
+    if (pSnap.exists() && pSnap.val().name) otherName = pSnap.val().name;
+
+    var pc = setupPeerConnection(senderUid, otherName);
+    if (pc.remoteDescription && pc.remoteDescription.sdp === oSnap.val().sdp) return;
+    try {
+      await pc.setRemoteDescription(new RTCSessionDescription(oSnap.val()));
+      await flushRemoteIceCandidates(senderUid);
+      var answer = await pc.createAnswer();
+      await pc.setLocalDescription(answer);
+      await db.ref('groupCalls/' + callId + '/signals/' + uid + '/' + senderUid + '/answer').set({
+        type: answer.type,
+        sdp: answer.sdp
+      });
+      listenToGroupPeerSignals(senderUid, false);
+    } catch (err) {
+      console.error('Could not accept group offer:', err);
+    }
   });
 }
 
 function rejectCall() {
-  if (callId) {
-    db.ref('calls/' + callId).update({ status: 'rejected' });
-    document.getElementById('incomingCallModal').classList.remove('open');
+  var rejectedCallId = callId;
+  var rejectedCallType = callType;
+  document.getElementById('incomingCallModal').classList.remove('open');
+  callId = null;
+  if (!rejectedCallId) return;
+  if (rejectedCallType === 'dm') {
+    db.ref('calls/' + rejectedCallId).update({ status: 'rejected' });
   }
 }
 
@@ -918,6 +943,8 @@ function endCall(notify = true) {
   }
   peerConnections = {};
   remoteStreams = {};
+  pendingIceCandidates = {};
+  signalListeners = {};
   
   document.getElementById('videoCallOverlay').classList.remove('open');
   document.getElementById('videoGrid').innerHTML = '';
