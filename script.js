@@ -182,9 +182,21 @@ var callId = null;
 var isCallActive = false;
 var callType = 'dm'; // 'dm' or 'group'
 var rtcConfig = {
+  iceCandidatePoolSize: 10,
   iceServers: [
     { urls: 'stun:stun.l.google.com:19302' },
-    { urls: 'stun:stun1.l.google.com:19302' }
+    { urls: 'stun:stun1.l.google.com:19302' },
+    // Relay fallbacks are needed when users are on different NATs or locked-down
+    // Wi-Fi networks where a direct peer-to-peer path cannot be established.
+    {
+      urls: [
+        'turn:openrelay.metered.ca:80',
+        'turn:openrelay.metered.ca:443',
+        'turns:openrelay.metered.ca:443?transport=tcp'
+      ],
+      username: 'openrelayproject',
+      credential: 'openrelayproject'
+    }
   ]
 };
 
