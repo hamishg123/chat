@@ -808,9 +808,8 @@ function listenToGroupPeerSignals(otherUid, isOfferer) {
   if (signalListeners[key]) return;
   signalListeners[key] = true;
 
-  var incomingCandidatePath = isOfferer
-    ? 'groupCalls/' + callId + '/signals/' + uid + '/' + otherUid + '/candidates/' + otherUid
-    : 'groupCalls/' + callId + '/signals/' + otherUid + '/' + uid + '/candidates/' + otherUid;
+  // The remote participant writes candidates beneath signals/other/uid.
+  var incomingCandidatePath = 'groupCalls/' + callId + '/signals/' + otherUid + '/' + uid + '/candidates/' + otherUid;
   listenForIceCandidates(incomingCandidatePath, otherUid, key);
 
   if (isOfferer) {
