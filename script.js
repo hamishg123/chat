@@ -696,8 +696,11 @@ function addRemoteVideo(otherUid, name, stream) {
   var existing = document.getElementById('video-' + otherUid);
   if (existing) {
     var existingVideo = existing.querySelector('video');
+    var existingAudio = existing.querySelector('audio');
     if (existingVideo && existingVideo.srcObject !== stream) existingVideo.srcObject = stream;
     if (existingVideo) existingVideo.play().catch(function() {});
+    if (existingAudio && existingAudio.srcObject !== stream) existingAudio.srcObject = stream;
+    if (existingAudio) existingAudio.play().catch(function() {});
     return;
   }
 
@@ -709,9 +712,17 @@ function addRemoteVideo(otherUid, name, stream) {
   video.className = 'remote-video';
   video.autoplay = true;
   video.playsinline = true;
-  video.muted = false;
+  // Muting the video element lets the remote picture autoplay reliably.
+  // Audio is rendered by the dedicated element below.
+  video.muted = true;
   video.srcObject = stream;
   video.onloadedmetadata = function() { video.play().catch(function() {}); };
+  var audio = document.createElement('audio');
+  audio.autoplay = true;
+  audio.playsinline = true;
+  audio.srcObject = stream;
+  audio.volume = 1;
+  audio.onloadedmetadata = function() { audio.play().catch(function() {}); };
 
   var nameTag = document.createElement('div');
   nameTag.className = 'remote-name';
@@ -723,9 +734,16 @@ function addRemoteVideo(otherUid, name, stream) {
   nameTag.appendChild(muteStatus);
 
   container.appendChild(video);
+  container.appendChild(audio);
   container.appendChild(nameTag);
   document.getElementById('videoGrid').appendChild(container);
   video.play().catch(function() {});
+}
+
+function unlockRemoteAudio() {
+  document.querySelectorAll('#videoGrid audio').forEach(function(audio) {
+    audio.play().catch(function() {});
+  });
 }
 
 function removeRemoteVideo(otherUid) {
