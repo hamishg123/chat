@@ -932,6 +932,17 @@ body {
   background: var(--surface);
 }
 
+#cameraBtn.recording {
+  color: #fff;
+  background: #e53935;
+  border-color: #e53935;
+  animation: camera-record-pulse 1s ease-in-out infinite alternate;
+}
+
+@keyframes camera-record-pulse {
+  to { box-shadow: 0 0 0 5px rgba(229, 57, 53, 0.22); }
+}
+
 #sendBtn {
   background: var(--brand-gradient);
   border: none;

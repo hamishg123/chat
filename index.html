@@ -9,7 +9,6 @@
 <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
 <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js"></script>
 <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
-<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-storage.js"></script>
 <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-messaging.js"></script>
 <!-- CryptoJS for AES-256 Encryption -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/crypto-js/4.1.1/crypto-js.min.js"></script>
@@ -331,7 +330,7 @@
           <button id="voiceBtn" onclick="toggleVoiceRecording()" title="Voice Message">🎤</button>
           <button id="imgBtn" onclick="document.getElementById('imgUpload').click()" title="Upload image">🖼️</button>
           <button id="videoBtn" onclick="document.getElementById('videoUpload').click()" title="Send video">🎞️</button>
-          <button id="cameraBtn" onclick="openCamera()" title="Take photo">📷</button>
+          <button id="cameraBtn" onclick="handleCameraClick(event)" onpointerdown="handleCameraPointerDown(event)" onpointerup="handleCameraPointerUp(event)" onpointercancel="handleCameraPointerUp(event)" oncontextmenu="return false" title="Tap to take a photo; hold to record a video">📷</button>
           <input type="file" id="imgUpload" accept="image/*" onchange="sendImage(event)" style="display:none">
           <input type="file" id="videoUpload" accept="video/*" onchange="sendVideo(event)" style="display:none">
           <input type="file" id="cameraUpload" accept="image/*" capture="environment" onchange="sendImage(event)" style="display:none">

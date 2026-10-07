@@ -12,7 +12,6 @@ var firebaseConfig = {
 firebase.initializeApp(firebaseConfig);
 var auth = firebase.auth();
 var db = firebase.database();
-var storage = firebase.storage();
 
 // ──────────────────────────────────────────────────────────────────────────────
 // STATE
@@ -2489,65 +2488,76 @@ function sendImage(event) {
 function sendVideo(event) {
   var file = event.target.files[0];
   event.target.value = '';
+  sendVideoFile(file);
+}
+
+function sendVideoFile(file) {
   if (!file || !currentChat) return;
   if (!file.type || !file.type.startsWith('video/')) {
     showToast('Please choose a valid video file');
     return;
   }
 
-  var sizeLimit = isPro ? 100 * 1024 * 1024 : 5 * 1024 * 1024;
+  // RTDB has a 16 MB per-write limit. Base64 plus AES adds overhead, so keep
+  // the original clip below 5 MB (standard) / 7 MB (Pro) for reliable writes.
+  var sizeLimit = isPro ? 7 * 1024 * 1024 : 5 * 1024 * 1024;
   if (file.size > sizeLimit) {
-    showToast(isPro ? 'Video too large (max 100MB)' : 'Video too large. Upgrade to Pro for 100MB limits!');
+    showToast(isPro ? 'Video too large for Realtime Database (max 7MB)' : 'Video too large for Realtime Database (max 5MB)');
     return;
   }
 
   var progress = document.getElementById('uploadProgress');
-  progress.textContent = 'Uploading video...';
+  progress.textContent = 'Preparing video for Realtime Database...';
   progress.style.display = 'block';
   var chatIdForPath = currentChat;
   var chatTypeForPath = currentChatType;
   var messagePath = chatTypeForPath === 'group' ? 'groupMessages/' + chatIdForPath : 'messages/' + chatIdForPath;
   var messageRef = db.ref(messagePath).push();
-  var safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, '_').slice(-100) || 'video';
-  var storagePath = 'chatVideos/' + uid + '/' + messageRef.key + '/' + safeName;
-  var uploadTask = storage.ref(storagePath).put(file, { contentType: file.type });
-
-  uploadTask.on('state_changed', function(snapshot) {
-    var percent = snapshot.totalBytes ? Math.round(snapshot.bytesTransferred / snapshot.totalBytes * 100) : 0;
-    progress.textContent = 'Uploading video... ' + percent + '%';
-  }, function(error) {
-    console.error('Video upload failed:', error);
+  var reader = new FileReader();
+  reader.onprogress = function(e) {
+    if (e.lengthComputable) {
+      progress.textContent = 'Preparing video... ' + Math.round(e.loaded / e.total * 100) + '%';
+    }
+  };
+  reader.onerror = function() {
     progress.style.display = 'none';
-    showToast('Failed to upload video: ' + error.message);
-  }, function() {
-    uploadTask.snapshot.ref.getDownloadURL().then(function(downloadUrl) {
-      var msgData = {
-        type: 'video',
-        sender: uid,
-        senderName: myUsername || '?',
-        url: encryptMessage(downloadUrl),
-        fileName: file.name,
-        time: firebase.database.ServerValue.TIMESTAMP,
-        delivered: true,
-        seen: false,
-        opened: false
-      };
-      if (replyingTo) {
-        msgData.replyTo = replyingTo;
-        cancelReply();
-      }
-      return messageRef.set(msgData);
-    }).then(function() {
+    showToast('Could not read the video file');
+  };
+  reader.onload = function() {
+    progress.textContent = 'Sending video through Realtime Database...';
+    var msgData = {
+      type: 'video',
+      sender: uid,
+      senderName: myUsername || '?',
+      url: encryptMessage(reader.result),
+      mimeType: file.type,
+      fileName: file.name || 'video',
+      time: firebase.database.ServerValue.TIMESTAMP,
+      delivered: true,
+      seen: false,
+      opened: false
+    };
+    if (replyingTo) {
+      msgData.replyTo = replyingTo;
+      cancelReply();
+    }
+    messageRef.set(msgData).then(function() {
       progress.style.display = 'none';
       showToast('Video sent!');
       scrollMessagesToBottom(document.getElementById('messages'), chatIdForPath);
-      sendNotification('Video sent', { body: file.name });
+      sendNotification('Video sent', { body: file.name || 'Video' });
     }).catch(function(error) {
-      console.error('Could not send video message:', error);
+      console.error('Could not send video through Realtime Database:', error);
       progress.style.display = 'none';
-      showToast('Video uploaded but could not be sent: ' + error.message);
+      showToast('Failed to send video: ' + error.message);
     });
-  });
+  };
+  try {
+    reader.readAsDataURL(file);
+  } catch (error) {
+    progress.style.display = 'none';
+    showToast('Could not read the video file: ' + error.message);
+  }
 }
 
 function compressImage(file, maxSize, callback, maxDimension) {
@@ -2804,6 +2814,105 @@ function closeSettingsModal() {
 function openLightbox(url) {
   document.getElementById('lightboxImg').src = url;
   document.getElementById('lightbox').classList.add('open');
+}
+
+var cameraHoldTimer = null;
+var cameraHoldState = null;
+var ignoreCameraClick = false;
+
+function handleCameraClick(event) {
+  if (ignoreCameraClick) {
+    ignoreCameraClick = false;
+    if (event) event.preventDefault();
+    return;
+  }
+  openCamera();
+}
+
+function handleCameraPointerDown(event) {
+  if (event.button !== undefined && event.button !== 0) return;
+  if (event.currentTarget && event.currentTarget.setPointerCapture && event.pointerId !== undefined) {
+    try { event.currentTarget.setPointerCapture(event.pointerId); } catch (err) {}
+  }
+  cameraHoldState = { triggered: false, released: false, recorder: null, stream: null, chunks: [] };
+  var state = cameraHoldState;
+  cameraHoldTimer = setTimeout(function() {
+    cameraHoldTimer = null;
+    if (state.released) return;
+    state.triggered = true;
+    startCameraHoldRecording(state);
+  }, 450);
+}
+
+function handleCameraPointerUp() {
+  if (cameraHoldTimer) {
+    clearTimeout(cameraHoldTimer);
+    cameraHoldTimer = null;
+  }
+  var state = cameraHoldState;
+  if (!state || !state.triggered) return;
+  state.released = true;
+  ignoreCameraClick = true;
+  setTimeout(function() { ignoreCameraClick = false; }, 0);
+  if (state.recorder && state.recorder.state !== 'inactive') state.recorder.stop();
+  else if (state.stream && !state.recorder) state.stream.getTracks().forEach(function(track) { track.stop(); });
+}
+
+function startCameraHoldRecording(state) {
+  if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia || typeof MediaRecorder === 'undefined') {
+    showToast('Video recording is not supported in this browser');
+    return;
+  }
+  if (!currentChat) {
+    showToast('Open a chat before recording a video');
+    return;
+  }
+  navigator.mediaDevices.getUserMedia({
+    video: { facingMode: { ideal: 'environment' } },
+    audio: true
+  }).then(function(stream) {
+    state.stream = stream;
+    if (state.released) {
+      stream.getTracks().forEach(function(track) { track.stop(); });
+      return;
+    }
+    var recorder;
+    try {
+      recorder = new MediaRecorder(stream);
+    } catch (error) {
+      stream.getTracks().forEach(function(track) { track.stop(); });
+      showToast('Could not start video recording: ' + error.message);
+      return;
+    }
+    state.recorder = recorder;
+    recorder.ondataavailable = function(e) {
+      if (e.data && e.data.size) state.chunks.push(e.data);
+    };
+    recorder.onerror = function(e) {
+      showToast('Video recording failed' + (e.error && e.error.message ? ': ' + e.error.message : ''));
+    };
+    recorder.onstop = function() {
+      stream.getTracks().forEach(function(track) { track.stop(); });
+      if (!state.chunks.length) return;
+      var mimeType = recorder.mimeType || state.chunks[0].type || 'video/webm';
+      var blob = new Blob(state.chunks, { type: mimeType });
+      var extension = mimeType.indexOf('mp4') !== -1 ? 'mp4' : 'webm';
+      var videoFile = new File([blob], 'recorded-video.' + extension, { type: mimeType });
+      sendVideoFile(videoFile);
+    };
+    recorder.start();
+    var cameraButton = document.getElementById('cameraBtn');
+    cameraButton.classList.add('recording');
+    cameraButton.title = 'Recording video — release to send';
+    showToast('Recording video — release to send');
+    if (state.released && recorder.state !== 'inactive') recorder.stop();
+    recorder.addEventListener('stop', function() {
+      cameraButton.classList.remove('recording');
+      cameraButton.title = 'Tap to take a photo; hold to record a video';
+    }, { once: true });
+  }).catch(function(error) {
+    showToast('Could not access camera/microphone: ' + error.message);
+  });
 }
 
 function openCamera() {
