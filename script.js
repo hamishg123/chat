@@ -2178,6 +2178,10 @@ function renderMessage(m, isGroup, box) {
     var decryptedUrl = decryptMessage(m.url);
     var safeUrl = decryptedUrl.replace(/"/g, '&quot;');
     content = '<img src="' + safeUrl + '" loading="lazy" decoding="async" onclick="openLightbox(\'' + safeUrl + '\')" alt="Image">';
+  } else if (m.type === 'video' && m.url) {
+    var videoUrl = decryptMessage(m.url);
+    var safeVideoUrl = escapeHtml(videoUrl).replace(/'/g, '&#39;');
+    content = '<video class="chat-video" controls playsinline preload="metadata" src="' + safeVideoUrl + '">Your browser does not support video playback.</video>';
   } else if (m.type === 'voice' && m.url) {
     var audioUrl = decryptMessage(m.url);
     content = '<div class="voice-msg">' +
@@ -2385,7 +2389,7 @@ function cancelReply() {
 
 function handleMessageTap(event, el) {
   if (window.innerWidth > 768) return; // Only for mobile
-  if (event && (event.target.closest('.voice-msg') || event.target.closest('.msg-actions-overlay'))) return;
+  if (event && (event.target.closest('.voice-msg') || event.target.closest('.chat-video') || event.target.closest('.msg-actions-overlay'))) return;
   
   // Toggle the reaction overlay on tap for mobile
   var wasActive = el.classList.contains('mobile-active');
@@ -2480,6 +2484,70 @@ function sendImage(event) {
   compressImage(file, compressionLimit, function(compressedBase64) {
     uploadImageData(compressedBase64);
   }, 960);
+}
+
+function sendVideo(event) {
+  var file = event.target.files[0];
+  event.target.value = '';
+  if (!file || !currentChat) return;
+  if (!file.type || !file.type.startsWith('video/')) {
+    showToast('Please choose a valid video file');
+    return;
+  }
+
+  var sizeLimit = isPro ? 100 * 1024 * 1024 : 5 * 1024 * 1024;
+  if (file.size > sizeLimit) {
+    showToast(isPro ? 'Video too large (max 100MB)' : 'Video too large. Upgrade to Pro for 100MB limits!');
+    return;
+  }
+
+  var progress = document.getElementById('uploadProgress');
+  progress.textContent = 'Uploading video...';
+  progress.style.display = 'block';
+  var chatIdForPath = currentChat;
+  var chatTypeForPath = currentChatType;
+  var messagePath = chatTypeForPath === 'group' ? 'groupMessages/' + chatIdForPath : 'messages/' + chatIdForPath;
+  var messageRef = db.ref(messagePath).push();
+  var safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, '_').slice(-100) || 'video';
+  var storagePath = 'chatVideos/' + uid + '/' + messageRef.key + '/' + safeName;
+  var uploadTask = storage.ref(storagePath).put(file, { contentType: file.type });
+
+  uploadTask.on('state_changed', function(snapshot) {
+    var percent = snapshot.totalBytes ? Math.round(snapshot.bytesTransferred / snapshot.totalBytes * 100) : 0;
+    progress.textContent = 'Uploading video... ' + percent + '%';
+  }, function(error) {
+    console.error('Video upload failed:', error);
+    progress.style.display = 'none';
+    showToast('Failed to upload video: ' + error.message);
+  }, function() {
+    uploadTask.snapshot.ref.getDownloadURL().then(function(downloadUrl) {
+      var msgData = {
+        type: 'video',
+        sender: uid,
+        senderName: myUsername || '?',
+        url: encryptMessage(downloadUrl),
+        fileName: file.name,
+        time: firebase.database.ServerValue.TIMESTAMP,
+        delivered: true,
+        seen: false,
+        opened: false
+      };
+      if (replyingTo) {
+        msgData.replyTo = replyingTo;
+        cancelReply();
+      }
+      return messageRef.set(msgData);
+    }).then(function() {
+      progress.style.display = 'none';
+      showToast('Video sent!');
+      scrollMessagesToBottom(document.getElementById('messages'), chatIdForPath);
+      sendNotification('Video sent', { body: file.name });
+    }).catch(function(error) {
+      console.error('Could not send video message:', error);
+      progress.style.display = 'none';
+      showToast('Video uploaded but could not be sent: ' + error.message);
+    });
+  });
 }
 
 function compressImage(file, maxSize, callback, maxDimension) {

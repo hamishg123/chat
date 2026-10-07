@@ -824,6 +824,13 @@ body {
   border-radius: 10px;
   cursor: pointer;
 }
+.message .chat-video {
+  display: block;
+  width: min(360px, 72vw);
+  max-height: 320px;
+  border-radius: 10px;
+  background: #000;
+}
 
 .msg-delete {
   background: none;
@@ -903,7 +910,7 @@ body {
   color: var(--text-muted-dark);
 }
 
-#imgBtn, #cameraBtn, #voiceBtn, #sendBtn {
+#imgBtn, #videoBtn, #cameraBtn, #voiceBtn, #sendBtn {
   background: var(--surface-light);
   border: 1.5px solid var(--border);
   color: var(--text-muted-dark);
@@ -919,7 +926,7 @@ body {
   transition: all 0.2s;
 }
 
-#imgBtn:hover, #cameraBtn:hover, #voiceBtn:hover {
+#imgBtn:hover, #videoBtn:hover, #cameraBtn:hover, #voiceBtn:hover {
   border-color: var(--primary);
   color: var(--primary);
   background: var(--surface);
@@ -2222,7 +2229,7 @@ input:checked + .toggle-slider:before {
     font-size: 14px;
   }
 
-  #imgBtn, #cameraBtn {
+  #imgBtn, #videoBtn, #cameraBtn {
     width: 38px;
     height: 38px;
     font-size: 16px;

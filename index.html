@@ -319,7 +319,7 @@
       </div>
       <div id="messages"></div>
       <div id="typingIndicator"></div>
-      <div id="uploadProgress">Uploading image...</div>
+      <div id="uploadProgress">Uploading media...</div>
       <div id="inputAreaContainer" style="padding: 10px 16px; border-top: 1px solid var(--border); background: var(--surface);">
         <div class="reply-preview" id="replyPreview">
           <div class="reply-preview-close" onclick="cancelReply()">×</div>
@@ -330,8 +330,10 @@
             onkeydown="handleMsgKey(event)" oninput="handleTyping(); autoResize(this)"></textarea>
           <button id="voiceBtn" onclick="toggleVoiceRecording()" title="Voice Message">🎤</button>
           <button id="imgBtn" onclick="document.getElementById('imgUpload').click()" title="Upload image">🖼️</button>
+          <button id="videoBtn" onclick="document.getElementById('videoUpload').click()" title="Send video">🎞️</button>
           <button id="cameraBtn" onclick="openCamera()" title="Take photo">📷</button>
           <input type="file" id="imgUpload" accept="image/*" onchange="sendImage(event)" style="display:none">
+          <input type="file" id="videoUpload" accept="video/*" onchange="sendVideo(event)" style="display:none">
           <input type="file" id="cameraUpload" accept="image/*" capture="environment" onchange="sendImage(event)" style="display:none">
           <button id="sendBtn" onclick="sendMessage()">➤</button>
         </div>
