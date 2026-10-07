@@ -2498,11 +2498,11 @@ function sendVideoFile(file) {
     return;
   }
 
-  // RTDB has a 16 MB per-write limit. Base64 plus AES adds overhead, so keep
-  // the original clip below 5 MB (standard) / 7 MB (Pro) for reliable writes.
-  var sizeLimit = isPro ? 7 * 1024 * 1024 : 5 * 1024 * 1024;
+  // RTDB SDK writes are limited to 16 MB and each string to 10 MB. Base64
+  // plus AES adds overhead, so use a conservative 5 MB source-file cap.
+  var sizeLimit = 5 * 1024 * 1024;
   if (file.size > sizeLimit) {
-    showToast(isPro ? 'Video too large for Realtime Database (max 7MB)' : 'Video too large for Realtime Database (max 5MB)');
+    showToast('Video too large for Realtime Database (max 5MB)');
     return;
   }
 
