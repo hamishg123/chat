@@ -245,9 +245,11 @@ auth.onAuthStateChanged(function(user) {
 });
 
 function setAdminAccess(user) {
-  isAdmin = !!(user && user.email && user.email.toLowerCase() === ADMIN_EMAIL);
+  isAdmin = !!(user && user.email && user.email.trim().toLowerCase() === ADMIN_EMAIL.trim().toLowerCase());
   var adminEntry = document.getElementById('adminPanelEntry');
+  var adminButton = document.getElementById('adminConsoleButton');
   if (adminEntry) adminEntry.style.display = isAdmin ? 'flex' : 'none';
+  if (adminButton) adminButton.style.display = isAdmin ? 'block' : 'none';
   if (!isAdmin) {
     var adminModal = document.getElementById('adminPanelModal');
     if (adminModal) adminModal.classList.remove('open');
@@ -2432,16 +2434,59 @@ function saveChatMessage(saveKey) {
 
   if (savingMessageKeys[saveKey]) return;
   savingMessageKeys[saveKey] = true;
-  var shouldSave = !(cached.message.savedBy && cached.message.savedBy[uid]);
   var messagePath = (cached.chatType === 'group' ? 'groupMessages/' : 'messages/') + cached.chatId + '/' + cached.message._key + '/savedBy/' + uid;
-  db.ref(messagePath).set(shouldSave ? firebase.database.ServerValue.TIMESTAMP : null).then(function() {
-    showToast(shouldSave ? 'Message saved in chat.' : 'Your save was removed from chat.');
-  }).catch(function(err) {
-    console.error('Error saving message:', err);
-    showToast('Could not update the saved-in-chat state. Please try again.');
-  }).then(function() {
+  db.ref(messagePath).transaction(function(currentValue) {
+    return currentValue == null ? Date.now() : null;
+  }, function(err, committed, snapshot) {
     delete savingMessageKeys[saveKey];
+    if (err || !committed) {
+      if (err) console.error('Error toggling saved message:', err);
+      showToast('Could not update the saved-in-chat state. Please try again.');
+      return;
+    }
+
+    var isSaved = !!(snapshot && snapshot.exists());
+    var latestCached = renderedMessagesBySaveKey[saveKey];
+    if (latestCached && latestCached.message) {
+      latestCached.message.savedBy = latestCached.message.savedBy || {};
+      if (isSaved) latestCached.message.savedBy[uid] = snapshot.val();
+      else delete latestCached.message.savedBy[uid];
+      if (!Object.keys(latestCached.message.savedBy).length) delete latestCached.message.savedBy;
+    }
+    updateSavedMessageUI(saveKey, isSaved);
+    showToast(isSaved ? 'Saved in Chat' : 'Unsaved in Chat');
   });
+}
+
+function updateSavedMessageUI(saveKey, isSavedByMe) {
+  var cached = renderedMessagesBySaveKey[saveKey];
+  if (!cached || !cached.message) return;
+
+  var savedBy = cached.message.savedBy || {};
+  var isSavedInChat = Object.keys(savedBy).length > 0;
+  var messageElement = document.getElementById('msg-' + cached.message._key);
+  if (!messageElement) return;
+  messageElement.classList.toggle('saved-in-chat', isSavedInChat);
+
+  var row = messageElement.parentElement.querySelector('.msg-time');
+  if (!row) return;
+  var label = row.querySelector('.save-in-chat-label');
+  if (isSavedInChat && !label) {
+    label = document.createElement('span');
+    label.className = 'save-in-chat-label';
+    label.textContent = 'Saved in Chat';
+    var bookmark = row.querySelector('.save-message-btn');
+    row.insertBefore(label, bookmark || null);
+  } else if (!isSavedInChat && label) {
+    label.remove();
+  }
+
+  var button = row.querySelector('.save-message-btn');
+  if (button) {
+    button.classList.toggle('active', isSavedByMe);
+    button.title = isSavedByMe ? 'Remove your save from chat' : 'Save in chat';
+    button.setAttribute('aria-label', button.title);
+  }
 }
 
 function getContrastColor(hexcolor) {

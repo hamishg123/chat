@@ -16,7 +16,7 @@ In the Vercel project's environment variables, configure:
 
 These Firebase service-account values are server secrets. Keep them in Vercel environment variables; never add them to `script.js`, commit them, or send them to users. For `FIREBASE_PRIVATE_KEY`, use the service-account private key with newline characters preserved or escaped as `\\n`.
 
-Redeploy after setting the variables. Then sign in to UChat with the Firebase account registered to `hamishgordon051@gmail.com` and its existing password. The Account section in Settings will show **Open Admin Panel** for that signed-in email. If the secure API has not been deployed or configured, admin changes will fail closed rather than writing from the browser.
+Redeploy after setting the variables. Then sign in to UChat with the Firebase account registered to `hamishgordon051@gmail.com` and its existing password. A visible **Admin Console** button appears in the sidebar, and **Open Admin Panel** remains available under Account in Settings. If the secure API has not been deployed or configured, admin changes will fail closed rather than writing from the browser.
 
 ## Available controls
 
