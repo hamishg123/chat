@@ -19,6 +19,8 @@ var db = firebase.database();
 
 var uid = null;
 var myUsername = '';
+var isAdmin = false;
+var ADMIN_EMAIL = 'hamishgordon051@gmail.com';
 var currentChatUid = null;
 var currentChat = null;
 var currentChatType = null;
@@ -63,6 +65,7 @@ var replyPayloadCache = {};
 var proStatusListeners = {};
 var initialMessageLoad = false;
 var renderedMessagesBySaveKey = {};
+var savingMessageKeys = {};
 
 function getCachedUserProfile(userId) {
   if (!userId) return Promise.resolve({});
@@ -227,6 +230,7 @@ function decryptMessage(encryptedText) {
 // ──────────────────────────────────────────────────────────────────────────────
 
 auth.onAuthStateChanged(function(user) {
+  setAdminAccess(user);
   if (user) {
     uid = user.uid;
     document.getElementById('authScreen').style.display = 'none';
@@ -239,6 +243,16 @@ auth.onAuthStateChanged(function(user) {
     document.getElementById('mainContainer').classList.remove('active');
   }
 });
+
+function setAdminAccess(user) {
+  isAdmin = !!(user && user.email && user.email.toLowerCase() === ADMIN_EMAIL);
+  var adminEntry = document.getElementById('adminPanelEntry');
+  if (adminEntry) adminEntry.style.display = isAdmin ? 'flex' : 'none';
+  if (!isAdmin) {
+    var adminModal = document.getElementById('adminPanelModal');
+    if (adminModal) adminModal.classList.remove('open');
+  }
+}
 
 function switchAuthTab(tab) {
   document.querySelectorAll('.auth-tab').forEach(el => el.classList.remove('active'));
@@ -391,15 +405,11 @@ function updateProUI() {
   var upgradeBtn = document.getElementById('upgradeToProBtn');
   var manageBtn = document.getElementById('manageProBtn');
   var sidebarBadge = document.getElementById('sidebarProBadge');
-  var savedMessagesSection = document.getElementById('savedMessagesSection');
   
   if (isPro) {
     if (proBadge) proBadge.style.display = 'block';
     if (upgradeBtn) upgradeBtn.style.display = 'none';
     if (manageBtn) manageBtn.style.display = 'block';
-    if (savedMessagesSection) savedMessagesSection.style.display = 'block';
-    var settingsPage = document.getElementById('settingsPage');
-    if (settingsPage && settingsPage.style.display !== 'none') loadSavedMessages();
     
     // Add Pro badge to sidebar if it doesn't exist
     if (!sidebarBadge) {
@@ -416,7 +426,6 @@ function updateProUI() {
     if (proBadge) proBadge.style.display = 'none';
     if (upgradeBtn) upgradeBtn.style.display = 'block';
     if (manageBtn) manageBtn.style.display = 'none';
-    if (savedMessagesSection) savedMessagesSection.style.display = 'none';
     if (sidebarBadge) sidebarBadge.remove();
   }
 }
@@ -428,6 +437,108 @@ function upgradeToPro() {
 
 function manageSubscription() {
   showToast('Pro is a one-time £1 payment. Contact the UChat administrator to manage your membership.');
+}
+
+async function callAdminApi(method, params) {
+  if (!isAdmin || !auth.currentUser) throw new Error('Admin access required.');
+  var token = await auth.currentUser.getIdToken();
+  var url = '/api/admin-users';
+  var options = {
+    method: method,
+    headers: { 'Authorization': 'Bearer ' + token, 'Content-Type': 'application/json' }
+  };
+  if (method === 'GET') {
+    var query = new URLSearchParams(params || {}).toString();
+    if (query) url += '?' + query;
+  } else {
+    options.body = JSON.stringify(params || {});
+  }
+
+  var response = await fetch(url, options);
+  var result;
+  try { result = await response.json(); } catch (err) { result = {}; }
+  if (!response.ok) throw new Error(result.error || 'Admin request failed.');
+  return result;
+}
+
+async function openAdminPanel() {
+  if (!isAdmin) {
+    showToast('Admin access is not available for this account.');
+    return;
+  }
+  openModal('adminPanelModal');
+  document.getElementById('adminPanelStatus').textContent = 'Loading admin dashboard…';
+  document.getElementById('adminUserResults').innerHTML = '';
+  loadAdminDashboard();
+  setTimeout(function() { document.getElementById('adminUserQuery').focus(); }, 50);
+}
+
+async function loadAdminDashboard() {
+  var activityEl = document.getElementById('adminRecentActivity');
+  try {
+    var dashboard = await callAdminApi('GET', { action: 'dashboard' });
+    document.getElementById('adminTotalUsers').textContent = String(dashboard.totalUsers);
+    document.getElementById('adminProUsers').textContent = String(dashboard.proUsers);
+    document.getElementById('adminPanelStatus').textContent = '';
+    var activity = dashboard.activity || [];
+    if (!activity.length) {
+      activityEl.textContent = 'No Pro changes recorded yet.';
+      return;
+    }
+    activityEl.innerHTML = activity.map(function(item) {
+      var action = item.isPro ? 'granted Pro to' : 'removed Pro from';
+      var targetName = item.username ? '@' + item.username : (item.targetUid || 'an account');
+      var target = escapeHtml(String(targetName));
+      var date = item.at ? new Date(item.at).toLocaleString() : 'Recently';
+      return '<div class="admin-activity-item"><p>Admin ' + action + ' <strong>' + target + '</strong></p><p>' + escapeHtml(date) + '</p></div>';
+    }).join('');
+  } catch (err) {
+    document.getElementById('adminPanelStatus').textContent = err.message;
+    activityEl.textContent = 'Admin dashboard is unavailable until the secure API is deployed.';
+  }
+}
+
+async function searchAdminUsers() {
+  var queryInput = document.getElementById('adminUserQuery');
+  var query = queryInput.value.trim();
+  var statusEl = document.getElementById('adminPanelStatus');
+  var resultsEl = document.getElementById('adminUserResults');
+  if (query.length < 2) {
+    statusEl.textContent = 'Enter at least two characters.';
+    resultsEl.innerHTML = '';
+    return;
+  }
+  statusEl.textContent = 'Searching…';
+  resultsEl.innerHTML = '';
+  try {
+    var result = await callAdminApi('POST', { action: 'search', q: query });
+    var user = result.user;
+    var displayName = user.displayName || ('@' + (user.username || 'user'));
+    var status = user.isPro ? 'Pro active' : 'Standard account';
+    var buttonText = user.isPro ? 'Remove Pro' : 'Set as Pro';
+    resultsEl.innerHTML = '<article class="admin-user-card">' +
+      '<h5>' + escapeHtml(String(displayName)) + '</h5>' +
+      '<p>' + escapeHtml(String(user.email || 'No email on record')) + '</p>' +
+      '<p>Username: @' + escapeHtml(String(user.username || 'unknown')) + '</p>' +
+      '<p>Account: ' + escapeHtml(status) + (user.disabled ? ' · Disabled' : '') + '</p>' +
+      '<div class="admin-user-card-actions"><button type="button" class="btn-primary admin-pro-toggle" data-user-uid="' + escapeHtml(String(user.uid)) + '" data-set-pro="' + (!user.isPro) + '">' + buttonText + '</button></div>' +
+      '</article>';
+    statusEl.textContent = 'Account found.';
+  } catch (err) {
+    statusEl.textContent = err.message === 'No account found.' ? err.message : 'Could not search accounts: ' + err.message;
+  }
+}
+
+async function setAdminProStatus(targetUid, shouldBePro) {
+  if (!isAdmin || !targetUid) return;
+  try {
+    await callAdminApi('POST', { action: 'set-pro', uid: targetUid, isPro: !!shouldBePro });
+    showToast(shouldBePro ? 'Pro activated.' : 'Pro removed.');
+    await searchAdminUsers();
+    loadAdminDashboard();
+  } catch (err) {
+    document.getElementById('adminPanelStatus').textContent = 'Could not update Pro access: ' + err.message;
+  }
 }
 
 function setupGlobalMessageListener() {
@@ -2072,7 +2183,7 @@ function loadMessages(path, isGroup, append = false) {
 
       // --- AUTO-DELETE EXPIRED MESSAGES ---
       // Check if message was opened more than 24 hours ago
-      if (m.openedAt) {
+      if (m.openedAt && !Object.keys(m.savedBy || {}).length) {
         var twentyFourHours = 24 * 60 * 60 * 1000;
         var now = Date.now();
         if (now - m.openedAt > twentyFourHours) {
@@ -2135,7 +2246,10 @@ function getMemberColor(memberId) {
 
 function renderMessage(m, isGroup, box) {
   var isMe = m.sender === uid;
-  var messageClass = 'message' + (m.type === 'voice' ? ' voice-message' : '');
+  var savedBy = m.savedBy || {};
+  var savedInChat = Object.keys(savedBy).length > 0;
+  var savedByMe = !!savedBy[uid];
+  var messageClass = 'message' + (m.type === 'voice' ? ' voice-message' : '') + (savedInChat ? ' saved-in-chat' : '');
   var div = document.createElement('div');
   div.className = 'msg-container' + (isMe ? ' me' : ' other');
   div.setAttribute('data-key', m._key);
@@ -2241,12 +2355,14 @@ function renderMessage(m, isGroup, box) {
     else if (m.delivered) status = '<span title="Delivered">✓</span>';
     else status = '<span title="Sent">✓</span>';
   }
+  var saveStatus = savedInChat ? '<span class="save-in-chat-label">Saved in Chat</span>' : '';
+  var saveButtonTitle = savedByMe ? 'Remove your save from chat' : 'Save in chat';
 
   div.innerHTML = senderLabel +
     '<div class="' + messageClass + '" onclick="handleMessageTap(event, this)" id="msg-' + m._key + '">' + actionsOverlay + replyHtml + content + deleteBtn + '</div>' +
     reactionsHtml +
-    '<div class="msg-time">' + time + (status ? ' <span class="msg-status">' + status + '</span>' : '') +
-    ' <button type="button" class="save-message-btn" data-save-key="' + escapeHtml(saveKey) + '" title="Save message" aria-label="Save message">🔖</button></div>';
+    '<div class="msg-time">' + time + (status ? ' <span class="msg-status">' + status + '</span>' : '') + saveStatus +
+    ' <button type="button" class="save-message-btn' + (savedByMe ? ' active' : '') + '" data-save-key="' + escapeHtml(saveKey) + '" title="' + saveButtonTitle + '" aria-label="' + saveButtonTitle + '">🔖</button></div>';
   
   // --- PRE-APPLY MY APPEARANCE (Anti-Flicker) ---
   if (isMe) {
@@ -2314,90 +2430,17 @@ function saveChatMessage(saveKey) {
     return;
   }
 
-  var message = Object.assign({}, cached.message);
-  delete message._key;
-  var savedRef = db.ref('users/' + uid + '/savedMessages/' + saveKey);
-  savedRef.once('value').then(function(snap) {
-    if (snap.exists()) {
-      showToast('This message is already saved.');
-      return;
-    }
-    return savedRef.set({
-      chatId: cached.chatId,
-      chatType: cached.chatType,
-      chatName: cached.chatName,
-      messageKey: cached.message._key,
-      message: message,
-      savedAt: firebase.database.ServerValue.TIMESTAMP
-    }).then(function() {
-      showToast('Message saved to Settings.');
-    });
+  if (savingMessageKeys[saveKey]) return;
+  savingMessageKeys[saveKey] = true;
+  var shouldSave = !(cached.message.savedBy && cached.message.savedBy[uid]);
+  var messagePath = (cached.chatType === 'group' ? 'groupMessages/' : 'messages/') + cached.chatId + '/' + cached.message._key + '/savedBy/' + uid;
+  db.ref(messagePath).set(shouldSave ? firebase.database.ServerValue.TIMESTAMP : null).then(function() {
+    showToast(shouldSave ? 'Message saved in chat.' : 'Your save was removed from chat.');
   }).catch(function(err) {
     console.error('Error saving message:', err);
-    showToast('Could not save this message. Please try again.');
-  });
-}
-
-function loadSavedMessages() {
-  var list = document.getElementById('savedMessagesList');
-  if (!list || !uid || !isPro) return;
-  list.innerHTML = '<p style="color:var(--text-muted-dark); font-size:13px;">Loading saved messages...</p>';
-
-  db.ref('users/' + uid + '/savedMessages').once('value').then(function(snapshot) {
-    if (!isPro || !document.getElementById('savedMessagesList')) return;
-    var items = [];
-    snapshot.forEach(function(child) {
-      var item = child.val() || {};
-      item._savedKey = child.key;
-      items.push(item);
-    });
-    items.sort(function(a, b) { return (b.savedAt || 0) - (a.savedAt || 0); });
-
-    if (!items.length) {
-      list.innerHTML = '<p style="color:var(--text-muted-dark); font-size:13px;">No saved messages yet. Use the bookmark icon beside a message to save it.</p>';
-      return;
-    }
-
-    list.innerHTML = items.map(function(item) {
-      var message = item.message || {};
-      var sender = escapeHtml(String(message.senderName || message.sender || 'Someone'));
-      var chatName = escapeHtml(String(item.chatName || 'Chat'));
-      var savedDate = item.savedAt ? new Date(item.savedAt).toLocaleString() : 'Saved';
-      var preview = '';
-      if (message.type === 'image' && message.url) {
-        var imageUrl = decryptMessage(String(message.url));
-        preview = '<img class="saved-message-media" src="' + escapeHtml(imageUrl) + '" alt="Saved image" loading="lazy" onclick="openLightbox(this.src)">';
-      } else if (message.type === 'video' && message.url) {
-        var videoUrl = decryptMessage(String(message.url));
-        preview = '<video class="saved-message-media" controls playsinline preload="metadata" src="' + escapeHtml(videoUrl) + '"></video>';
-      } else if (message.type === 'voice' && message.url) {
-        var audioUrl = decryptMessage(String(message.url));
-        preview = '<audio controls preload="none" src="' + escapeHtml(audioUrl) + '" style="width:100%;"></audio>';
-      } else {
-        var text = message.text ? decryptMessage(String(message.text)) : '[' + String(message.type || 'message') + ']';
-        preview = '<div class="saved-message-text">' + escapeHtml(text) + '</div>';
-      }
-
-      return '<article class="saved-message-card">' +
-        '<div class="saved-message-meta">' + sender + ' · ' + chatName + '<br><span>' + escapeHtml(savedDate) + '</span></div>' +
-        preview +
-        '<button type="button" class="settings-btn-danger" onclick="removeSavedMessage(\'' + escapeJsString(item._savedKey) + '\')">Remove</button>' +
-        '</article>';
-    }).join('');
-  }).catch(function(err) {
-    console.error('Error loading saved messages:', err);
-    list.innerHTML = '<p style="color:var(--text-muted-dark); font-size:13px;">Could not load saved messages. Please try again later.</p>';
-  });
-}
-
-function removeSavedMessage(saveKey) {
-  if (!uid || !isPro || !saveKey) return;
-  db.ref('users/' + uid + '/savedMessages/' + saveKey).remove().then(function() {
-    showToast('Saved message removed.');
-    loadSavedMessages();
-  }).catch(function(err) {
-    console.error('Error removing saved message:', err);
-    showToast('Could not remove this saved message.');
+    showToast('Could not update the saved-in-chat state. Please try again.');
+  }).then(function() {
+    delete savingMessageKeys[saveKey];
   });
 }
 
@@ -2531,6 +2574,16 @@ document.getElementById('messages').addEventListener('click', function(event) {
   setReply(replyButton.getAttribute('data-reply-key'), payload.senderName, payload.text);
   document.querySelectorAll('.message.mobile-active').forEach(function(message) { message.classList.remove('mobile-active'); });
 });
+
+var adminUserResultsElement = document.getElementById('adminUserResults');
+if (adminUserResultsElement) {
+  adminUserResultsElement.addEventListener('click', function(event) {
+    var button = event.target.closest('.admin-pro-toggle');
+    if (!button) return;
+    event.preventDefault();
+    setAdminProStatus(button.getAttribute('data-user-uid'), button.getAttribute('data-set-pro') === 'true');
+  });
+}
 
 // Close mobile reaction overlays when clicking elsewhere
 document.addEventListener('click', function(e) {
@@ -3320,7 +3373,6 @@ function openSettings() {
   }
   
   loadSettingsUI();
-  if (isPro) loadSavedMessages();
 }
 
 function closeSettings() {

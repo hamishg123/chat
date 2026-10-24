@@ -121,19 +121,11 @@
             <li style="margin-bottom: 8px; display: flex; align-items: center; gap: 8px;">🚀 Higher file upload limits (up to 100MB)</li>
             <li style="margin-bottom: 8px; display: flex; align-items: center; gap: 8px;">🎨 Exclusive high-resolution themes</li>
             <li style="margin-bottom: 8px; display: flex; align-items: center; gap: 8px;">👥 Larger group chats (up to 500 members)</li>
-            <li style="margin-bottom: 8px; display: flex; align-items: center; gap: 8px;">🔖 Save messages and media from your chats</li>
+            <li style="margin-bottom: 8px; display: flex; align-items: center; gap: 8px;">🔖 Save messages in chat for everyone to see</li>
             <li style="margin-bottom: 0; display: flex; align-items: center; gap: 8px;">⭐ Special Pro badge on your profile</li>
           </ul>
           <button id="upgradeToProBtn" onclick="upgradeToPro()" class="btn-primary" style="width: 100%; height: 44px; font-weight: 800; box-shadow: 0 4px 15px rgba(255,107,0,0.3);">Pay in person — £1</button>
           <button id="manageProBtn" onclick="manageSubscription()" class="btn-secondary" style="width: 100%; height: 44px; font-weight: 800; display: none;">Manage Pro membership</button>
-        </div>
-      </div>
-
-      <div class="settings-section" id="savedMessagesSection" style="display:none;">
-        <div class="settings-section-title">🔖 Saved messages</div>
-        <p style="color:var(--text-muted-dark); font-size:13px; margin:0 0 12px;">Messages and media you save from your chats are kept here.</p>
-        <div id="savedMessagesList" aria-live="polite">
-          <p style="color:var(--text-muted-dark); font-size:13px;">Your saved messages will appear here.</p>
         </div>
       </div>
 
@@ -338,7 +330,7 @@
             onkeydown="handleMsgKey(event)" oninput="handleTyping(); autoResize(this)"></textarea>
           <button id="voiceBtn" onclick="toggleVoiceRecording()" title="Voice Message">🎤</button>
           <button id="imgBtn" onclick="document.getElementById('imgUpload').click()" title="Upload image">🖼️</button>
-          <button id="videoBtn" onclick="document.getElementById('videoUpload').click()" title="Send video">🎞️</button>
+          <button id="sendVideoBtn" onclick="document.getElementById('videoUpload').click()" title="Send video">🎞️</button>
           <button id="cameraBtn" onclick="handleCameraClick(event)" onpointerdown="handleCameraPointerDown(event)" onpointerup="handleCameraPointerUp(event)" onpointercancel="handleCameraPointerUp(event)" oncontextmenu="return false" title="Tap to take a photo; hold to record a video">📷</button>
           <input type="file" id="imgUpload" accept="image/*" onchange="sendImage(event)" style="display:none">
           <input type="file" id="videoUpload" accept="video/*" onchange="sendVideo(event)" style="display:none">
@@ -551,6 +543,13 @@
         </div>
         <button class="settings-btn-danger" onclick="doLogout()">Sign Out</button>
       </div>
+      <div class="settings-item" id="adminPanelEntry" style="display:none;">
+        <div>
+          <div class="settings-label">Admin tools</div>
+          <div class="settings-description">Manage membership and review account activity</div>
+        </div>
+        <button class="btn-primary" type="button" onclick="openAdminPanel()">Open Admin Panel</button>
+      </div>
     </div>
 
     <!-- About Section -->
@@ -624,6 +623,36 @@
       <button class="btn-secondary" onclick="closeModal('userProfileModal')">Close</button>
       <button class="btn-primary" id="userProfileChatBtn">Message</button>
     </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="adminPanelModal" role="dialog" aria-modal="true" aria-labelledby="adminPanelTitle">
+  <div class="modal admin-panel-modal">
+    <div class="admin-panel-header">
+      <div>
+        <h3 id="adminPanelTitle">UChat Admin Panel</h3>
+        <p>Manage accounts and Pro access</p>
+      </div>
+      <button class="admin-panel-close" type="button" onclick="closeModal('adminPanelModal')" aria-label="Close admin panel">×</button>
+    </div>
+    <div class="admin-stats">
+      <div class="admin-stat-card"><span>Total accounts</span><strong id="adminTotalUsers">—</strong></div>
+      <div class="admin-stat-card"><span>Pro accounts</span><strong id="adminProUsers">—</strong></div>
+    </div>
+    <section class="admin-panel-section">
+      <h4>Find an account</h4>
+      <p>Search by exact username or email address.</p>
+      <form class="admin-search-form" onsubmit="event.preventDefault(); searchAdminUsers();">
+        <input id="adminUserQuery" type="search" maxlength="120" placeholder="Username or email address" autocomplete="off">
+        <button class="btn-primary" type="submit" id="adminSearchButton">Search</button>
+      </form>
+      <div id="adminPanelStatus" class="admin-panel-status" role="status" aria-live="polite"></div>
+      <div id="adminUserResults"></div>
+    </section>
+    <section class="admin-panel-section">
+      <h4>Recent Pro changes</h4>
+      <div id="adminRecentActivity" class="admin-recent-activity" aria-live="polite">Loading activity…</div>
+    </section>
   </div>
 </div>
 
