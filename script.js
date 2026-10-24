@@ -21,6 +21,9 @@ var uid = null;
 var myUsername = '';
 var isAdmin = false;
 var ADMIN_EMAIL = 'hamishgordon051@gmail.com';
+var adminUsersCache = [];
+var adminUserFilter = 'all';
+var adminVisibleUserCount = 12;
 var currentChatUid = null;
 var currentChat = null;
 var currentChatType = null;
@@ -441,105 +444,177 @@ function manageSubscription() {
   showToast('Pro is a one-time £1 payment. Contact the UChat administrator to manage your membership.');
 }
 
-async function callAdminApi(method, params) {
-  if (!isAdmin || !auth.currentUser) throw new Error('Admin access required.');
-  var token = await auth.currentUser.getIdToken();
-  var url = '/api/admin-users';
-  var options = {
-    method: method,
-    headers: { 'Authorization': 'Bearer ' + token, 'Content-Type': 'application/json' }
-  };
-  if (method === 'GET') {
-    var query = new URLSearchParams(params || {}).toString();
-    if (query) url += '?' + query;
-  } else {
-    options.body = JSON.stringify(params || {});
-  }
-
-  var response = await fetch(url, options);
-  var result;
-  try { result = await response.json(); } catch (err) { result = {}; }
-  if (!response.ok) throw new Error(result.error || 'Admin request failed.');
-  return result;
-}
-
 async function openAdminPanel() {
   if (!isAdmin) {
     showToast('Admin access is not available for this account.');
     return;
   }
   openModal('adminPanelModal');
-  document.getElementById('adminPanelStatus').textContent = 'Loading admin dashboard…';
-  document.getElementById('adminUserResults').innerHTML = '';
-  loadAdminDashboard();
+  document.getElementById('adminUserQuery').value = '';
+  adminUserFilter = 'all';
+  adminVisibleUserCount = 12;
+  document.querySelectorAll('.admin-filter-btn').forEach(function(button) {
+    button.classList.toggle('active', button.getAttribute('data-admin-filter') === 'all');
+  });
+  await loadAdminDashboard();
   setTimeout(function() { document.getElementById('adminUserQuery').focus(); }, 50);
 }
 
 async function loadAdminDashboard() {
+  if (!isAdmin || !auth.currentUser) return;
+  var statusEl = document.getElementById('adminPanelStatus');
   var activityEl = document.getElementById('adminRecentActivity');
+  statusEl.textContent = 'Loading account data from Firebase…';
+  activityEl.textContent = 'Loading recent activity…';
   try {
-    var dashboard = await callAdminApi('GET', { action: 'dashboard' });
-    document.getElementById('adminTotalUsers').textContent = String(dashboard.totalUsers);
-    document.getElementById('adminProUsers').textContent = String(dashboard.proUsers);
-    document.getElementById('adminPanelStatus').textContent = '';
-    var activity = dashboard.activity || [];
+    var snapshots = await Promise.all([
+      db.ref('users').once('value'),
+      db.ref('adminAudit').limitToLast(12).once('value')
+    ]);
+    var usersSnapshot = snapshots[0];
+    var activitySnapshot = snapshots[1];
+    var users = [];
+    var proCount = 0;
+    var newCount = 0;
+    var monthStart = new Date();
+    monthStart.setDate(1);
+    monthStart.setHours(0, 0, 0, 0);
+
+    usersSnapshot.forEach(function(child) {
+      var profile = child.val() || {};
+      var user = {
+        uid: child.key,
+        username: String(profile.username || ''),
+        email: String(profile.email || ''),
+        displayName: String(profile.displayName || ''),
+        createdAt: Number(profile.createdAt || 0),
+        isPro: profile.isPro === true
+      };
+      if (user.isPro) proCount++;
+      if (user.createdAt && user.createdAt >= monthStart.getTime()) newCount++;
+      users.push(user);
+    });
+
+    adminUsersCache = users.sort(function(a, b) {
+      return (b.createdAt || 0) - (a.createdAt || 0) || a.username.localeCompare(b.username);
+    });
+    document.getElementById('adminTotalUsers').textContent = String(users.length);
+    document.getElementById('adminProUsers').textContent = String(proCount);
+    document.getElementById('adminStandardUsers').textContent = String(users.length - proCount);
+    document.getElementById('adminNewUsers').textContent = String(newCount);
+    statusEl.textContent = '';
+    renderAdminUsers();
+
+    var activity = [];
+    activitySnapshot.forEach(function(child) {
+      var item = child.val();
+      if (item && typeof item === 'object') activity.push(item);
+    });
+    activity.sort(function(a, b) { return Number(b.at || 0) - Number(a.at || 0); });
     if (!activity.length) {
-      activityEl.textContent = 'No Pro changes recorded yet.';
+      activityEl.innerHTML = '<div class="admin-empty-state"><span>✓</span><strong>No changes yet</strong><p>Pro membership updates will appear here.</p></div>';
       return;
     }
     activityEl.innerHTML = activity.map(function(item) {
-      var action = item.isPro ? 'granted Pro to' : 'removed Pro from';
-      var targetName = item.username ? '@' + item.username : (item.targetUid || 'an account');
+      var targetName = item.targetEmail || (item.username ? '@' + item.username : (item.targetUid || 'an account'));
       var target = escapeHtml(String(targetName));
       var date = item.at ? new Date(item.at).toLocaleString() : 'Recently';
-      return '<div class="admin-activity-item"><p>Admin ' + action + ' <strong>' + target + '</strong></p><p>' + escapeHtml(date) + '</p></div>';
+      var icon = item.isPro ? '＋' : '−';
+      var action = item.isPro ? 'Pro access granted' : 'Pro access removed';
+      return '<div class="admin-activity-item ' + (item.isPro ? 'grant' : 'revoke') + '"><span class="admin-activity-icon">' + icon + '</span><div><p><strong>' + target + '</strong></p><p>' + action + ' · ' + escapeHtml(date) + '</p></div></div>';
     }).join('');
   } catch (err) {
-    document.getElementById('adminPanelStatus').textContent = err.message;
-    activityEl.textContent = 'Admin dashboard is unavailable until the secure API is deployed.';
+    console.error('Could not load the Firebase admin dashboard:', err);
+    var detail = err && (err.code === 'PERMISSION_DENIED' || err.code === 'permission_denied')
+      ? 'Firebase Realtime Database Rules denied access. Add the admin rules from ADMIN_SETUP.md in your Firebase Console.'
+      : 'Could not read Firebase data: ' + (err && err.message ? err.message : 'unknown error');
+    statusEl.textContent = detail;
+    activityEl.innerHTML = '<div class="admin-empty-state admin-error-state"><span>!</span><strong>Firebase access is blocked</strong><p>' + escapeHtml(detail) + '</p></div>';
   }
 }
 
-async function searchAdminUsers() {
-  var queryInput = document.getElementById('adminUserQuery');
-  var query = queryInput.value.trim();
-  var statusEl = document.getElementById('adminPanelStatus');
+function setAdminUserFilter(filter, button) {
+  adminUserFilter = filter;
+  adminVisibleUserCount = 12;
+  document.querySelectorAll('.admin-filter-btn').forEach(function(item) { item.classList.remove('active'); });
+  if (button) button.classList.add('active');
+  renderAdminUsers();
+}
+
+function showMoreAdminUsers() {
+  adminVisibleUserCount += 12;
+  renderAdminUsers();
+}
+
+function searchAdminUsers() {
+  adminVisibleUserCount = 12;
+  renderAdminUsers();
+}
+
+function renderAdminUsers() {
   var resultsEl = document.getElementById('adminUserResults');
-  if (query.length < 2) {
-    statusEl.textContent = 'Enter at least two characters.';
-    resultsEl.innerHTML = '';
+  var queryInput = document.getElementById('adminUserQuery');
+  var countEl = document.getElementById('adminMemberCount');
+  var moreButton = document.getElementById('adminLoadMoreButton');
+  if (!resultsEl || !queryInput) return;
+  var query = queryInput.value.trim().toLowerCase();
+  var filtered = adminUsersCache.filter(function(user) {
+    if (adminUserFilter === 'pro' && !user.isPro) return false;
+    if (adminUserFilter === 'standard' && user.isPro) return false;
+    if (!query) return true;
+    return [user.username, user.email, user.displayName, user.uid].some(function(value) {
+      return String(value || '').toLowerCase().indexOf(query) !== -1;
+    });
+  });
+  countEl.textContent = filtered.length + (filtered.length === 1 ? ' account' : ' accounts');
+  if (!filtered.length) {
+    resultsEl.innerHTML = '<div class="admin-empty-state"><span>⌕</span><strong>No matching accounts</strong><p>Try a different email, username, or filter.</p></div>';
+    moreButton.style.display = 'none';
     return;
   }
-  statusEl.textContent = 'Searching…';
-  resultsEl.innerHTML = '';
-  try {
-    var result = await callAdminApi('POST', { action: 'search', q: query });
-    var user = result.user;
-    var displayName = user.displayName || ('@' + (user.username || 'user'));
-    var status = user.isPro ? 'Pro active' : 'Standard account';
-    var buttonText = user.isPro ? 'Remove Pro' : 'Set as Pro';
-    resultsEl.innerHTML = '<article class="admin-user-card">' +
-      '<h5>' + escapeHtml(String(displayName)) + '</h5>' +
-      '<p>' + escapeHtml(String(user.email || 'No email on record')) + '</p>' +
-      '<p>Username: @' + escapeHtml(String(user.username || 'unknown')) + '</p>' +
-      '<p>Account: ' + escapeHtml(status) + (user.disabled ? ' · Disabled' : '') + '</p>' +
-      '<div class="admin-user-card-actions"><button type="button" class="btn-primary admin-pro-toggle" data-user-uid="' + escapeHtml(String(user.uid)) + '" data-set-pro="' + (!user.isPro) + '">' + buttonText + '</button></div>' +
+  var visible = filtered.slice(0, adminVisibleUserCount);
+  resultsEl.innerHTML = visible.map(function(user) {
+    var name = user.displayName || (user.username ? '@' + user.username : 'UChat member');
+    var username = user.username ? '@' + user.username : 'Username unavailable';
+    var created = user.createdAt ? new Date(user.createdAt).toLocaleDateString() : 'Join date unavailable';
+    var membershipClass = user.isPro ? 'pro' : 'standard';
+    var membership = user.isPro ? 'Pro member' : 'Standard';
+    var buttonText = user.isPro ? 'Remove Pro' : 'Make Pro';
+    return '<article class="admin-user-card">' +
+      '<div class="admin-user-avatar">' + escapeHtml(String(name).charAt(0).toUpperCase()) + '</div>' +
+      '<div class="admin-user-details"><div class="admin-user-title"><h5>' + escapeHtml(name) + '</h5><span class="admin-membership-badge ' + membershipClass + '">' + membership + '</span></div>' +
+      '<p>' + escapeHtml(user.email || 'No email on record') + '</p><p>' + escapeHtml(username) + ' · Joined ' + escapeHtml(created) + '</p></div>' +
+      '<button type="button" class="admin-pro-toggle ' + (user.isPro ? 'remove' : 'grant') + '" data-user-uid="' + escapeHtml(user.uid) + '" data-set-pro="' + (!user.isPro) + '">' + buttonText + '</button>' +
       '</article>';
-    statusEl.textContent = 'Account found.';
-  } catch (err) {
-    statusEl.textContent = err.message === 'No account found.' ? err.message : 'Could not search accounts: ' + err.message;
-  }
+  }).join('');
+  moreButton.style.display = filtered.length > visible.length ? 'block' : 'none';
 }
 
 async function setAdminProStatus(targetUid, shouldBePro) {
-  if (!isAdmin || !targetUid) return;
+  if (!isAdmin || !auth.currentUser || !targetUid) return;
+  var target = adminUsersCache.find(function(user) { return user.uid === targetUid; });
+  if (!target) return;
   try {
-    await callAdminApi('POST', { action: 'set-pro', uid: targetUid, isPro: !!shouldBePro });
+    var auditKey = db.ref('adminAudit').push().key;
+    var updates = {};
+    updates['users/' + targetUid + '/isPro'] = !!shouldBePro;
+    updates['adminAudit/' + auditKey] = {
+      action: shouldBePro ? 'grant-pro' : 'remove-pro',
+      targetUid: targetUid,
+      targetEmail: target.email || '',
+      username: target.username || '',
+      isPro: !!shouldBePro,
+      performedBy: auth.currentUser.email || ADMIN_EMAIL,
+      at: firebase.database.ServerValue.TIMESTAMP
+    };
+    await db.ref().update(updates);
     showToast(shouldBePro ? 'Pro activated.' : 'Pro removed.');
-    await searchAdminUsers();
-    loadAdminDashboard();
+    await loadAdminDashboard();
   } catch (err) {
-    document.getElementById('adminPanelStatus').textContent = 'Could not update Pro access: ' + err.message;
+    console.error('Could not update Pro status in Firebase:', err);
+    document.getElementById('adminPanelStatus').textContent = err && (err.code === 'PERMISSION_DENIED' || err.code === 'permission_denied')
+      ? 'Firebase Rules blocked the update. Publish the admin write rules described in ADMIN_SETUP.md.'
+      : 'Could not update Pro access: ' + (err && err.message ? err.message : 'unknown error');
   }
 }
 

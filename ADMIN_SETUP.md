@@ -1,25 +1,39 @@
-# UChat Admin Panel Setup
+# UChat Admin Console Setup
 
-The admin panel uses the normal Firebase email-and-password sign-in. It does not ask for, store, or embed a second password. Only the signed-in account whose email matches `ADMIN_EMAIL` can see the panel, and the server API verifies the Firebase ID token and checks the same configured email before every admin operation.
+The admin console no longer calls a Vercel API. It uses the signed-in Firebase Authentication session and reads or updates Realtime Database directly. The console includes total accounts, Pro and standard counts, accounts joined this month, searchable member cards, Pro filters, pagination, and a recent membership-change feed.
 
-## Deploy the secure API
+## Important: Firebase Auth plus Database Rules
 
-Deploy this repository to Vercel so `/api/admin-users` is available on the same origin as the app. The root `package.json` declares Node.js 22 or newer and the server-side Firebase Admin and Stripe dependencies.
+Firebase Authentication identifies the signed-in user; it does not, on its own, authorize admin database access. Realtime Database Security Rules must enforce that only `hamishgordon051@gmail.com` can read the whole user directory, change another user's `isPro` flag, and read/write the admin activity log. The app checks the email to show the console, but the database rules are what protect the data and actions.
 
-In the Vercel project's environment variables, configure:
+In Firebase Console, open **Realtime Database → Rules** and merge the following entries into the existing `rules` object. Do not replace the entire ruleset with this fragment: preserve the app's current chat, profile, group, and presence rules. If the existing rules already have a `users` or `adminAudit` entry, merge the indicated properties into that entry rather than creating duplicate keys.
 
-- `ADMIN_EMAIL` as `hamishgordon051@gmail.com`
-- `FIREBASE_PROJECT_ID`
-- `FIREBASE_CLIENT_EMAIL`
-- `FIREBASE_PRIVATE_KEY`
-- `FIREBASE_DATABASE_URL`
+```json
+{
+  "rules": {
+    "users": {
+      ".read": "auth != null && auth.token.email === 'hamishgordon051@gmail.com'",
+      "$uid": {
+        "isPro": {
+          ".write": "auth != null && auth.token.email === 'hamishgordon051@gmail.com'",
+          ".validate": "auth != null && (auth.token.email === 'hamishgordon051@gmail.com' || newData.val() === data.val())"
+        }
+      }
+    },
+    "adminAudit": {
+      ".read": "auth != null && auth.token.email === 'hamishgordon051@gmail.com'",
+      ".write": "auth != null && auth.token.email === 'hamishgordon051@gmail.com'"
+    }
+  }
+}
+```
 
-These Firebase service-account values are server secrets. Keep them in Vercel environment variables; never add them to `script.js`, commit them, or send them to users. For `FIREBASE_PRIVATE_KEY`, use the service-account private key with newline characters preserved or escaped as `\\n`.
+The user-profile `.validate` check prevents ordinary users from granting themselves Pro through their own profile writes. A user may remove their own `isPro` flag (which only removes access); only the admin email can set it to `true`. Check for any existing broad parent `.write` rules: Realtime Database permissions are additive, so a permissive ancestor rule can override narrower intent. Keep access to the rest of the app consistent with your existing rules and publish after merging.
 
-Redeploy after setting the variables. Then sign in to UChat with the Firebase account registered to `hamishgordon051@gmail.com` and its existing password. A visible **Admin Console** button appears in the sidebar, and **Open Admin Panel** remains available under Account in Settings. If the secure API has not been deployed or configured, admin changes will fail closed rather than writing from the browser.
+Then sign in to UChat with the Firebase account whose email is `hamishgordon051@gmail.com`. **Admin Console** appears in the sidebar and **Open Admin Panel** remains under Account in Settings. If reads or actions are denied, the console explains that the Firebase Rules need updating. No Vercel deployment, service-account key, or second admin password is used.
 
-## Available controls
+## Controls and privacy
 
-The panel shows account and Pro totals, supports exact lookup by username or email, and lets the admin grant or remove Pro for one account. Pro changes are recorded in a server-readable audit log. The API does not provide bulk changes, account deletion, or password access.
+The console offers account and membership metrics, substring search across username/email/user ID, All/Pro/Standard filters, progressive loading of member cards, individual Pro grant/removal, and a recent activity list. It does not expose password data or offer bulk account deletion. Admin activity records are stored under `adminAudit`.
 
-In chat, a Pro member's bookmark action records **Saved in Chat** on that chat's shared message. Other participants in that chat see the saved label and a grey saved-message treatment. Each participant can toggle only their own saved state. Saves are kept only on the message in that chat; they are not copied to or listed in Settings.
+In chat, a Pro member's bookmark action records **Saved in Chat** on that chat's shared message. Other participants in that chat see the saved label and darker message treatment. Each participant can toggle only their own saved state. Saves are kept only on the message in that chat and are not copied to Settings.

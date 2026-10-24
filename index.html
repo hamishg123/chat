@@ -631,27 +631,39 @@
   <div class="modal admin-panel-modal">
     <div class="admin-panel-header">
       <div>
-        <h3 id="adminPanelTitle">UChat Admin Panel</h3>
-        <p>Manage accounts and Pro access</p>
+        <h3 id="adminPanelTitle">UChat Admin Console</h3>
+        <p>Account overview, membership controls, and recent changes</p>
       </div>
-      <button class="admin-panel-close" type="button" onclick="closeModal('adminPanelModal')" aria-label="Close admin panel">×</button>
+      <div class="admin-header-actions">
+        <button class="admin-refresh-button" type="button" onclick="loadAdminDashboard()" aria-label="Refresh dashboard" title="Refresh">↻</button>
+        <button class="admin-panel-close" type="button" onclick="closeModal('adminPanelModal')" aria-label="Close admin panel">×</button>
+      </div>
     </div>
     <div class="admin-stats">
-      <div class="admin-stat-card"><span>Total accounts</span><strong id="adminTotalUsers">—</strong></div>
-      <div class="admin-stat-card"><span>Pro accounts</span><strong id="adminProUsers">—</strong></div>
+      <div class="admin-stat-card"><span>Total accounts</span><strong id="adminTotalUsers">—</strong><small>Registered users</small></div>
+      <div class="admin-stat-card"><span>Pro members</span><strong id="adminProUsers">—</strong><small>Active Pro access</small></div>
+      <div class="admin-stat-card"><span>Standard accounts</span><strong id="adminStandardUsers">—</strong><small>Without Pro access</small></div>
+      <div class="admin-stat-card"><span>Joined this month</span><strong id="adminNewUsers">—</strong><small>Based on profile dates</small></div>
     </div>
     <section class="admin-panel-section">
-      <h4>Find an account</h4>
-      <p>Search by exact username or email address.</p>
-      <form class="admin-search-form" onsubmit="event.preventDefault(); searchAdminUsers();">
-        <input id="adminUserQuery" type="search" maxlength="120" placeholder="Username or email address" autocomplete="off">
-        <button class="btn-primary" type="submit" id="adminSearchButton">Search</button>
-      </form>
+      <div class="admin-section-heading">
+        <div><h4>Member management</h4><p>Search accounts and grant or remove Pro access.</p></div>
+        <span id="adminMemberCount" class="admin-member-count"></span>
+      </div>
+      <div class="admin-members-toolbar">
+        <input id="adminUserQuery" type="search" maxlength="120" placeholder="Search username, email, or user ID" autocomplete="off" oninput="searchAdminUsers()">
+        <div class="admin-filter-group" role="group" aria-label="Filter accounts">
+          <button type="button" class="admin-filter-btn active" data-admin-filter="all" onclick="setAdminUserFilter('all', this)">All</button>
+          <button type="button" class="admin-filter-btn" data-admin-filter="pro" onclick="setAdminUserFilter('pro', this)">Pro</button>
+          <button type="button" class="admin-filter-btn" data-admin-filter="standard" onclick="setAdminUserFilter('standard', this)">Standard</button>
+        </div>
+      </div>
       <div id="adminPanelStatus" class="admin-panel-status" role="status" aria-live="polite"></div>
-      <div id="adminUserResults"></div>
+      <div id="adminUserResults" class="admin-user-list" aria-live="polite"></div>
+      <button id="adminLoadMoreButton" class="admin-load-more" type="button" onclick="showMoreAdminUsers()" style="display:none;">Show more accounts</button>
     </section>
     <section class="admin-panel-section">
-      <h4>Recent Pro changes</h4>
+      <div class="admin-section-heading"><div><h4>Recent admin activity</h4><p>Latest Pro membership changes</p></div></div>
       <div id="adminRecentActivity" class="admin-recent-activity" aria-live="polite">Loading activity…</div>
     </section>
   </div>
