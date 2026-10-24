@@ -1,6 +1,6 @@
 # 🚀 UChat Pro: Automated Webhook Setup Guide
 
-This guide will help you set up a **completely free** automated system to grant "Pro" status to your users as soon as they pay via Stripe.
+This guide describes an optional Stripe webhook for deployments that choose to accept Stripe payments. The current UChat upgrade button instead offers a one-time £1 in-person payment; the administrator must activate Pro after receiving payment.
 
 ## 1. Prerequisites
 - A **Vercel** account (Free tier is perfect).
@@ -42,9 +42,5 @@ I have already added the webhook handler to your repository in `/api/stripe-webh
 
 ---
 
-## ✅ How it works
-1. A user clicks **"Upgrade for £0.99/mo"** in UChat.
-2. UChat sends their **Firebase UID** to Stripe.
-3. Once the payment is successful, Stripe sends a signal to your **Vercel Webhook**.
-4. The Webhook automatically updates that user's status to `isPro: true` in your **Firebase Database**.
-5. The user's UChat app instantly reflects their new Pro status!
+## ✅ Optional Stripe webhook flow
+If you separately configure a Stripe checkout flow, the webhook can update a user's `isPro` status after a successful `checkout.session.completed` event. The current in-person payment flow does not open Stripe or activate Pro automatically; an administrator must update the user's `isPro` status in Firebase after payment.

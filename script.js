@@ -62,6 +62,7 @@ var appearanceCache = {};
 var replyPayloadCache = {};
 var proStatusListeners = {};
 var initialMessageLoad = false;
+var renderedMessagesBySaveKey = {};
 
 function getCachedUserProfile(userId) {
   if (!userId) return Promise.resolve({});
@@ -390,11 +391,15 @@ function updateProUI() {
   var upgradeBtn = document.getElementById('upgradeToProBtn');
   var manageBtn = document.getElementById('manageProBtn');
   var sidebarBadge = document.getElementById('sidebarProBadge');
+  var savedMessagesSection = document.getElementById('savedMessagesSection');
   
   if (isPro) {
     if (proBadge) proBadge.style.display = 'block';
     if (upgradeBtn) upgradeBtn.style.display = 'none';
     if (manageBtn) manageBtn.style.display = 'block';
+    if (savedMessagesSection) savedMessagesSection.style.display = 'block';
+    var settingsPage = document.getElementById('settingsPage');
+    if (settingsPage && settingsPage.style.display !== 'none') loadSavedMessages();
     
     // Add Pro badge to sidebar if it doesn't exist
     if (!sidebarBadge) {
@@ -411,22 +416,18 @@ function updateProUI() {
     if (proBadge) proBadge.style.display = 'none';
     if (upgradeBtn) upgradeBtn.style.display = 'block';
     if (manageBtn) manageBtn.style.display = 'none';
+    if (savedMessagesSection) savedMessagesSection.style.display = 'none';
     if (sidebarBadge) sidebarBadge.remove();
   }
 }
 
 function upgradeToPro() {
-  // Pass the current user's UID to Stripe so the webhook knows who paid
-  var paymentUrl = 'https://buy.stripe.com/fZu14n1PeeAb6m29dL0Fi04?client_reference_id=' + uid;
-  // Open in new tab
-  window.open(paymentUrl, '_blank');
-  showToast('Opening secure checkout...');
+  if (isPro) return;
+  window.alert('UChat Pro is a one-time £1 payment, paid in person. Pay the UChat administrator directly, then ask them to activate Pro on your account.');
 }
 
 function manageSubscription() {
-  // Since we don't have a backend to create a portal session, 
-  // we redirect to the Stripe customer portal if available or show a message.
-  showToast('Please contact support or check your email to manage your subscription.');
+  showToast('Pro is a one-time £1 payment. Contact the UChat administrator to manage your membership.');
 }
 
 function setupGlobalMessageListener() {
@@ -2138,6 +2139,13 @@ function renderMessage(m, isGroup, box) {
   var div = document.createElement('div');
   div.className = 'msg-container' + (isMe ? ' me' : ' other');
   div.setAttribute('data-key', m._key);
+  var saveKey = [currentChatType || (isGroup ? 'group' : 'dm'), currentChat || '', m._key].join(':');
+  renderedMessagesBySaveKey[saveKey] = {
+    chatId: currentChat,
+    chatType: currentChatType || (isGroup ? 'group' : 'dm'),
+    chatName: currentChatName || document.getElementById('chatName').textContent || 'Chat',
+    message: Object.assign({}, m)
+  };
 
   var senderLabel = '';
   if (!isMe) {
@@ -2237,7 +2245,8 @@ function renderMessage(m, isGroup, box) {
   div.innerHTML = senderLabel +
     '<div class="' + messageClass + '" onclick="handleMessageTap(event, this)" id="msg-' + m._key + '">' + actionsOverlay + replyHtml + content + deleteBtn + '</div>' +
     reactionsHtml +
-    '<div class="msg-time">' + time + (status ? ' <span class="msg-status">' + status + '</span>' : '') + '</div>';
+    '<div class="msg-time">' + time + (status ? ' <span class="msg-status">' + status + '</span>' : '') +
+    ' <button type="button" class="save-message-btn" data-save-key="' + escapeHtml(saveKey) + '" title="Save message" aria-label="Save message">🔖</button></div>';
   
   // --- PRE-APPLY MY APPEARANCE (Anti-Flicker) ---
   if (isMe) {
@@ -2287,6 +2296,109 @@ function renderMessage(m, isGroup, box) {
       }
     });
   }
+}
+
+function saveChatMessage(saveKey) {
+  if (!uid) {
+    showToast('Sign in to save messages.');
+    return;
+  }
+  if (!isPro) {
+    showToast('Saving messages is a Pro feature. Pro costs £1, paid in person.');
+    return;
+  }
+
+  var cached = renderedMessagesBySaveKey[saveKey];
+  if (!cached || !cached.chatId || !cached.message) {
+    showToast('This message is no longer available to save.');
+    return;
+  }
+
+  var message = Object.assign({}, cached.message);
+  delete message._key;
+  var savedRef = db.ref('users/' + uid + '/savedMessages/' + saveKey);
+  savedRef.once('value').then(function(snap) {
+    if (snap.exists()) {
+      showToast('This message is already saved.');
+      return;
+    }
+    return savedRef.set({
+      chatId: cached.chatId,
+      chatType: cached.chatType,
+      chatName: cached.chatName,
+      messageKey: cached.message._key,
+      message: message,
+      savedAt: firebase.database.ServerValue.TIMESTAMP
+    }).then(function() {
+      showToast('Message saved to Settings.');
+    });
+  }).catch(function(err) {
+    console.error('Error saving message:', err);
+    showToast('Could not save this message. Please try again.');
+  });
+}
+
+function loadSavedMessages() {
+  var list = document.getElementById('savedMessagesList');
+  if (!list || !uid || !isPro) return;
+  list.innerHTML = '<p style="color:var(--text-muted-dark); font-size:13px;">Loading saved messages...</p>';
+
+  db.ref('users/' + uid + '/savedMessages').once('value').then(function(snapshot) {
+    if (!isPro || !document.getElementById('savedMessagesList')) return;
+    var items = [];
+    snapshot.forEach(function(child) {
+      var item = child.val() || {};
+      item._savedKey = child.key;
+      items.push(item);
+    });
+    items.sort(function(a, b) { return (b.savedAt || 0) - (a.savedAt || 0); });
+
+    if (!items.length) {
+      list.innerHTML = '<p style="color:var(--text-muted-dark); font-size:13px;">No saved messages yet. Use the bookmark icon beside a message to save it.</p>';
+      return;
+    }
+
+    list.innerHTML = items.map(function(item) {
+      var message = item.message || {};
+      var sender = escapeHtml(String(message.senderName || message.sender || 'Someone'));
+      var chatName = escapeHtml(String(item.chatName || 'Chat'));
+      var savedDate = item.savedAt ? new Date(item.savedAt).toLocaleString() : 'Saved';
+      var preview = '';
+      if (message.type === 'image' && message.url) {
+        var imageUrl = decryptMessage(String(message.url));
+        preview = '<img class="saved-message-media" src="' + escapeHtml(imageUrl) + '" alt="Saved image" loading="lazy" onclick="openLightbox(this.src)">';
+      } else if (message.type === 'video' && message.url) {
+        var videoUrl = decryptMessage(String(message.url));
+        preview = '<video class="saved-message-media" controls playsinline preload="metadata" src="' + escapeHtml(videoUrl) + '"></video>';
+      } else if (message.type === 'voice' && message.url) {
+        var audioUrl = decryptMessage(String(message.url));
+        preview = '<audio controls preload="none" src="' + escapeHtml(audioUrl) + '" style="width:100%;"></audio>';
+      } else {
+        var text = message.text ? decryptMessage(String(message.text)) : '[' + String(message.type || 'message') + ']';
+        preview = '<div class="saved-message-text">' + escapeHtml(text) + '</div>';
+      }
+
+      return '<article class="saved-message-card">' +
+        '<div class="saved-message-meta">' + sender + ' · ' + chatName + '<br><span>' + escapeHtml(savedDate) + '</span></div>' +
+        preview +
+        '<button type="button" class="settings-btn-danger" onclick="removeSavedMessage(\'' + escapeJsString(item._savedKey) + '\')">Remove</button>' +
+        '</article>';
+    }).join('');
+  }).catch(function(err) {
+    console.error('Error loading saved messages:', err);
+    list.innerHTML = '<p style="color:var(--text-muted-dark); font-size:13px;">Could not load saved messages. Please try again later.</p>';
+  });
+}
+
+function removeSavedMessage(saveKey) {
+  if (!uid || !isPro || !saveKey) return;
+  db.ref('users/' + uid + '/savedMessages/' + saveKey).remove().then(function() {
+    showToast('Saved message removed.');
+    loadSavedMessages();
+  }).catch(function(err) {
+    console.error('Error removing saved message:', err);
+    showToast('Could not remove this saved message.');
+  });
 }
 
 function getContrastColor(hexcolor) {
@@ -2403,6 +2515,13 @@ function handleMessageTap(event, el) {
 
 // Reply buttons use event delegation so dynamically rendered messages work reliably.
 document.getElementById('messages').addEventListener('click', function(event) {
+  var saveButton = event.target.closest('.save-message-btn');
+  if (saveButton) {
+    event.preventDefault();
+    event.stopPropagation();
+    saveChatMessage(saveButton.getAttribute('data-save-key'));
+    return;
+  }
   var replyButton = event.target.closest('.reply-action');
   if (!replyButton) return;
   event.preventDefault();
@@ -3201,6 +3320,7 @@ function openSettings() {
   }
   
   loadSettingsUI();
+  if (isPro) loadSavedMessages();
 }
 
 function closeSettings() {
