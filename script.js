@@ -410,6 +410,14 @@ function updateProUI() {
   var upgradeBtn = document.getElementById('upgradeToProBtn');
   var manageBtn = document.getElementById('manageProBtn');
   var sidebarBadge = document.getElementById('sidebarProBadge');
+  var videoButton = document.getElementById('sendVideoBtn');
+
+  if (videoButton) {
+    videoButton.classList.toggle('pro-locked', !isPro);
+    videoButton.classList.toggle('pro-active', isPro);
+    videoButton.title = isPro ? 'Send a video' : 'Pro feature — send videos';
+    videoButton.setAttribute('aria-label', isPro ? 'Send a video' : 'Send a video, Pro feature');
+  }
   
   if (isPro) {
     if (proBadge) proBadge.style.display = 'block';
@@ -442,6 +450,18 @@ function upgradeToPro() {
 
 function manageSubscription() {
   showToast('Pro is a one-time £1 payment. Contact the UChat administrator to manage your membership.');
+}
+
+function handleSendVideoClick() {
+  if (!isPro) {
+    showToast('Sending videos is a Pro feature. Upgrade for £1 to unlock it.');
+    return;
+  }
+  if (!currentChat) {
+    showToast('Open a chat before sending a video.');
+    return;
+  }
+  document.getElementById('videoUpload').click();
 }
 
 async function openAdminPanel() {
@@ -2326,7 +2346,7 @@ function renderMessage(m, isGroup, box) {
   var savedBy = m.savedBy || {};
   var savedInChat = Object.keys(savedBy).length > 0;
   var savedByMe = !!savedBy[uid];
-  var messageClass = 'message' + (m.type === 'voice' ? ' voice-message' : '') + (savedInChat ? ' saved-in-chat' : '');
+  var messageClass = 'message' + (m.type === 'voice' ? ' voice-message' : '') + (savedInChat ? ' saved-in-chat' : '') + (m.replyTo ? ' has-reply' : '');
   var div = document.createElement('div');
   div.className = 'msg-container' + (isMe ? ' me' : ' other');
   div.setAttribute('data-key', m._key);
@@ -2358,9 +2378,11 @@ function renderMessage(m, isGroup, box) {
   var replyHtml = '';
   if (m.replyTo) {
     var replyId = 'reply-name-' + m._key;
-    replyHtml = '<div class="msg-reply-container">' +
-      '<b id="' + replyId + '">@' + escapeHtml(m.replyTo.senderName) + '</b>: ' +
-      escapeHtml(m.replyTo.text.substring(0, 50)) + (m.replyTo.text.length > 50 ? '...' : '') +
+    var replySender = m.replyTo.senderName || 'Someone';
+    var quotedText = typeof m.replyTo.text === 'string' ? m.replyTo.text : '';
+    replyHtml = '<div class="msg-reply-container" tabindex="0" title="Hover or focus to read the full reply">' +
+      '<b id="' + replyId + '" class="msg-reply-sender">@' + escapeHtml(replySender) + '</b>' +
+      '<span class="msg-reply-text">' + escapeHtml(quotedText) + '</span>' +
       '</div>';
       
     // Fetch and update reply name with display name
@@ -2780,10 +2802,18 @@ function sendImage(event) {
 function sendVideo(event) {
   var file = event.target.files[0];
   event.target.value = '';
+  if (!isPro) {
+    showToast('Sending videos is a Pro feature. Upgrade for £1 to unlock it.');
+    return;
+  }
   sendVideoFile(file);
 }
 
 function sendVideoFile(file) {
+  if (!isPro) {
+    showToast('Sending videos is a Pro feature. Upgrade for £1 to unlock it.');
+    return;
+  }
   if (!file || !currentChat) return;
   if (!file.type || !file.type.startsWith('video/')) {
     showToast('Please choose a valid video file');
@@ -3151,6 +3181,10 @@ function handleCameraPointerUp() {
 }
 
 function startCameraHoldRecording(state) {
+  if (!isPro) {
+    showToast('Recording and sending videos is a Pro feature. Upgrade for £1 to unlock it.');
+    return;
+  }
   if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia || typeof MediaRecorder === 'undefined') {
     showToast('Video recording is not supported in this browser');
     return;
