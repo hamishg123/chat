@@ -868,6 +868,7 @@ function setupPeerConnection(otherUid, otherName) {
   var pc = new RTCPeerConnection(rtcConfig);
   peerConnections[otherUid] = pc;
   pendingIceCandidates[otherUid] = pendingIceCandidates[otherUid] || [];
+  ensureRemoteVideoTile(otherUid, otherName);
 
   if (localStream) {
     localStream.getTracks().forEach(track => pc.addTrack(track, localStream));
@@ -882,35 +883,57 @@ function setupPeerConnection(otherUid, otherName) {
   };
 
   pc.ontrack = e => {
-    var stream = e.streams && e.streams[0];
-    if (!stream) {
-      stream = remoteStreams[otherUid] || new MediaStream();
-      if (!stream.getTracks().includes(e.track)) stream.addTrack(e.track);
+    var stream = remoteStreams[otherUid] || (e.streams && e.streams[0]) || new MediaStream();
+    if (e.streams && e.streams[0] && stream !== e.streams[0]) {
+      e.streams[0].getTracks().forEach(function(track) {
+        if (!stream.getTracks().some(function(existingTrack) { return existingTrack.id === track.id; })) stream.addTrack(track);
+      });
     }
+    if (e.track && !stream.getTracks().some(function(track) { return track.id === e.track.id; })) stream.addTrack(e.track);
     remoteStreams[otherUid] = stream;
     addRemoteVideo(otherUid, otherName, stream);
+    if (e.track) {
+      e.track.onunmute = function() {
+        var tile = document.getElementById('video-' + otherUid);
+        var video = tile && tile.querySelector('video');
+        if (video) video.play().catch(function() {});
+        setRemoteVideoStatus(otherUid, e.track.kind === 'video' ? 'Video connected' : 'Audio connected');
+      };
+      e.track.onmute = function() {
+        if (e.track.kind === 'video') setRemoteVideoStatus(otherUid, 'Waiting for camera…');
+      };
+    }
   };
 
   pc.onconnectionstatechange = () => {
-    if (pc.connectionState === 'failed' || pc.connectionState === 'closed') {
-      removeRemoteVideo(otherUid);
+    if (pc.connectionState === 'connected') setRemoteVideoStatus(otherUid, 'Connected');
+    else if (pc.connectionState === 'connecting') setRemoteVideoStatus(otherUid, 'Connecting…');
+    else if (pc.connectionState === 'disconnected') setRemoteVideoStatus(otherUid, 'Reconnecting…');
+    else if (pc.connectionState === 'failed') setRemoteVideoStatus(otherUid, 'Connection failed — check network access');
+    else if (pc.connectionState === 'closed') removeRemoteVideo(otherUid);
+  };
+
+  pc.oniceconnectionstatechange = () => {
+    if (pc.iceConnectionState === 'failed') {
+      console.warn('WebRTC ICE connection failed for peer:', otherUid, pc.iceConnectionState);
+      setRemoteVideoStatus(otherUid, 'Network path failed — try another network');
+    } else if (pc.iceConnectionState === 'checking') {
+      setRemoteVideoStatus(otherUid, 'Finding a network path…');
+    } else if (pc.iceConnectionState === 'connected' || pc.iceConnectionState === 'completed') {
+      setRemoteVideoStatus(otherUid, 'Connected');
     }
+  };
+
+  pc.onicecandidateerror = e => {
+    console.warn('WebRTC ICE candidate error:', e.errorCode, e.errorText, e.url || '');
   };
 
   return pc;
 }
 
-function addRemoteVideo(otherUid, name, stream) {
+function ensureRemoteVideoTile(otherUid, name) {
   var existing = document.getElementById('video-' + otherUid);
-  if (existing) {
-    var existingVideo = existing.querySelector('video');
-    var existingAudio = existing.querySelector('audio');
-    if (existingVideo && existingVideo.srcObject !== stream) existingVideo.srcObject = stream;
-    if (existingVideo) existingVideo.play().catch(function() {});
-    if (existingAudio && existingAudio.srcObject !== stream) existingAudio.srcObject = stream;
-    if (existingAudio) existingAudio.play().catch(function() {});
-    return;
-  }
+  if (existing) return existing;
 
   var container = document.createElement('div');
   container.id = 'video-' + otherUid;
@@ -919,33 +942,64 @@ function addRemoteVideo(otherUid, name, stream) {
   var video = document.createElement('video');
   video.className = 'remote-video';
   video.autoplay = true;
-  video.playsinline = true;
+  video.playsInline = true;
+  video.setAttribute('playsinline', '');
+  video.setAttribute('webkit-playsinline', '');
   // Muting the video element lets the remote picture autoplay reliably.
   // Audio is rendered by the dedicated element below.
   video.muted = true;
-  video.srcObject = stream;
-  video.onloadedmetadata = function() { video.play().catch(function() {}); };
+  video.onloadedmetadata = function() {
+    video.play().then(function() { setRemoteVideoStatus(otherUid, 'Video connected'); }).catch(function() {
+      setRemoteVideoStatus(otherUid, 'Tap the video to start playback');
+    });
+  };
+  video.onclick = function() { video.play().catch(function() {}); };
   var audio = document.createElement('audio');
   audio.autoplay = true;
-  audio.playsinline = true;
-  audio.srcObject = stream;
+  audio.setAttribute('playsinline', '');
   audio.volume = 1;
   audio.onloadedmetadata = function() { audio.play().catch(function() {}); };
 
   var nameTag = document.createElement('div');
   nameTag.className = 'remote-name';
-  nameTag.textContent = name || 'User';
+  var nameText = document.createElement('span');
+  nameText.className = 'remote-name-text';
+  nameText.textContent = name || 'User';
+  nameTag.appendChild(nameText);
   var muteStatus = document.createElement('span');
   muteStatus.className = 'mute-status';
   muteStatus.textContent = ' 🔇';
   muteStatus.style.display = 'none';
   nameTag.appendChild(muteStatus);
+  var status = document.createElement('div');
+  status.className = 'remote-video-status';
+  status.textContent = 'Connecting…';
 
   container.appendChild(video);
   container.appendChild(audio);
+  container.appendChild(status);
   container.appendChild(nameTag);
   document.getElementById('videoGrid').appendChild(container);
-  video.play().catch(function() {});
+  return container;
+}
+
+function setRemoteVideoStatus(otherUid, text) {
+  var tile = document.getElementById('video-' + otherUid);
+  var status = tile && tile.querySelector('.remote-video-status');
+  if (status) status.textContent = text;
+}
+
+function addRemoteVideo(otherUid, name, stream) {
+  var container = ensureRemoteVideoTile(otherUid, name);
+  var video = container.querySelector('video');
+  var audio = container.querySelector('audio');
+  var nameTag = container.querySelector('.remote-name');
+  var nameText = nameTag && nameTag.querySelector('.remote-name-text');
+  if (nameText && name) nameText.textContent = name;
+  if (video && video.srcObject !== stream) video.srcObject = stream;
+  if (audio && audio.srcObject !== stream) audio.srcObject = stream;
+  if (video) video.play().catch(function() { setRemoteVideoStatus(otherUid, 'Tap the video to start playback'); });
+  if (audio) audio.play().catch(function() {});
 }
 
 function unlockRemoteAudio() {
