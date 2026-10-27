@@ -30,6 +30,7 @@ var currentChatType = null;
 var currentChatName = '';
 var currentGroupId = null;
 var messageListeners = [];
+var unreadListeners = {};
 var typingTimeout = null;
 var isSending = false;
 var cameraStream = null;
@@ -46,6 +47,17 @@ var messageLimit = 20;
 var isLoadingMore = false;
 var hasMoreMessages = true;
 var firstMessageKey = null;
+var messageSessionId = 0;
+var currentMessagePath = null;
+var currentMessageCache = [];
+var renderedMessageKeys = {};
+var messageCacheDbPromise = null;
+var messageCacheMemory = {};
+var lastMessageCachePruneAt = 0;
+var MESSAGE_PAGE_SIZE = 20;
+var MESSAGE_CACHE_LIMIT = 300;
+var MESSAGE_CACHE_GLOBAL_LIMIT = 1000;
+var MESSAGE_CACHE_MAX_BYTES = 100 * 1024 * 1024;
 
 // Encryption key for AES-256
 var encryptionKey = 'SecureChat2024!';
@@ -233,6 +245,8 @@ function decryptMessage(encryptedText) {
 // ──────────────────────────────────────────────────────────────────────────────
 
 auth.onAuthStateChanged(function(user) {
+  clearMessageListeners();
+  clearUnreadListeners();
   setAdminAccess(user);
   if (user) {
     uid = user.uid;
@@ -1496,55 +1510,83 @@ function watchPresence(id) {
 }
 
 function watchUnread(path, elementId) {
-  db.ref(path).limitToLast(1).on('value', function(snap) {
-    var lastMsg = null;
-    var unreadCount = 0;
-    
-    // We need to check all messages for unread count, but limitToLast(1) only gives the last one.
-    // So we'll use a separate listener for the count if needed, or just fetch all for now since it's simple.
-    db.ref(path).once('value').then(function(fullSnap) {
-      fullSnap.forEach(function(child) {
-        var msg = child.val();
-        if (msg.sender !== uid && !msg.seen) unreadCount++;
-        lastMsg = msg;
-      });
+  var oldListeners = unreadListeners[elementId];
+  if (oldListeners) {
+    oldListeners.unreadRef.off('child_added', oldListeners.added);
+    oldListeners.unreadRef.off('child_removed', oldListeners.removed);
+    oldListeners.latestRef.off('value', oldListeners.latest);
+  }
 
-      var el = document.getElementById(elementId);
-      if (!el) return;
+  var unreadCount = 0;
+  var lastMsg = null;
+  var groupMemberCount = null;
+  var groupMemberCountLoading = false;
+  // Add .indexOn: ["seen"] at messages/$chatId and groupMessages/$groupId in RTDB rules.
+  var unreadRef = db.ref(path).orderByChild('seen').equalTo(false);
+  var latestRef = db.ref(path).limitToLast(1);
 
-      if (unreadCount > 0) {
-        el.textContent = unreadCount + ' new message' + (unreadCount > 1 ? 's' : '');
-        el.style.color = 'var(--primary-light)';
-        el.style.fontWeight = 'bold';
-      } else if (lastMsg && lastMsg.sender === uid) {
-        if (lastMsg.opened) {
-          el.textContent = 'Opened 👁';
-          el.style.color = 'var(--text-muted-dark)';
-        } else if (lastMsg.delivered) {
-          el.textContent = 'Delivered ✓';
-          el.style.color = 'var(--text-muted-dark)';
-        } else {
-          el.textContent = 'Sent ✓';
-          el.style.color = 'var(--text-muted-dark)';
-        }
-        el.style.fontWeight = 'normal';
-      } else {
-        // Reset to default or member count if it's a group
-        if (elementId.startsWith('unread-group-')) {
-          db.ref('groups/' + elementId.replace('unread-group-', '')).once('value').then(function(gSnap) {
-            if (gSnap.exists()) {
-              var mc = gSnap.val().memberCount || 0;
-              el.textContent = mc + ' member' + (mc !== 1 ? 's' : '');
-              el.style.color = 'var(--text-muted-dark)';
-              el.style.fontWeight = 'normal';
-            }
-          });
-        } else {
-          el.textContent = '';
-        }
+  function renderUnreadLabel() {
+    var el = document.getElementById(elementId);
+    if (!el) return;
+    if (unreadCount > 0) {
+      el.textContent = unreadCount + ' new message' + (unreadCount > 1 ? 's' : '');
+      el.style.color = 'var(--primary-light)';
+      el.style.fontWeight = 'bold';
+    } else if (lastMsg && lastMsg.sender === uid) {
+      el.textContent = lastMsg.opened ? 'Opened 👁' : (lastMsg.delivered ? 'Delivered ✓' : 'Sent ✓');
+      el.style.color = 'var(--text-muted-dark)';
+      el.style.fontWeight = 'normal';
+    } else if (elementId.startsWith('unread-group-')) {
+      el.textContent = groupMemberCount === null ? '' : groupMemberCount + ' member' + (groupMemberCount !== 1 ? 's' : '');
+      el.style.color = 'var(--text-muted-dark)';
+      el.style.fontWeight = 'normal';
+      if (groupMemberCount === null && !groupMemberCountLoading) {
+        groupMemberCountLoading = true;
+        var groupId = elementId.replace('unread-group-', '');
+        db.ref('groups/' + groupId + '/memberCount').once('value').then(function(snap) {
+          groupMemberCount = snap.val() || 0;
+          renderUnreadLabel();
+        }).catch(function() {
+          groupMemberCount = 0;
+          renderUnreadLabel();
+        });
       }
-    });
+    } else {
+      el.textContent = '';
+      el.style.fontWeight = 'normal';
+    }
+  }
+
+  function onUnreadAdded(snap) {
+    var message = snap.val() || {};
+    if (message.sender !== uid && message.seen !== true) unreadCount++;
+    renderUnreadLabel();
+  }
+  function onUnreadRemoved(snap) {
+    var message = snap.val() || {};
+    if (message.sender !== uid && message.seen !== true) unreadCount = Math.max(0, unreadCount - 1);
+    renderUnreadLabel();
+  }
+  function onLatestChanged(snap) {
+    lastMsg = null;
+    snap.forEach(function(child) { lastMsg = child.val(); });
+    renderUnreadLabel();
+  }
+
+  unreadListeners[elementId] = { unreadRef: unreadRef, added: onUnreadAdded, removed: onUnreadRemoved, latestRef: latestRef, latest: onLatestChanged };
+  unreadRef.on('child_added', onUnreadAdded);
+  unreadRef.on('child_removed', onUnreadRemoved);
+  latestRef.on('value', onLatestChanged);
+}
+
+function clearUnreadListeners() {
+  Object.keys(unreadListeners).forEach(function(elementId) {
+    var listeners = unreadListeners[elementId];
+    listeners.unreadRef.off('child_added', listeners.added);
+    listeners.unreadRef.off('child_removed', listeners.removed);
+    listeners.latestRef.off('value', listeners.latest);
   });
+  unreadListeners = {};
 }
 
 var allPotentialContacts = [];
@@ -2142,7 +2184,6 @@ function openDM(otherUid, name) {
   });
 
   loadMessages('messages/' + currentChat, false);
-  setTimeout(function() { scrollMessagesToBottom(document.getElementById('messages'), currentChat); }, 0);
   listenTyping('typing/' + currentChat);
   if (window.innerWidth <= 768) hideSidebar();
 }
@@ -2246,7 +2287,6 @@ function openGroup(groupId, name) {
   document.getElementById('chatHeaderAvatar').style.background = 'var(--gradient-alt)';
 
   loadMessages('groupMessages/' + groupId, true);
-  setTimeout(function() { scrollMessagesToBottom(document.getElementById('messages'), groupId); }, 0);
   listenTyping('groupTyping/' + groupId);
   if (window.innerWidth <= 768) hideSidebar();
 }
@@ -2265,6 +2305,140 @@ function showChatArea(name) {
 // MESSAGES
 // ──────────────────────────────────────────────────────────────────────────────
 
+function messageCacheScope(path) {
+  return String(uid || 'guest') + '|' + path;
+}
+
+function openMessageCacheDb() {
+  if (messageCacheDbPromise) return messageCacheDbPromise;
+  if (!window.indexedDB) return Promise.reject(new Error('IndexedDB is unavailable'));
+  messageCacheDbPromise = new Promise(function(resolve, reject) {
+    var request = window.indexedDB.open('uchat-message-cache-v1', 1);
+    request.onupgradeneeded = function() {
+      var dbCache = request.result;
+      if (!dbCache.objectStoreNames.contains('messages')) {
+        var store = dbCache.createObjectStore('messages', { keyPath: 'id' });
+        store.createIndex('scope', 'scope', { unique: false });
+      }
+    };
+    request.onsuccess = function() { resolve(request.result); };
+    request.onerror = function() { reject(request.error || new Error('Could not open local message cache')); };
+  }).catch(function(error) {
+    messageCacheDbPromise = null;
+    throw error;
+  });
+  return messageCacheDbPromise;
+}
+
+function sortCachedMessages(messages) {
+  return messages.filter(function(message) { return message && message._key; })
+    .sort(function(a, b) { return a._key < b._key ? -1 : (a._key > b._key ? 1 : 0); });
+}
+
+function readCachedMessages(path) {
+  var scope = messageCacheScope(path);
+  return openMessageCacheDb().then(function(dbCache) {
+    return new Promise(function(resolve, reject) {
+      var tx = dbCache.transaction(['messages'], 'readonly');
+      var request = tx.objectStore('messages').index('scope').getAll(scope);
+      request.onsuccess = function() {
+        var messages = (request.result || []).map(function(record) {
+          var message = Object.assign({}, record.data);
+          message._key = record.messageKey;
+          return message;
+        });
+        messages = sortCachedMessages(messages);
+        messageCacheMemory[scope] = messages;
+        resolve(messages);
+      };
+      request.onerror = function() { reject(request.error || new Error('Could not read local message cache')); };
+    });
+  }).catch(function() {
+    return (messageCacheMemory[scope] || []).map(function(message) { return Object.assign({}, message); });
+  });
+}
+
+function saveCachedMessages(path, messages) {
+  var scope = messageCacheScope(path);
+  var merged = {};
+  (messageCacheMemory[scope] || []).forEach(function(message) { merged[message._key] = message; });
+  (messages || []).forEach(function(message) { if (message && message._key) merged[message._key] = Object.assign({}, message); });
+  var sorted = sortCachedMessages(Object.keys(merged).map(function(key) { return merged[key]; }));
+  if (sorted.length > MESSAGE_CACHE_LIMIT) sorted = sorted.slice(-MESSAGE_CACHE_LIMIT);
+  messageCacheMemory[scope] = sorted;
+
+  return openMessageCacheDb().then(function(dbCache) {
+    return new Promise(function(resolve, reject) {
+      var tx = dbCache.transaction(['messages'], 'readwrite');
+      var store = tx.objectStore('messages');
+      (messages || []).forEach(function(message) {
+        if (!message || !message._key) return;
+        var data = Object.assign({}, message);
+        delete data._key;
+        store.put({
+          id: scope + '|' + message._key,
+          scope: scope,
+          messageKey: message._key,
+          data: data,
+          size: JSON.stringify(data).length * 2,
+          cachedAt: Date.now()
+        });
+      });
+      var request = store.index('scope').getAll(scope);
+      request.onsuccess = function() {
+        var records = request.result || [];
+        records.sort(function(a, b) { return a.messageKey < b.messageKey ? -1 : (a.messageKey > b.messageKey ? 1 : 0); });
+        records.slice(0, Math.max(0, records.length - MESSAGE_CACHE_LIMIT)).forEach(function(record) { store.delete(record.id); });
+      };
+      if (Date.now() - lastMessageCachePruneAt > 60000) {
+        lastMessageCachePruneAt = Date.now();
+        var allRequest = store.getAll();
+        allRequest.onsuccess = function() {
+          var allRecords = allRequest.result || [];
+          allRecords.sort(function(a, b) { return (a.cachedAt || 0) - (b.cachedAt || 0); });
+          var totalBytes = allRecords.reduce(function(total, record) { return total + (record.size || 0); }, 0);
+          while (allRecords.length > MESSAGE_CACHE_GLOBAL_LIMIT || totalBytes > MESSAGE_CACHE_MAX_BYTES) {
+            var oldest = allRecords.shift();
+            totalBytes -= oldest.size || 0;
+            store.delete(oldest.id);
+          }
+        };
+      }
+      tx.oncomplete = function() { resolve(); };
+      tx.onerror = function() { reject(tx.error || new Error('Could not write local message cache')); };
+      tx.onabort = function() { reject(tx.error || new Error('Local message cache write was aborted')); };
+    });
+  }).catch(function(error) { console.warn('Local message cache is unavailable:', error); });
+}
+
+function removeCachedMessage(path, messageKey) {
+  var scope = messageCacheScope(path);
+  messageCacheMemory[scope] = (messageCacheMemory[scope] || []).filter(function(message) { return message._key !== messageKey; });
+  return openMessageCacheDb().then(function(dbCache) {
+    return new Promise(function(resolve, reject) {
+      var tx = dbCache.transaction(['messages'], 'readwrite');
+      tx.objectStore('messages').delete(scope + '|' + messageKey);
+      tx.oncomplete = resolve;
+      tx.onerror = function() { reject(tx.error); };
+    });
+  }).catch(function() {});
+}
+
+function clearCachedMessages(path) {
+  var scope = messageCacheScope(path);
+  messageCacheMemory[scope] = [];
+  return openMessageCacheDb().then(function(dbCache) {
+    return new Promise(function(resolve, reject) {
+      var tx = dbCache.transaction(['messages'], 'readwrite');
+      var store = tx.objectStore('messages');
+      var request = store.index('scope').getAll(scope);
+      request.onsuccess = function() { (request.result || []).forEach(function(record) { store.delete(record.id); }); };
+      tx.oncomplete = resolve;
+      tx.onerror = function() { reject(tx.error); };
+    });
+  }).catch(function() {});
+}
+
 function scrollMessagesToBottom(box, chatIdValue) {
   if (!box) return;
   var snapToBottom = function() {
@@ -2282,109 +2456,325 @@ function scrollMessagesToBottom(box, chatIdValue) {
   });
 }
 
-function loadMessages(path, isGroup, append = false) {
-  var box = document.getElementById('messages');
-  if (!append) {
-    box.innerHTML = '<div id="loadMoreSpinner" style="text-align:center; padding:10px; color:var(--text-muted); font-size:12px;">Loading messages...</div>';
-    messageLimit = 20;
-    hasMoreMessages = true;
-    firstMessageKey = null;
-    isLoadingMore = false;
-    initialMessageLoad = true;
-  }
-  
-  var ref = db.ref(path).limitToLast(messageLimit);
-  var listener = ref.on('value', function(snap) {
-    var pathParts = path.split('/');
-    var chatIdFromPath = pathParts[pathParts.length - 1];
-    if (currentChat !== chatIdFromPath) return;
-
-    var currentRenderId = ++lastRenderId;
-    var wasLoadingOlderMessages = isLoadingMore;
-    
-    // Remember scroll position
-    var oldScrollHeight = box.scrollHeight;
-    var oldScrollTop = box.scrollTop;
-    
-    box.innerHTML = '';
-    
-    var updates = {};
-    var messagesToRender = [];
-    var snapCount = 0;
-    
-    snap.forEach(function(child) {
-      snapCount++;
-      var m = child.val();
-      m._key = child.key;
-      messagesToRender.push(m);
-      if (snapCount === 1) {
-        if (firstMessageKey === m._key) {
-           // No new messages at the top
-        }
-        firstMessageKey = m._key;
-      }
-      
-      seenMessageIds.add(chatIdFromPath + '_' + child.key);
-      
-      if (m.sender !== uid && !m.opened) {
-        updates[child.key + '/seen'] = true;
-        updates[child.key + '/opened'] = true;
-        updates[child.key + '/openedAt'] = firebase.database.ServerValue.TIMESTAMP;
-      }
-
-      // --- AUTO-DELETE EXPIRED MESSAGES ---
-      // Check if message was opened more than 24 hours ago
-      if (m.openedAt && !Object.keys(m.savedBy || {}).length) {
-        var twentyFourHours = 24 * 60 * 60 * 1000;
-        var now = Date.now();
-        if (now - m.openedAt > twentyFourHours) {
-          db.ref(path + '/' + child.key).remove();
-          return; // Skip rendering this message
-        }
-      }
-    });
-
-    // Check if we reached the end
-    if (snapCount < messageLimit) hasMoreMessages = false;
-
-    var messageFragment = document.createDocumentFragment();
-    for (var i = 0; i < messagesToRender.length; i++) {
-      if (currentRenderId !== lastRenderId) return;
-      renderMessage(messagesToRender[i], isGroup, messageFragment);
-    }
-    box.appendChild(messageFragment);
-    
-    // Handle scrolling
-    if (!wasLoadingOlderMessages) {
-      // Normal initial/live update: always show the newest message.
-      scrollMessagesToBottom(box, chatIdFromPath);
-    } else {
-      // Only pagination restores the previous viewport after loading older messages.
-      box.scrollTop = box.scrollTop + (box.scrollHeight - oldScrollHeight);
-      isLoadingMore = false;
-    }
-    initialMessageLoad = false;
-
-    if (Object.keys(updates).length > 0) {
-      db.ref(path).update(updates);
+function messagesFromSnapshot(snap) {
+  var messages = [];
+  snap.forEach(function(child) {
+    var message = child.val();
+    if (message) {
+      message._key = child.key;
+      messages.push(message);
     }
   });
-  messageListeners.push({ ref: ref, listener: listener, event: 'value' });
+  return sortCachedMessages(messages);
 }
 
-// Add scroll listener for lazy loading
-document.getElementById('messages').addEventListener('scroll', function() {
-  var box = this;
-  if (initialMessageLoad) return;
-  if (box.scrollTop < 50 && !isLoadingMore && hasMoreMessages && currentChat) {
-    isLoadingMore = true;
-    messageLimit += 20;
-    var path = currentChatType === 'group' ? 'groupMessages/' + currentChat : 'messages/' + currentChat;
-    
-    // Re-run listener with new limit
-    clearMessageListeners();
-    loadMessages(path, currentChatType === 'group', true);
+function isExpiredMessage(message) {
+  return !!(message.openedAt && !Object.keys(message.savedBy || {}).length && Date.now() - message.openedAt > 24 * 60 * 60 * 1000);
+}
+
+function markMessagesOpened(path, messages) {
+  var updates = {};
+  var changedMessages = [];
+  messages.forEach(function(message) {
+    if (message.sender !== uid && !message.opened) {
+      message.seen = true;
+      message.opened = true;
+      message.openedAt = Date.now();
+      updates[message._key + '/seen'] = true;
+      updates[message._key + '/opened'] = true;
+      updates[message._key + '/openedAt'] = firebase.database.ServerValue.TIMESTAMP;
+      changedMessages.push(message);
+    }
+  });
+  if (Object.keys(updates).length) db.ref(path).update(updates).catch(function(error) { console.warn('Could not mark messages as opened:', error); });
+  if (changedMessages.length) saveCachedMessages(path, changedMessages);
+}
+
+function renderInitialMessagePage(path, isGroup, messages, fromServer) {
+  var box = document.getElementById('messages');
+  var activeMessages = messages.filter(function(message) {
+    if (!fromServer || !isExpiredMessage(message)) return true;
+    db.ref(path + '/' + message._key).remove().catch(function() {});
+    removeCachedMessage(path, message._key);
+    return false;
+  });
+  box.innerHTML = '';
+  renderedMessageKeys = {};
+  var fragment = document.createDocumentFragment();
+  activeMessages.slice(-MESSAGE_PAGE_SIZE).forEach(function(message) {
+    renderedMessageKeys[message._key] = true;
+    seenMessageIds.add(currentChat + '_' + message._key);
+    renderMessage(message, isGroup, fragment);
+  });
+  box.appendChild(fragment);
+  firstMessageKey = activeMessages.length ? activeMessages.slice(-MESSAGE_PAGE_SIZE)[0]._key : null;
+  markMessagesOpened(path, activeMessages.slice(-MESSAGE_PAGE_SIZE));
+  initialMessageLoad = false;
+  scrollMessagesToBottom(box, currentChat);
+  return activeMessages;
+}
+
+function isCurrentMessageSession(path, session) {
+  return messageSessionId === session && currentMessagePath === path && currentChat === path.split('/').pop();
+}
+
+function rememberMessage(path, message) {
+  var index = currentMessageCache.findIndex(function(item) { return item._key === message._key; });
+  if (index >= 0) currentMessageCache[index] = message;
+  else currentMessageCache.push(message);
+  currentMessageCache = sortCachedMessages(currentMessageCache);
+  if (currentMessageCache.length > MESSAGE_CACHE_LIMIT) currentMessageCache = currentMessageCache.slice(-MESSAGE_CACHE_LIMIT);
+  saveCachedMessages(path, [message]);
+}
+
+function replaceRenderedMessage(message, isGroup) {
+  var oldMessage = document.getElementById('msg-' + message._key);
+  var oldContainer = oldMessage && oldMessage.closest('.msg-container');
+  if (!oldContainer) return;
+  var holder = document.createElement('div');
+  renderMessage(message, isGroup, holder);
+  if (holder.firstElementChild) oldContainer.replaceWith(holder.firstElementChild);
+}
+
+function handleLiveMessageAdded(path, isGroup, child, session) {
+  if (!isCurrentMessageSession(path, session)) return;
+  var message = child.val();
+  if (!message) return;
+  message._key = child.key;
+  if (renderedMessageKeys[message._key]) {
+    handleLiveMessageChanged(path, isGroup, child, session);
+    return;
   }
+  if (isExpiredMessage(message)) {
+    db.ref(path + '/' + message._key).remove().catch(function() {});
+    return;
+  }
+
+  var box = document.getElementById('messages');
+  var wasAtBottom = box.scrollHeight - box.scrollTop - box.clientHeight < 120;
+  if (message.sender !== uid && !message.opened) {
+    message.seen = true;
+    message.opened = true;
+    message.openedAt = Date.now();
+    var openedUpdate = { seen: true, opened: true, openedAt: firebase.database.ServerValue.TIMESTAMP };
+    db.ref(path + '/' + message._key).update(openedUpdate).catch(function(error) { console.warn('Could not mark new message as opened:', error); });
+  }
+  renderedMessageKeys[message._key] = true;
+  seenMessageIds.add(currentChat + '_' + message._key);
+  rememberMessage(path, message);
+  var fragment = document.createDocumentFragment();
+  renderMessage(message, isGroup, fragment);
+  box.appendChild(fragment);
+  if (wasAtBottom) scrollMessagesToBottom(box, currentChat);
+}
+
+function handleLiveMessageChanged(path, isGroup, child, session) {
+  if (!isCurrentMessageSession(path, session)) return;
+  var message = child.val();
+  if (!message) return;
+  message._key = child.key;
+  if (isExpiredMessage(message)) {
+    db.ref(path + '/' + message._key).remove().catch(function() {});
+    handleMessageRemoved(path, message._key);
+    return;
+  }
+  rememberMessage(path, message);
+  replaceRenderedMessage(message, isGroup);
+}
+
+function handleMessageRemoved(path, messageKey) {
+  currentMessageCache = currentMessageCache.filter(function(message) { return message._key !== messageKey; });
+  delete renderedMessageKeys[messageKey];
+  removeCachedMessage(path, messageKey);
+  var message = document.getElementById('msg-' + messageKey);
+  var container = message && message.closest('.msg-container');
+  if (container) container.remove();
+  var remaining = Object.keys(renderedMessageKeys).sort();
+  firstMessageKey = remaining.length ? remaining[0] : null;
+}
+
+function addMessageListener(ref, event, listener) {
+  ref.on(event, listener);
+  messageListeners.push({ ref: ref, listener: listener, event: event });
+}
+
+function attachLiveMessageListeners(path, isGroup, latestKey, session) {
+  if (!isCurrentMessageSession(path, session)) return;
+  var orderedRef = db.ref(path).orderByKey();
+  var additionsRef = latestKey ? orderedRef.startAt(latestKey) : orderedRef.limitToLast(1);
+  addMessageListener(additionsRef, 'child_added', function(child) {
+    handleLiveMessageAdded(path, isGroup, child, session);
+  });
+
+  // Keep the visible newest page reactive without subscribing to full chat history.
+  var visibleRef = db.ref(path).orderByKey().limitToLast(MESSAGE_PAGE_SIZE);
+  addMessageListener(visibleRef, 'child_changed', function(child) {
+    handleLiveMessageChanged(path, isGroup, child, session);
+  });
+  addMessageListener(visibleRef, 'child_removed', function(child) {
+    var removedKey = child.key;
+    db.ref(path + '/' + removedKey).once('value').then(function(snap) {
+      if (!snap.exists() && isCurrentMessageSession(path, session)) handleMessageRemoved(path, removedKey);
+    });
+  });
+}
+
+function syncMessagesFromServer(path, isGroup, session) {
+  var orderedRef = db.ref(path).orderByKey();
+  if (!currentMessageCache.length) {
+    return orderedRef.limitToLast(MESSAGE_PAGE_SIZE).once('value').then(function(snap) {
+      if (!isCurrentMessageSession(path, session)) return;
+      var messages = messagesFromSnapshot(snap);
+      currentMessageCache = messages;
+      hasMoreMessages = messages.length === MESSAGE_PAGE_SIZE;
+      currentMessageCache = renderInitialMessagePage(path, isGroup, messages, true);
+      return saveCachedMessages(path, currentMessageCache).then(function() {
+        var lastMessage = messages[messages.length - 1];
+        attachLiveMessageListeners(path, isGroup, lastMessage && lastMessage._key, session);
+      });
+    });
+  }
+
+  var cachedLast = currentMessageCache[currentMessageCache.length - 1];
+  var cachedLastKey = cachedLast && cachedLast._key;
+  return orderedRef.limitToLast(1).once('value').then(function(latestSnap) {
+    if (!isCurrentMessageSession(path, session)) return;
+    var serverLatestMessages = messagesFromSnapshot(latestSnap);
+    if (!serverLatestMessages.length) {
+      currentMessageCache = [];
+      hasMoreMessages = false;
+      renderInitialMessagePage(path, isGroup, [], true);
+      clearCachedMessages(path);
+      attachLiveMessageListeners(path, isGroup, null, session);
+      return;
+    }
+
+    var serverLatest = serverLatestMessages[serverLatestMessages.length - 1];
+    if (cachedLastKey && cachedLastKey > serverLatest._key) {
+      return orderedRef.limitToLast(MESSAGE_PAGE_SIZE).once('value').then(function(snap) {
+        if (!isCurrentMessageSession(path, session)) return;
+        var refreshed = messagesFromSnapshot(snap);
+        currentMessageCache = refreshed;
+        hasMoreMessages = refreshed.length === MESSAGE_PAGE_SIZE;
+        currentMessageCache = renderInitialMessagePage(path, isGroup, refreshed, true);
+        return clearCachedMessages(path).then(function() { return saveCachedMessages(path, currentMessageCache); }).then(function() {
+          var lastRefreshed = refreshed[refreshed.length - 1];
+          attachLiveMessageListeners(path, isGroup, lastRefreshed && lastRefreshed._key, session);
+        });
+      });
+    }
+
+    if (!cachedLastKey || cachedLastKey < serverLatest._key) {
+      return orderedRef.startAt(cachedLastKey || serverLatest._key).once('value').then(function(deltaSnap) {
+        if (!isCurrentMessageSession(path, session)) return;
+        deltaSnap.forEach(function(child) {
+          if (cachedLastKey && child.key === cachedLastKey) handleLiveMessageChanged(path, isGroup, child, session);
+          else handleLiveMessageAdded(path, isGroup, child, session);
+        });
+        var latest = currentMessageCache[currentMessageCache.length - 1];
+        attachLiveMessageListeners(path, isGroup, latest && latest._key, session);
+      });
+    }
+
+    handleLiveMessageChanged(path, isGroup, { key: serverLatest._key, val: function() { return serverLatest; } }, session);
+    attachLiveMessageListeners(path, isGroup, serverLatest._key, session);
+  });
+}
+
+function loadOlderMessages(path, isGroup) {
+  if (isLoadingMore || !hasMoreMessages || !firstMessageKey || path !== currentMessagePath) return;
+  isLoadingMore = true;
+  var session = messageSessionId;
+  var box = document.getElementById('messages');
+  var oldHeight = box.scrollHeight;
+  var oldTop = box.scrollTop;
+  var cursor = firstMessageKey;
+  var cachedOlder = currentMessageCache.filter(function(message) { return message._key < cursor; }).slice(-MESSAGE_PAGE_SIZE);
+  var indicator = document.createElement('div');
+  indicator.id = 'olderMessagesSpinner';
+  indicator.textContent = 'Loading earlier messages…';
+  indicator.className = 'message-load-indicator';
+  box.insertBefore(indicator, box.firstChild);
+
+  function prepend(messages, fromServer) {
+    if (!isCurrentMessageSession(path, session)) { isLoadingMore = false; return; }
+    indicator.remove();
+    messages = sortCachedMessages(messages).filter(function(message) { return message._key < cursor && !renderedMessageKeys[message._key]; });
+    if (!messages.length) {
+      if (fromServer) hasMoreMessages = false;
+      isLoadingMore = false;
+      return;
+    }
+    var fragment = document.createDocumentFragment();
+    messages.forEach(function(message) {
+      renderedMessageKeys[message._key] = true;
+      seenMessageIds.add(currentChat + '_' + message._key);
+      renderMessage(message, isGroup, fragment);
+    });
+    box.insertBefore(fragment, box.firstChild);
+    firstMessageKey = messages[0]._key;
+    if (fromServer && messages.length < MESSAGE_PAGE_SIZE) hasMoreMessages = false;
+    markMessagesOpened(path, messages);
+    box.scrollTop = oldTop + (box.scrollHeight - oldHeight);
+    isLoadingMore = false;
+  }
+
+  if (cachedOlder.length) {
+    prepend(cachedOlder, false);
+    return;
+  }
+
+  // endAt includes the cursor; filtering it out yields at most one page of older messages.
+  db.ref(path).orderByKey().endAt(cursor).limitToLast(MESSAGE_PAGE_SIZE + 1).once('value').then(function(snap) {
+    if (!isCurrentMessageSession(path, session)) { isLoadingMore = false; return; }
+    var messages = messagesFromSnapshot(snap).filter(function(message) { return message._key < cursor; }).slice(-MESSAGE_PAGE_SIZE);
+    currentMessageCache = sortCachedMessages(currentMessageCache.concat(messages));
+    saveCachedMessages(path, messages);
+    prepend(messages, true);
+  }).catch(function(error) {
+    console.error('Could not load older messages:', error);
+    indicator.remove();
+    isLoadingMore = false;
+    showToast('Could not load earlier messages. Try again.');
+  });
+}
+
+function loadMessages(path, isGroup, append) {
+  if (append) return loadOlderMessages(path, isGroup);
+  var box = document.getElementById('messages');
+  var session = messageSessionId;
+  currentMessagePath = path;
+  currentMessageCache = [];
+  renderedMessageKeys = {};
+  messageLimit = MESSAGE_PAGE_SIZE;
+  hasMoreMessages = true;
+  firstMessageKey = null;
+  isLoadingMore = false;
+  initialMessageLoad = true;
+  box.innerHTML = '<div id="loadMoreSpinner" class="message-load-indicator">Loading messages…</div>';
+
+  readCachedMessages(path).then(function(cachedMessages) {
+    if (!isCurrentMessageSession(path, session)) return;
+    currentMessageCache = cachedMessages;
+    if (cachedMessages.length) {
+      renderInitialMessagePage(path, isGroup, cachedMessages.slice(-MESSAGE_PAGE_SIZE));
+      hasMoreMessages = true;
+    }
+    return syncMessagesFromServer(path, isGroup, session);
+  }).catch(function(error) {
+    console.error('Could not load messages:', error);
+    if (isCurrentMessageSession(path, session) && !currentMessageCache.length) {
+      box.innerHTML = '<div class="message-load-indicator">Could not load messages. Check your connection and reopen the chat.</div>';
+      initialMessageLoad = false;
+    }
+  });
+}
+
+// Fetch another small page only when the user reaches the top of the current chat.
+document.getElementById('messages').addEventListener('scroll', function() {
+  if (initialMessageLoad || this.scrollTop >= 50 || isLoadingMore || !hasMoreMessages || !currentChat) return;
+  var path = currentChatType === 'group' ? 'groupMessages/' + currentChat : 'messages/' + currentChat;
+  loadOlderMessages(path, currentChatType === 'group');
 });
 
 function getMemberColor(memberId) {
@@ -3007,10 +3397,9 @@ function uploadImageData(base64Data) {
 
 function deleteMsg(key) {
   if (!currentChat) return;
-  var path = currentChatType === 'group'
-    ? 'groupMessages/' + currentChat + '/' + key
-    : 'messages/' + currentChat + '/' + key;
-  db.ref(path).remove().then(function() {
+  var chatPath = currentChatType === 'group' ? 'groupMessages/' + currentChat : 'messages/' + currentChat;
+  db.ref(chatPath + '/' + key).remove().then(function() {
+    if (currentMessagePath === chatPath) handleMessageRemoved(chatPath, key);
     showToast('Message deleted');
   });
 }
@@ -3019,6 +3408,12 @@ function deleteChat() {
   if (!currentChat || !confirm('Delete this entire chat?')) return;
   var path = currentChatType === 'group' ? 'groupMessages/' + currentChat : 'messages/' + currentChat;
   db.ref(path).remove().then(function() {
+    currentMessageCache = [];
+    renderedMessageKeys = {};
+    firstMessageKey = null;
+    hasMoreMessages = false;
+    clearCachedMessages(path);
+    document.getElementById('messages').innerHTML = '';
     showToast('Chat deleted');
     document.getElementById('emptyState').style.display = 'flex';
     document.getElementById('chatMain').style.display = 'none';
@@ -3502,10 +3897,15 @@ function sendCapturedImage(base64Data) {
 }
 
 function clearMessageListeners() {
+  messageSessionId++;
   messageListeners.forEach(function(l) {
     l.ref.off(l.event, l.listener);
   });
   messageListeners = [];
+  currentMessagePath = null;
+  currentMessageCache = [];
+  renderedMessageKeys = {};
+  isLoadingMore = false;
 }
 
 // Load theme preference

@@ -764,6 +764,14 @@ body {
   border-radius: 2px;
 }
 
+.message-load-indicator {
+  flex: 0 0 auto;
+  padding: 10px;
+  color: var(--text-muted-dark);
+  font-size: 12px;
+  text-align: center;
+}
+
 .msg-container {
   display: flex;
   flex-direction: column;
